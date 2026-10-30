@@ -48,20 +48,19 @@ function targets(buy, sell, init) {
 const applied = (tg, init, delay) => tg.map((_, j) => j - 1 - delay >= 0 ? tg[j - 1 - delay] : init);
 
 // px: 매매종목 가격, w[j]: j일 시작(전일 종가) 시점 목표비중.
-// cashRate: 연 현금이자(소수), taxRate: 양도차익 세율(소수, 연 단위 손익통산 후 해당 연도 마지막 거래일에 납부)
+// cashRate: 연 현금이자(소수), taxRate: 매도 수익에 대한 세율(소수, 매도 건별)
 function simulate(dates, px, w, o) {
   const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
-  let S = w[0] * 100, C = 100 - S, B = S, yg = 0, paid = 0, trades = 0;
+  let S = w[0] * 100, C = 100 - S, B = S, paid = 0, trades = 0;
   const eq = [100];
   for (let j = 1; j < n; j++) {
     const V = S + C, tS = w[j] * V;
-    if (tS < S - 1e-9) { const sold = S - tS, g = sold - B * (sold / S); B -= B * (sold / S); yg += g; S = tS; C = V - S; trades++; }
+    if (tS < S - 1e-9) { // 매도: 실현이익(매도금액-평균단가 원가)에만 세율 적용, 손실이면 0 (통산·공제 없음)
+      const sold = S - tS, cost = B * (sold / S), t = Math.max(0, sold - cost) * tax;
+      B -= cost; S = tS; C = V - S - t; paid += t; trades++;
+    }
     else if (tS > S + 1e-9) { B += tS - S; S = tS; C = V - S; trades++; }
     S *= px[j] / px[j - 1]; C *= 1 + cd;
-    if (j == n - 1 || dates[j].slice(0, 4) != dates[j + 1].slice(0, 4)) {
-      if (yg > 0 && tax > 0) { const t = Math.min(yg * tax, S + C), f = 1 - t / (S + C); S *= f; C *= f; B *= f; paid += t; }
-      yg = 0;
-    }
     eq.push(S + C);
   }
   return { eq, paid, trades };

@@ -38,7 +38,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>신호 후 체결 지연(일)</label><input id="delay" type="number" min="0" value="0">
 <label>수수료(%, 돌파 방식)</label><input id="fee" type="number" step="0.01" min="0" value="0">
 <label>매도 차익 세율(%)</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
-<div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 연 단위 손익통산 후 해당 연도 마지막 거래일에 납부(전략만 적용, 보유 비교는 세전). 미실현 이익은 과세 안 함.</div></div>
+<div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 매도할 때마다 매도 수익(매도금액-평균단가)의 세율만큼 납부, 손실은 0(전략만 적용, 보유 비교는 세전). 미실현 이익은 과세 안 함.</div></div>
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
