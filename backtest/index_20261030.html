@@ -60,11 +60,15 @@ async function run(){$('err').textContent='';try{
 const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),cmp=$('cmp').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),s=$('s').value,e=$('e').value;
 if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,delay=Math.max(0,Math.floor(+$('delay').value||0));
-const syms=[...new Set([sig,trd,...cmp])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,s,e))));
-const dates=[...data[sig].keys()].filter(d=>syms.every(x=>data[x].has(d))).sort();if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
-const P=x=>dates.map(d=>data[x].get(d)),bc=readConds('buy'),sc=readConds('sell');if(!bc.length)throw Error('매수 조건을 1개 이상 추가하세요');
-for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price'&&!(n>=2&&Number.isInteger(n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');
-const buy=evalConds(P(sig),bc),sell=evalConds(P(sig),sc),w=applied(targets(buy,sell,init),init,delay);
+const bc=readConds('buy'),sc=readConds('sell');if(!bc.length)throw Error('매수 조건을 1개 이상 추가하세요');
+let maxN=0;for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price'){if(!(n>=2&&Number.isInteger(n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');maxN=Math.max(maxN,n)}
+// 이평선 워밍업: 시작일 이전 데이터도 받아 시작 첫날부터 이평선이 계산되게 함
+const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
+const syms=[...new Set([sig,trd,...cmp])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,x==sig?xs:s,e))));
+const full=[...data[sig].keys()].sort(),dates=full.filter(d=>d>=s&&syms.every(x=>data[x].has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+const P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>full.indexOf(d));
+const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
+const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc)),w=applied(targets(buy,sell,init),init,delay);
 const sim=simulate(dates,P(trd),w,{cashRate:(+$('cash').value||0)/100,taxRate:(+$('tax').value||0)/100});
 const out=[{name:`전략(${sig} 신호→${trd})`,e:sim.eq},{name:`${trd} 보유`,e:buyHold(P(trd))},...[...new Set([sig,...cmp])].filter(x=>x!=trd).map(x=>({name:`${x} 보유`,e:buyHold(P(x))}))];
 out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates);
