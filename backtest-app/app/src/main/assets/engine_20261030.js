@@ -79,4 +79,42 @@ function stats(e, dates) {
   return { tot: e[n - 1] / e[0] - 1, cagr: (e[n - 1] / e[0]) ** (1 / yrs) - 1, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0, yr };
 }
 
-if (typeof module !== 'undefined') module.exports = { ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+// ---- 돌파/이탈 이벤트 방식 (이평선 백테스터 아티팩트와 동일 규칙) ----
+// 가격이 이평선을 위로 돌파한 날(up)/아래로 이탈한 날(dn) 신호. 전일 <= 이평 && 당일 > 이평 (이탈은 반대).
+function crossFlags(px, n) {
+  const m = ma(px, n, false), up = [], dn = [];
+  for (let i = 0; i < px.length; i++) {
+    const ok = i > 0 && !isNaN(m[i - 1]);
+    up.push(ok && px[i - 1] <= m[i - 1] && px[i] > m[i]);
+    dn.push(ok && px[i - 1] >= m[i - 1] && px[i] < m[i]);
+  }
+  return { up, dn };
+}
+// buys: [{r:현금 비율, f:bool[](dates 정렬)}], sells: [{r:보유 비율, f}]. o: {delay>=1, init, cashRate, tax, fee}
+// 시작일 종가에 init 비율 매수. 신호일 i의 주문은 i+delay 거래일 종가 체결, 같은 날은 매도 먼저(규칙 순서).
+// 현금이자는 달력일 기준 365일 복리, 세금은 매도 건별 평균단가 대비 이익에만(손실 0, 통산·공제 없음).
+function simulateEvents(dates, px, buys, sells, o) {
+  const n = px.length, dr = Math.pow(1 + (o.cashRate || 0), 1 / 365) - 1, fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
+  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0; const orders = {}, eq = [], w = [];
+  const amt0 = cash * o.init; if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; trades++; }
+  for (let i = 0; i < n; i++) {
+    if (i > 0) cash *= Math.pow(1 + dr, (new Date(dates[i]) - new Date(dates[i - 1])) / 864e5);
+    (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
+      if (od.s) {
+        if (!(sh > 0)) return;
+        const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
+        basis -= cost; sh -= q; cash += amt - t; paid += t; trades++;
+      } else {
+        if (!(cash > 0)) return;
+        const amt = cash * od.r; cash -= amt; sh += amt * (1 - fee) / px[i]; basis += amt; trades++;
+      }
+    });
+    const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k }); };
+    sells.forEach((r, k) => add(true, r, k, r.f[i]));
+    buys.forEach((r, k) => add(false, r, k, r.f[i]));
+    const v = cash + sh * px[i]; eq.push(v); w.push(v ? sh * px[i] / v : 0);
+  }
+  return { eq, paid, trades, w };
+}
+
+if (typeof module !== 'undefined') module.exports = { crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
