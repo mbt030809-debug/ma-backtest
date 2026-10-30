@@ -25,6 +25,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         web = WebView(this)
         web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true // localStorage: 설정 유지
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(v: WebView, r: WebResourceRequest): WebResourceResponse? {
                 val u = r.url

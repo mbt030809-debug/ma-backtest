@@ -48,7 +48,8 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <script src="/engine_20261030.js"></script>
 <script>
 const $=id=>document.getElementById(id),COL=['#2b6cf6','#e8590c','#2f9e44','#ae3ec9','#f08c00','#0c8599'];
-$('mode').onchange=()=>{const c=$('mode').value=='cross';$('crossBox').style.display=c?'':'none';$('stateBox').style.display=c?'none':'';if(c){$('init').value=100;$('delay').value=Math.max(1,+$('delay').value||1);$('cash').value=4;$('tax').value=22}else{$('init').value=0}};
+const showMode=()=>{const c=$('mode').value=='cross';$('crossBox').style.display=c?'':'none';$('stateBox').style.display=c?'none':''};
+$('mode').onchange=()=>{showMode();const c=$('mode').value=='cross';if(c){$('init').value=100;$('delay').value=Math.max(1,+$('delay').value||1);$('cash').value=4;$('tax').value=22}else{$('init').value=0}};
 $('e').value=new Date().toISOString().slice(0,10);
 const opnd=(k,n)=>`<select class="${k}k"><option value="price">종가</option><option value="sma">SMA</option><option value="ema">EMA</option></select><input class="${k}n" type="number" min="2" value="${n}">`;
 function addCond(t,l,ln,r,rn){const d=document.createElement('div');d.className='row';
@@ -60,7 +61,14 @@ if(i==0)ld.innerHTML='<b>조건</b>';else if(!has)ld.innerHTML='<select class="c
 for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelector('.'+k+'k').value=='price'?'none':''}})}
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
-addCond('buy','price',0,'sma',200);$('mode').onchange();
+// 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','bn1','br1','bn2','br2','sn1','sr1','sn2','sr2'];
+function save(){try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});
+for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
+showMode();return true}catch(e){return false}}
+if(!restore()){addCond('buy','price',0,'sma',200);$('mode').onchange()}
+addEventListener('change',save);addEventListener('click',()=>setTimeout(save,0));
 async function load(sym,s,e){const r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${s}&end=${e}`);const j=await r.json();if(j.error)throw Error(j.error);return j}
 const rt=a=>a.map((v,i)=>i?v/a[i-1]-1:0),eqOf=r=>{const o=[100];for(let i=1;i<r.length;i++)o.push(o[i-1]*(1+r[i]));return o};
 const pc=v=>(v*100).toFixed(1)+'%',cl=v=>v>=0?'pos':'neg';
