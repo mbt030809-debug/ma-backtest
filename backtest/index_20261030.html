@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ETF 백테스터</title>
+<style>
+:root{--bg:#fff;--fg:#1c2230;--mut:#6b7385;--card:#f4f6fa;--bd:#d9deea;--ac:#2b6cf6}
+@media(prefers-color-scheme:dark){:root{--bg:#12151c;--fg:#e6e9f0;--mut:#8f98ad;--card:#1b2030;--bd:#2c3347;--ac:#6d9bff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0 0 12px}h2{font-size:15px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+label{color:var(--mut);font-size:12px}input,select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 8px}
+input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}th:first-child,td:first-child{text-align:left}
+.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:340px;display:block}
+.lg{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:12px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
+#err{color:#e03131;margin:6px 0}.mut{color:var(--mut);font-size:12px}
+</style></head><body><main>
+<h1>ETF 백테스터 (미국)</h1>
+<div class="card"><h2>종목 · 기간</h2>
+<div class="row">
+<label>기준 지표(신호)</label><input id="sig" type="text" value="SPY">
+<label>실제 매매</label><input id="trd" type="text" value="SSO">
+<label>비교 종목(쉼표)</label><input id="cmp" type="text" value="QQQ">
+</div>
+<div class="row"><label>시작</label><input id="s" type="date" value="2010-01-01"><label>종료</label><input id="e" type="date"></div></div>
+<div class="card"><h2>매수 조건 (충족 시 보유)</h2><div id="buy"></div><button class="add" data-t="buy">+ 매수 조건</button></div>
+<div class="card"><h2>매도 조건 (충족 시 전량 현금화)</h2><div id="sell"></div><button class="add" data-t="sell">+ 매도 조건</button>
+<div class="mut">매도 조건이 없으면 매수 조건이 깨질 때 매도. 둘 다 충족하면 매도 우선. 조건은 위에서 아래로 순서대로 AND/OR 결합.</div></div>
+<div class="card"><h2>옵션</h2><div class="row">
+<label>초기 주식비율(%)</label><input id="init" type="number" min="0" max="100" value="0">
+<label>현금 이자(연 %)</label><input id="cash" type="number" step="0.1" min="0" value="0">
+<label>신호 후 체결 지연(일)</label><input id="delay" type="number" min="0" value="0">
+<label>매도 차익 세율(%)</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
+<div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 연 단위 손익통산 후 해당 연도 마지막 거래일에 납부(전략만 적용, 보유 비교는 세전). 미실현 이익은 과세 안 함.</div></div>
+<div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
+<div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
+<div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
+<div class="card"><h2>요약</h2><div class="tbl"><table id="sum"></table></div></div>
+<div class="card"><h2>연도별 수익률</h2><div class="tbl"><table id="yr"></table></div></div>
+</main>
+<script src="/engine_20261030.js"></script>
+<script>
+const $=id=>document.getElementById(id),COL=['#2b6cf6','#e8590c','#2f9e44','#ae3ec9','#f08c00','#0c8599'];
+$('e').value=new Date().toISOString().slice(0,10);
+const opnd=(k,n)=>`<select class="${k}k"><option value="price">종가</option><option value="sma">SMA</option><option value="ema">EMA</option></select><input class="${k}n" type="number" min="2" value="${n}">`;
+function addCond(t,l,ln,r,rn){const d=document.createElement('div');d.className='row';
+d.innerHTML='<span class="lead"></span>'+opnd('l',ln)+'<select class="op"><option value=">">&gt;</option><option value="<">&lt;</option></select>'+opnd('r',rn)+'<button class="x">✕</button>';
+d.querySelector('.lk').value=l;d.querySelector('.rk').value=r;d.querySelector('.x').onclick=()=>{d.remove();fix(t)};
+for(const k of['l','r'])d.querySelector('.'+k+'k').onchange=()=>fix(t);$(t).appendChild(d);fix(t)}
+function fix(t){[...$(t).children].forEach((d,i)=>{const ld=d.querySelector('.lead'),has=ld.querySelector('.cn');
+if(i==0)ld.innerHTML='<b>조건</b>';else if(!has)ld.innerHTML='<select class="cn"><option>AND</option><option>OR</option></select>';
+for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelector('.'+k+'k').value=='price'?'none':''}})}
+const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
+document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
+addCond('buy','price',0,'sma',200);
+async function load(sym,s,e){const r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${s}&end=${e}`);const j=await r.json();if(j.error)throw Error(j.error);return j}
+const rt=a=>a.map((v,i)=>i?v/a[i-1]-1:0),eqOf=r=>{const o=[100];for(let i=1;i<r.length;i++)o.push(o[i-1]*(1+r[i]));return o};
+const pc=v=>(v*100).toFixed(1)+'%',cl=v=>v>=0?'pos':'neg';
+async function run(){$('err').textContent='';try{
+const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),cmp=$('cmp').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),s=$('s').value,e=$('e').value;
+if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');
+const init=Math.min(100,Math.max(0,+$('init').value||0))/100,delay=Math.max(0,Math.floor(+$('delay').value||0));
+const syms=[...new Set([sig,trd,...cmp])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,s,e))));
+const dates=[...data[sig].keys()].filter(d=>syms.every(x=>data[x].has(d))).sort();if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+const P=x=>dates.map(d=>data[x].get(d)),bc=readConds('buy'),sc=readConds('sell');if(!bc.length)throw Error('매수 조건을 1개 이상 추가하세요');
+for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price'&&!(n>=2&&Number.isInteger(n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');
+const buy=evalConds(P(sig),bc),sell=evalConds(P(sig),sc),w=applied(targets(buy,sell,init),init,delay);
+const sim=simulate(dates,P(trd),w,{cashRate:(+$('cash').value||0)/100,taxRate:(+$('tax').value||0)/100});
+const out=[{name:`전략(${sig} 신호→${trd})`,e:sim.eq},{name:`${trd} 보유`,e:buyHold(P(trd))},...[...new Set([sig,...cmp])].filter(x=>x!=trd).map(x=>({name:`${x} 보유`,e:buyHold(P(x))}))];
+out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates);
+$('lg').innerHTML=out.map(o=>`<span><i style="background:${o.c}"></i>${o.name}</span>`).join('');
+const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
+$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산</td></tr>`;
+const ys=Object.keys(out[0].st.yr);$('yr').innerHTML='<tr><th>연도</th>'+out.map(o=>`<th>${o.name}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${out.map(o=>`<td class="${cl(o.st.yr[y])}">${pc(o.st.yr[y])}</td>`).join('')}</tr>`).join('');
+window._last=[out,dates]}catch(x){$('err').textContent=x.message}}
+function draw(out,dates){const c=$('cv'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
+const lg=$('log').checked,f=v=>lg?Math.log(v):v,all=out.flatMap(o=>o.e).map(f),lo=Math.min(...all),hi=Math.max(...all),L=50,B=22,T=8,R=8,n=dates.length;
+const X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');
+for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((lg?Math.exp(v):v).toFixed(0),4,y+4)}
+let ly='';dates.forEach((d,i)=>{if(d.slice(0,4)!=ly){ly=d.slice(0,4);g.fillText(ly,X(i),H-6)}});
+out.forEach(o=>{g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()})}
+$('run').onclick=run;$('log').onchange=()=>window._last&&draw(...window._last);addEventListener('resize',()=>window._last&&draw(...window._last));
+</script></body></html>
