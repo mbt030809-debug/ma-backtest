@@ -65,7 +65,7 @@ function simulate(dates, px, w, o) {
     S *= px[j] / px[j - 1]; intr += C * cd; C *= 1 + cd;
     eq.push(S + C); eqL.push(S + C - tax * Math.max(0, S - B)); // eqL: 지금 청산한다고 가정한 세후 가치(미실현 이익에도 과세)
   }
-  return { eq, eqL, paid, trades, list, pnl: { x: ssum - bsum + S, y: [], int: intr, tax: paid, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, paid, trades, list, pnl: { x: ssum - bsum + S, y: [], int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 
@@ -76,31 +76,31 @@ function simulate(dates, px, w, o) {
 function simulateEventsAlt(dates, px, py, buys, sells, o) {
   const ys = Array.isArray(py[0]) ? py : [py], K = ys.length;
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
-  let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0;
+  let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0;
   const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], w = [], list = [];
   const a0 = 100 * o.init, y0 = 100 - a0;
-  if (a0 > 0) { sh = a0 * (1 - fee) / px[0]; basis = a0; bX += a0; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: sh, amt: a0, tax: 0, cash, sh }); }
-  if (y0 > 0) for (let k = 0; k < K; k++) { const a = y0 / K; shy[k] = a * (1 - fee) / ys[k][0]; basy[k] = a; bY[k] += a; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: shy[k], amt: a, tax: 0, cash, sh: shy[k] }); }
+  if (a0 > 0) { sh = a0 * (1 - fee) / px[0]; basis = a0; bX += a0; fees += a0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: sh, amt: a0, tax: 0, cash, sh }); }
+  if (y0 > 0) for (let k = 0; k < K; k++) { const a = y0 / K; shy[k] = a * (1 - fee) / ys[k][0]; basy[k] = a; bY[k] += a; fees += a * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: shy[k], amt: a, tax: 0, cash, sh: shy[k] }); }
   for (let i = 0; i < n; i++) {
     if (i > 0) { const c0 = cash; cash *= ig[i]; intr += cash - c0; }
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.s) { // X 매도 → 방어자산(들) 매수
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
-        basis -= cost; sh -= q; paid += t; sX += amt; trades++;
+        basis -= cost; sh -= q; paid += t; sX += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
         list.push({ i, si: od.si, side: 'S', asset: 'X', rule: od.label, price: px[i], qty: q, amt, gain: amt - cost, tax: t, cash, sh });
         const net = amt - t;
-        for (let k = 0; k < K; k++) { const a = net / K, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; trades++;
+        for (let k = 0; k < K; k++) { const a = net / K, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
           list.push({ i, si: od.si, side: 'B', asset: 'Y', yi: k, rule: od.label + ' 대금', price: ys[k][i], qty: qy, amt: a, tax: 0, cash, sh: shy[k] }); }
       } else { // 방어자산(들) 매도 → X 매수
         let net = 0;
         for (let k = 0; k < K; k++) { if (!(shy[k] > 0)) continue;
           const qy = shy[k] * od.r, amtY = qy * ys[k][i] * (1 - fee), costY = basy[k] * od.r, tY = Math.max(0, amtY - costY) * tax;
-          basy[k] -= costY; shy[k] -= qy; paid += tY; sY[k] += amtY; trades++; net += amtY - tY;
+          basy[k] -= costY; shy[k] -= qy; paid += tY; sY[k] += amtY; fees += fee < 1 ? amtY / (1 - fee) * fee : 0; trades++; net += amtY - tY;
           list.push({ i, si: od.si, side: 'S', asset: 'Y', yi: k, rule: od.label + ' 자금', price: ys[k][i], qty: qy, amt: amtY, gain: amtY - costY, tax: tY, cash, sh: shy[k] }); }
         const c = cash * od.r; cash -= c; net += c;
         if (!(net > 0)) return;
-        const q = net * (1 - fee) / px[i]; sh += q; basis += net; bX += net; trades++;
+        const q = net * (1 - fee) / px[i]; sh += q; basis += net; bX += net; fees += net * fee; trades++;
         list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, price: px[i], qty: q, amt: net, tax: 0, cash, sh });
       }
     });
@@ -110,7 +110,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += Math.max(0, v - basy[k]); }
     const v = cash + vx + vy; eq.push(v); eqL.push(v - tax * Math.max(0, vx - basis) - tax * ut); w.push(v ? vx / v : 0);
   }
-  return { eq, eqL, paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 // 상태 유지 방식(목표 비중 w[j])의 방어자산 버전: X 비중 w, 나머지는 방어자산(들)
 function simulateAlt(dates, px, py, w, o) {
@@ -139,7 +139,7 @@ function simulateAlt(dates, px, py, w, o) {
     let ut = 0, sY = 0; for (let k = 0; k < K; k++) { sY += Y[k]; ut += Math.max(0, Y[k] - bY[k]); }
     eq.push(X + sY + C); eqL.push(X + sY + C - tax * Math.max(0, X - bX) - tax * ut);
   }
-  return { eq, eqL, paid, trades, list, pnl: { x: sXs - bXs + X, y: Y.map((v, k) => sYs[k] - bYs[k] + v), int: intr, tax: paid, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, paid, trades, list, pnl: { x: sXs - bXs + X, y: Y.map((v, k) => sYs[k] - bYs[k] + v), int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 const buyHold = px => px.map(v => v / px[0] * 100);
@@ -190,20 +190,20 @@ function statsLite(e, yrs) {
 // 현금이자는 달력일 기준 365일 복리, 세금은 매도 건별 평균단가 대비 이익에만(손실 0, 통산·공제 없음).
 function simulateEvents(dates, px, buys, sells, o) {
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
-  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0; const orders = {}, eq = [], eqL = [], w = [];
+  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0, fees = 0; const orders = {}, eq = [], eqL = [], w = [];
   const list = [], amt0 = cash * o.init;
-  if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; bsum += amt0; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
+  if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; bsum += amt0; fees += amt0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
   for (let i = 0; i < n; i++) {
     if (i > 0) { const c0 = cash; cash *= ig[i]; intr += cash - c0; }
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.s) {
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
-        basis -= cost; sh -= q; cash += amt - t; paid += t; ssum += amt; trades++; if (o.log) o.log.push({ j: i, sold: amt, cost, t, p: px[i], q });
+        basis -= cost; sh -= q; cash += amt - t; paid += t; ssum += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++; if (o.log) o.log.push({ j: i, sold: amt, cost, t, p: px[i], q });
         list.push({ i, si: od.si, side: 'S', rule: od.label, price: px[i], qty: q, amt, gain: amt - cost, tax: t, cash, sh });
       } else {
         if (!(cash > 0)) return;
-        const amt = cash * od.r; const q = amt * (1 - fee) / px[i]; cash -= amt; sh += q; basis += amt; bsum += amt; trades++;
+        const amt = cash * od.r; const q = amt * (1 - fee) / px[i]; cash -= amt; sh += q; basis += amt; bsum += amt; fees += amt * fee; trades++;
         list.push({ i, si: od.si, side: 'B', rule: od.label, price: px[i], qty: q, amt, tax: 0, cash, sh });
       }
     });
@@ -212,7 +212,7 @@ function simulateEvents(dates, px, buys, sells, o) {
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const v = cash + sh * px[i]; eq.push(v); eqL.push(v - tax * Math.max(0, sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
   }
-  return { eq, eqL, paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 if (typeof module !== 'undefined') module.exports = { simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
