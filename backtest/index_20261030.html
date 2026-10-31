@@ -59,6 +59,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <progress id="altp" value="0" max="1" style="width:100%;display:none"></progress>
 <details><summary>옵션 (후보 개수 · 직접 후보 · 차트 개수 · 직접 지정)</summary>
 <div class="row"><label>나스닥 상관이 낮은 순 상위</label><input id="altn" type="number" min="1" max="2000" value="1000" style="width:80px"><label>개를 비교 · 상관 기준 지수</label><input id="altref" type="text" value="^NDX" style="width:90px"></div>
+<div class="row"><label>항상 포함할 ETF</label><input id="altpin" type="text" placeholder="상관과 상관없이 꼭 비교할 ETF · 예: XLV,SCHD" style="width:100%"></div>
 <div class="row"><label>직접 후보(선택)</label><input id="altlist" type="text" placeholder="비우면 규모순 목록 사용 · 예: TLT,GLD,SHY" style="width:100%"></div>
 
 
@@ -110,7 +111,7 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altk'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk'];
 function altBadge(){const v=($('alt').value||'').trim().toUpperCase(),el=$('altbadge');if(!el)return;if(!v){el.innerHTML='';return}el.innerHTML=`🛡 방어자산 <b>${v.replace(/[^A-Z0-9.^=,\-+]/g,'')}</b> 적용 중 (매도 대금을 현금 대신 보유) <button id="altclr" type="button">해제(현금)</button>`;$('altclr').onclick=()=>{$('alt').value='';altBadge();save();run()}}
 function save(){altBadge();try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;
@@ -396,7 +397,7 @@ const line=(r,i)=>{const yy=r.pnl.y.reduce((a,b)=>a+b,0),oth=r.pnl.int-r.pnl.tax
 $('altt').innerHTML=`<tr><th>순위</th><th>ETF</th><th>이름</th><th>나스닥 상관</th><th>구간</th><th>${trdN} 손익</th><th>방어 ETF 손익</th><th>이자·세금</th><th>합산 손익</th><th>합산 CAGR</th><th>합산 MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th><th>기존(현금) 대비</th></tr>`+line(base,0)+baskets.map(r=>line(r,0)).join('')+rows.map((r,i)=>line(r,i)).join('');
 $('altt').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();run();scrollTo({top:0,behavior:'smooth'})});
 const top=rows[0],better=rows.filter(r=>r.st[key=='comp'?'so':key]>base.st[key=='comp'?'so':key]).length;
-$('altnote').innerHTML=top?`${d.byCorr?`후보 풀 ${d.total}개 → 기간 전체 데이터 있음 ${d.pool}개 → <b>${d.ref} 상관이 낮은 순 ${d.usable}개</b>${d.noCorr?`(상관 계산 불가 ${d.noCorr}개 제외)`:''} 비교`:`직접 입력 후보 ${d.total}개 중 비교 ${rows.length}개`}${d.late.length+d.ended.length?` · <b>백테스트 기간에 데이터가 없어 제외 ${d.late.length+d.ended.length}개</b>(상장이 시작일보다 늦음 ${d.late.length}, 데이터 종료 ${d.ended.length} — 시작일을 늦추면 새 ETF도 포함)`:''}${d.bad.length?` · 데이터 없음/오류 ${d.bad.length}개`:''}.<br>※ 백테스트 기간 전체에 데이터가 있는 ETF만 비교(배당 재투자 총수익). 과거 성과이며 미래를 보장하지 않음. 행을 누르면 그 ETF로 일반 실행.${d.late.length+d.ended.length?`<details><summary>기간 부족으로 제외된 ETF</summary>${[...d.late,...d.ended].join(', ')}</details>`:''}${d.bad.length?`<details><summary>데이터 없는 ETF</summary>${d.bad.join(', ')}</details>`:''}`:'비교할 후보가 없습니다';renderAltExtra(d,rows,base,key)}
+$('altnote').innerHTML=top?`${d.byCorr?`후보 풀 ${d.total}개 → 기간 전체 데이터 있음 ${d.pool}개 → <b>${d.ref} 상관이 낮은 순 ${d.usable}개</b>${d.noCorr?`(상관 계산 불가 ${d.noCorr}개 제외)`:''} 비교`:`직접 입력 후보 ${d.total}개 중 비교 ${rows.length}개`}${d.late.length+d.ended.length?` · <b>백테스트 기간에 데이터가 없어 제외 ${d.late.length+d.ended.length}개</b>(상장이 시작일보다 늦음 ${d.late.length}, 데이터 종료 ${d.ended.length} — 시작일을 늦추면 새 ETF도 포함)`:''}${d.bad.length?` · 데이터 없음/오류 ${d.bad.length}개`:''}.<br>※ 백테스트 기간 전체에 데이터가 있는 ETF만 비교(배당 재투자 총수익). 과거 성과이며 미래를 보장하지 않음. 행을 누르면 그 ETF로 일반 실행.${d.corrOut&&d.corrOut.length?`<details><summary>나스닥 상관이 높아 제외된 ETF ${d.corrOut.length}개 (상관 낮은 순 ${d.usable}개 밖) — 꼭 보고 싶으면 위 옵션 "항상 포함할 ETF"나 개수를 늘리세요</summary>${d.corrOut.join(', ')}</details>`:''}${d.pins&&d.pins.length?`<div class="mut">항상 포함: ${d.pins.join(', ')}</div>`:''}${d.late.length+d.ended.length?`<details><summary>기간 부족으로 제외된 ETF</summary>${[...d.late,...d.ended].join(', ')}</details>`:''}${d.bad.length?`<details><summary>데이터 없는 ETF</summary>${d.bad.join(', ')}</details>`:''}`:'비교할 후보가 없습니다';renderAltExtra(d,rows,base,key)}
 
 // ---- 현금보다 나은 방어자산 목록 + 차트 + 비교표 ----
 function lineChart(id,out,dates){const c=$(id),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight||320;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
@@ -443,7 +444,8 @@ async function altScan(){const el={set textContent(v){$('alterr').textContent=v;
 const typed=$('altlist').value.trim(),N=Math.max(1,Math.min(2000,+$('altn').value||1000)),ref=($('altref').value.trim()||'^NDX').toUpperCase();checkSyms([ref]);
 const trdSym=$('trd').value.trim().toUpperCase();
 let cands=typed?[...new Set(typed.split(/[\s,]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))]:(await getUniverse());
-cands=[...new Set(cands)].filter(x=>SYM_OK.test(x)&&x!==trdSym&&x!==ref);
+const pins=[...new Set($('altpin').value.split(/[\s,]+/).map(x=>x.trim().toUpperCase()).filter(x=>x&&SYM_OK.test(x)&&x!==trdSym&&x!==ref))];
+cands=[...new Set([...cands,...pins])].filter(x=>SYM_OK.test(x)&&x!==trdSym&&x!==ref);
 const e=$('e').value,sd=$('s').value,info={},t0=performance.now();let idx=0,done=0;
 $('altp').style.display='';$('altp').max=cands.length;$('altp').value=0;el.textContent=`후보 풀 ${cands.length}개 시세 받는 중…`;
 const eta=(d,tot,t)=>{const el2=(performance.now()-t)/1000,r=d/Math.max(el2,.001);return `경과 ${fmtT(el2)} · 남은 약 ${fmtT((tot-d)/r)}`};
@@ -456,11 +458,11 @@ const ok=cands.filter(c=>info[c]),bad=cands.filter(c=>!info[c]).map(c=>c+'(데�
 const late=ok.filter(c=>dday(sd,info[c].first)>5).map(c=>`${c}(${info[c].first}~ 시작일보다 늦게 상장)`),ended=ok.filter(c=>dday(sd,info[c].first)<=5&&dday(info[c].last,e)>10).map(c=>`${c}(~${info[c].last} 데이터 종료)`);
 let usable=ok.filter(c=>dday(sd,info[c].first)<=5&&dday(info[c].last,e)<=10);if(!usable.length)throw Error('백테스트 기간 전체에 데이터가 있는 후보가 없습니다 (시작일을 늦춰 보세요)');
 // 나스닥(기준 지수)과의 상관이 낮은 순으로 상위 N개만 사용 (직접 후보를 입력했다면 그대로 사용)
-const corr={};let noCorr=0;
+const corr={};let noCorr=0,corrOut=[];
 if(!typed){el.textContent=`${ref} 상관 계산 중…`;const rc=await fetchCompact(ref,sd,e),refMap=new Map();for(let i=0;i<rc.d.length;i++)refMap.set(rc.d[i],rc.p[i]);
  for(const c of usable){corr[c]=corrCompact(refMap,liteCover.get(c))}
  const withC=usable.filter(c=>Number.isFinite(corr[c]));noCorr=usable.length-withC.length;withC.sort((a,b)=>corr[a]-corr[b]);
- const keep=new Set(withC.slice(0,N));for(const c of usable)if(!keep.has(c))liteCover.delete(c);usable=withC.slice(0,N)}
+ const topN=withC.slice(0,N);corrOut=withC.slice(N).filter(c=>!pins.includes(c)).map(c=>`${c}(${corr[c].toFixed(2)})`);const keep=new Set([...topN,...pins.filter(c=>usable.includes(c)&&Number.isFinite(corr[c]))]);for(const c of usable)if(!keep.has(c))liteCover.delete(c);usable=[...keep]}
 for(const c of ok)if(!usable.includes(c))liteCover.delete(c);
 $('altp').max=usable.length+1;$('altp').value=0;const t1=performance.now();
 const base=await run({silent:true,alt:''});if(base.error)throw Error(base.error);
@@ -469,7 +471,7 @@ for(const c of usable){if(altCancel)break;if(++i%5==0){el.textContent=`${usable.
 const r=await run({silent:true,alt:c});if(r.error){bad.push(`${c}(${r.error.slice(0,40)})`);continue}
 r.dates=null;r.e=null;r.bhTrd=null;r.bhSig=null;r.bhAlt=null; // 메모리 절약: 차트에 쓸 상위만 나중에 다시 계산
 rows.push({sym:c,name:ALT_NAME[c]||LC_CAT[c]||'',corr:corr[c],...r})}
-window._altData={rows,bad,late,ended,total:cands.length,usable:usable.length,ref,byCorr:!typed,noCorr,pool:ok.length,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'}`;
+window._altData={rows,bad,late,ended,corrOut,pins,total:cands.length,usable:usable.length,ref,byCorr:!typed,noCorr,pool:ok.length,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'}`;
 }catch(x){el.textContent=x.message}finally{$('altgo').disabled=false;$('recbtn').disabled=false;$('altp').style.display='none';$('altx').style.display='none'}}
 // 백테스트 결과를 기준으로, 후보 ETF를 자동으로 바꿔가며 비교 (한 번에)
 async function recommend(){const m=$('recmsg');m.textContent='';try{
