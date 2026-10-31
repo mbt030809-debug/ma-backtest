@@ -31,7 +31,7 @@ def yahoo(symbol, start, end):
 
 def mock(symbol, start, end):
     rnd = random.Random(symbol)
-    lev = 3 if symbol[-1:] in "LX" and len(symbol) > 3 else 1
+    lev = 3 if symbol[-1:] in "LX" and len(symbol) > 3 and not symbol.startswith("^") else 1
     d, e, px, out = date.fromisoformat(start), date.fromisoformat(end), 100.0, []
     while d <= e:
         if d.weekday() < 5:

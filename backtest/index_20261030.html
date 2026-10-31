@@ -18,10 +18,12 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <h1>ETF 백테스터 (미국)</h1>
 <div class="card"><h2>종목 · 기간</h2>
 <div class="row">
-<label>기준 지표(신호)</label><input id="sig" type="text" value="SPY">
-<label>실제 매매</label><input id="trd" type="text" value="SSO">
-<label>비교 종목(쉼표)</label><input id="cmp" type="text" value="QQQ">
+<label>기준 지표(신호)</label><input id="sig" type="text" value="SPY" list="symlist">
+<label>실제 매매</label><input id="trd" type="text" value="SSO" list="symlist">
+<label>비교 종목(쉼표)</label><input id="cmp" type="text" value="QQQ" list="symlist">
 </div>
+<datalist id="symlist"><option value="^NDX">나스닥100 지수</option><option value="^IXIC">나스닥 종합 지수</option><option value="^GSPC">S&amp;P500 지수</option><option value="^DJI">다우존스 지수</option><option value="^RUT">러셀2000 지수</option><option value="^SOX">필라델피아 반도체 지수</option><option value="^KS11">코스피</option><option value="^KQ11">코스닥</option><option value="^N225">닛케이225</option><option value="^VIX">VIX 변동성 지수</option><option value="QQQ">나스닥100 ETF</option><option value="SPY">S&amp;P500 ETF</option><option value="DIA">다우 ETF</option><option value="IWM">러셀2000 ETF</option><option value="QLD">나스닥100 2배</option><option value="TQQQ">나스닥100 3배</option><option value="SSO">S&amp;P500 2배</option><option value="UPRO">S&amp;P500 3배</option><option value="SOXL">반도체 3배</option><option value="TECL">기술주 3배</option></datalist>
+<div class="row" id="idxrow"><label>지수 바로 선택(신호)</label></div>
 <div class="row"><label>시작</label><input id="s" type="date" value="2010-01-01"><label>종료</label><input id="e" type="date"></div></div>
 <div class="card"><h2>신호 방식</h2><div class="row"><select id="mode"><option value="cross">돌파/이탈 이벤트 (이평선 백테스터 아티팩트 방식)</option><option value="state">상태 유지 (조건 충족 동안 보유)</option></select></div>
 <div id="crossBox"><div class="mut">같은 이평선으로 매수·매도: 종가가 이평선을 위로 돌파한 날 매수 신호, 아래로 이탈한 날 매도 신호 → 지연일 뒤 종가 체결. 매수는 현금의 %, 매도는 보유의 %. 같은 날 매도 먼저. 세금은 매도 건별(손실 0), 현금이자는 달력일 365일 복리. 지연은 최소 1일.</div>
@@ -63,6 +65,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 const $=id=>document.getElementById(id),COL=['#2b6cf6','#e8590c','#2f9e44','#ae3ec9','#f08c00','#0c8599'];
 const showMode=()=>{const c=$('mode').value=='cross';$('crossBox').style.display=c?'':'none';$('stateBox').style.display=c?'none':''};
 $('mode').onchange=()=>{showMode();const c=$('mode').value=='cross';if(c){$('init').value=100;$('delay').value=Math.max(1,+$('delay').value||1);$('cash').value=4;$('tax').value=22}else{$('init').value=0}};
+[['^NDX','나스닥100'],['^IXIC','나스닥'],['^GSPC','S&P500'],['^DJI','다우'],['^RUT','러셀2000'],['^SOX','반도체'],['^KS11','코스피']].forEach(([c,n])=>{const b=document.createElement('button');b.type='button';b.textContent=n;b.title=c;b.onclick=()=>{$('sig').value=c;save()};$('idxrow').appendChild(b)});
 $('e').value=new Date().toISOString().slice(0,10);
 const opnd=(k,n)=>`<select class="${k}k"><option value="price">종가</option><option value="sma">SMA</option><option value="ema">EMA</option></select><input class="${k}n" type="number" min="2" value="${n}">`;
 function addCond(t,l,ln,r,rn){const d=document.createElement('div');d.className='row';
