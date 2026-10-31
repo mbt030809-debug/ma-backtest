@@ -136,7 +136,7 @@ self.postMessage({t:'d',rows})}`;
 let swWorker=null,swEngine=null,swEl=0;
 const fmtT=x=>x<1?'1초 미만':x<60?Math.ceil(x)+'초':Math.floor(x/60)+'분 '+Math.ceil(x%60)+'초';
 const med=a=>{const b=[...a].sort((x,y)=>x-y);return b[Math.floor(b.length/2)]};
-function summarize(rows,st1,st2){const pc2=v=>(v*100).toFixed(1)+'%',row=(lab,r)=>`<tr><td>${lab}</td><td>${r.n1}</td><td>${r.n2}</td><td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td></tr>`;
+function summarize(rows,st1,st2,bh){const pc2=v=>(v*100).toFixed(1)+'%',row=(lab,r)=>`<tr><td>${lab}</td><td>${r.n1}</td><td>${r.n2}</td><td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td></tr>`;
 const by=k=>[...rows].sort((a,b)=>b[k]-a[k])[0],comp=[...rows].sort((a,b)=>a.comp-b.comp||b.sh-a.sh);
 const top=comp.slice(0,Math.max(3,Math.min(10,Math.ceil(rows.length*0.1)))),avg=(a,k)=>a.reduce((x,r)=>x+r[k],0)/a.length;
 const nb=r=>rows.filter(x=>x!==r&&Math.abs(x.n1-r.n1)<=st1&&Math.abs(x.n2-r.n2)<=st2),best=comp[0],nbs=nb(best);
@@ -144,13 +144,13 @@ const nbSh=nbs.length?avg(nbs,'sh'):NaN,allSh=avg(rows,'sh'),stable=nbs.length&&
 const cnt=(k)=>{const m={};top.forEach(r=>m[r[k]]=(m[r[k]]||0)+1);return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]};
 const c1=cnt('n1'),c2=cnt('n2'),rg=k=>`${Math.min(...top.map(r=>r[k]))}~${Math.max(...top.map(r=>r[k]))}`;
 return `<h2 style="margin-top:10px">상위 조합 정리</h2><div class="tbl"><table><tr><th>기준</th><th>이평1</th><th>이평2</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>`+
-row('종합 1위',best)+row('수익률 1위',by('tot'))+row('CAGR 1위',by('cagr'))+row('MDD 최소',by('mdd'))+row('샤프 1위',by('sh'))+`</table></div>
+row('종합 1위',best)+row('수익률 1위',by('tot'))+row('CAGR 1위',by('cagr'))+row('MDD 최소',by('mdd'))+row('샤프 1위',by('sh'))+(bh?`<tr><td><b>${'단순보유'+(bh.taxed?'(세후)':'')}</b></td><td>-</td><td>-</td><td class="${cl(bh.tot)}">${pc2(bh.tot)}</td><td class="${cl(bh.cagr)}">${pc2(bh.cagr)}</td><td class="neg">${pc2(bh.mdd)}</td><td>${bh.sh.toFixed(2)}</td></tr>`:'')+`</table></div>
 <div class="mut" style="margin:6px 0">· 종합 상위 ${top.length}개: 이평1 ${rg('n1')} (최다 ${c1[0]}일 ${c1[1]}회, 중앙값 ${med(top.map(r=>r.n1))}), 이평2 ${rg('n2')} (최다 ${c2[0]}일 ${c2[1]}회, 중앙값 ${med(top.map(r=>r.n2))})<br>
 · 상위 ${top.length}개 평균: 누적 ${pc2(avg(top,'tot'))}, MDD ${pc2(avg(top,'mdd'))}, 샤프 ${avg(top,'sh').toFixed(2)} / 전체 ${rows.length}개 평균: 누적 ${pc2(avg(rows,'tot'))}, MDD ${pc2(avg(rows,'mdd'))}, 샤프 ${allSh.toFixed(2)}<br>
-· 종합 1위(${best.n1}/${best.n2}) 주변(±1간격) 조합 ${nbs.length}개 평균 샤프 ${isNaN(nbSh)?'-':nbSh.toFixed(2)} → ${!nbs.length?'주변 조합 없음':stable?'주변도 비슷해 비교적 안정적':'주변이 크게 떨어져 우연일 가능성(과최적화 주의)'}</div>`}
+${bh?`· 단순보유 대비(전체 ${rows.length}개 중): CAGR 높은 조합 ${rows.filter(r=>r.cagr>bh.cagr).length}개, MDD 얕은 조합 ${rows.filter(r=>r.mdd>bh.mdd).length}개, 샤프 높은 조합 ${rows.filter(r=>r.sh>bh.sh).length}개, 세 지표 모두 우월 ${rows.filter(r=>r.cagr>bh.cagr&&r.mdd>bh.mdd&&r.sh>bh.sh).length}개<br>`:''}· 종합 1위(${best.n1}/${best.n2}) 주변(±1간격) 조합 ${nbs.length}개 평균 샤프 ${isNaN(nbSh)?'-':nbSh.toFixed(2)} → ${!nbs.length?'주변 조합 없음':stable?'주변도 비슷해 비교적 안정적':'주변이 크게 떨어져 우연일 가능성(과최적화 주의)'}</div>`}
 function showSweep(rows,meta){const pc2=v=>(v*100).toFixed(1)+'%';const top=rows.slice(0,30);
-$('swsum').innerHTML=summarize(rows,meta.c1,meta.c2);drawHeat(rows,meta);
-$('swt').innerHTML='<tr><th>순위</th><th>이평1</th><th>이평2</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>매매</th></tr>'+top.map((r,i)=>`<tr class="swr" data-a="${r.n1}" data-b="${r.n2}" style="cursor:pointer"><td>${i+1}</td><td>${r.n1}</td><td>${r.n2}</td><td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.trades}</td></tr>`).join('');
+$('swsum').innerHTML=summarize(rows,meta.c1,meta.c2,meta.bh);drawHeat(rows,meta);
+$('swt').innerHTML='<tr><th>순위</th><th>이평1</th><th>이평2</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>매매</th>'+(meta.bh?'<th>보유 대비</th>':'')+'</tr>'+top.map((r,i)=>`<tr class="swr" data-a="${r.n1}" data-b="${r.n2}" style="cursor:pointer"><td>${i+1}</td><td>${r.n1}</td><td>${r.n2}</td><td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.trades}</td>${meta.bh?`<td>CAGR ${r.cagr>=meta.bh.cagr?'+':''}${((r.cagr-meta.bh.cagr)*100).toFixed(1)}%p · MDD ${r.mdd>=meta.bh.mdd?'+':''}${((r.mdd-meta.bh.mdd)*100).toFixed(1)}%p</td>`:''}</tr>`).join('');
 $('swt').querySelectorAll('.swr').forEach(t=>t.onclick=()=>{$('mn1').value=t.dataset.a;$('mn2').value=t.dataset.b;$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})});
 $('swerr').textContent=`${rows.length}개 조합 중 상위 ${top.length}개 (행을 누르면 적용). 지연 ${meta.delay}일, ${meta.range}`}
 
@@ -171,10 +171,11 @@ L1.forEach((a,yi)=>L2.forEach((b,xi)=>{const r=mp.get(a+'|'+b);if(!r)return;g.fi
 g.fillStyle=fg;g.font='11px system-ui';g.textAlign='right';const stepY=Math.max(1,Math.ceil(L1.length/8)),stepX=Math.max(1,Math.ceil(L2.length/8));
 L1.forEach((a,yi)=>{if(yi%stepY==0)g.fillText(a,Lm-4,Tm+(L1.length-1-yi)*ch+ch/2+4)});g.textAlign='center';L2.forEach((b,xi)=>{if(xi%stepX==0)g.fillText(b,Lm+xi*cw+cw/2,Tm+ph+14)});
 g.fillText('장기선(이평2, 일)',Lm+pw/2,H-4);g.save();g.translate(11,Tm+ph/2);g.rotate(-Math.PI/2);g.fillText('단기선(이평1, 일)',0,0);g.restore();
-g.textAlign='left';g.font='12px system-ui';g.fillText(`${meta.trd||''} · ${meta.sig||''} 신호 · ${lab}`,Lm,16);
+g.textAlign='left';g.font='12px system-ui';g.fillText(`${meta.trd||''} · ${meta.sig||''} 신호 · ${lab}`+(meta.bh?` (단순보유 ${fmt(meta.bh[key])})`:''),Lm,16);
 // 컬러바
 const cx=W-Rm+14,cb=Tm,chh=ph;for(let k=0;k<chh;k++){const t=1-k/chh;g.fillStyle=rgb(pal,pal=='red'?1-t:t);g.fillRect(cx,cb+k,12,1.5)}g.fillStyle=fg;g.font='10px system-ui';
 for(let k=0;k<=4;k++){const v=mn+span*(1-k/4);g.fillText(fmt(v),cx+16,cb+chh*k/4+4)}
+if(meta.bh){const bv=meta.bh[key];if(bv>=mn&&bv<=mx){const y=cb+chh*(1-(bv-mn)/span);g.strokeStyle='#111';g.lineWidth=2;g.beginPath();g.moveTo(cx-3,y);g.lineTo(cx+15,y);g.stroke();g.fillStyle=fg;g.fillText('보유',cx+16,y-3)}else{g.fillStyle=fg;g.fillText('보유 '+(bv<mn?'↓범위밖(낮음)':'↑범위밖(높음)'),cx-2,H-Bm+14)}}
 // 마커
 const shape=(m,x,y)=>{g.lineWidth=1.4;g.strokeStyle='#111';g.fillStyle=m=='○'?'rgba(255,255,255,.15)':m=='◆'?'#f5b301':m=='■'?'#12968a':'#e8453c';g.beginPath();
 if(m=='★'){for(let k=0;k<10;k++){const r=k%2?3.5:8,a=-Math.PI/2+k*Math.PI/5;g.lineTo(x+r*Math.cos(a),y+r*Math.sin(a))}g.closePath()}
@@ -201,7 +202,8 @@ const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d));
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
 const rt=id=>Math.min(100,Math.max(0,+$(id).value||0))/100,br=[rt('br1'),rt('br2')],sr=[rt('sr1'),rt('sr2')],key=$('sk').value;
-const meta={c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`};
+const bhE=buyHold(px).map(v=>v-Math.max(0,v-100)*o.tax),bh=stats(bhE,dates);
+const meta={c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
 // 백그라운드(워커) 실행: 화면 조작·다른 탭 이동 중에도 계산 계속
 keep(true);swWorker=new Worker(URL.createObjectURL(new Blob([swEngine+'\n'+WK],{type:'application/javascript'})));
