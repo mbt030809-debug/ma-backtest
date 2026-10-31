@@ -25,8 +25,9 @@ def yahoo(symbol, start, end):
     if not ts:
         raise ValueError("해당 기간 데이터 없음")
     ind = res["indicators"]
+    kind = "adj" if ind.get("adjclose") else "close"  # adj=배당 재투자 반영 수정종가(총수익), close=가격만
     adj = ind["adjclose"][0]["adjclose"] if ind.get("adjclose") else ind["quote"][0]["close"]
-    return [[time.strftime("%Y-%m-%d", time.gmtime(t)), c] for t, c in zip(ts, adj) if c is not None]
+    return [[time.strftime("%Y-%m-%d", time.gmtime(t)), c] for t, c in zip(ts, adj) if c is not None], kind
 
 
 def mock(symbol, start, end):
@@ -38,16 +39,18 @@ def mock(symbol, start, end):
             px *= 1 + lev * rnd.gauss(0.0004, 0.012)
             out.append([d.isoformat(), px])
         d += timedelta(days=1)
-    return out
+    return out, ("close" if symbol.startswith("^") else "adj")
 
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def send(self, code, body, ctype):
+    def send(self, code, body, ctype, kind=""):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if kind:
+            self.send_header("X-Price-Type", kind)
         self.end_headers()
         self.wfile.write(body)
 
@@ -62,7 +65,7 @@ class H(BaseHTTPRequestHandler):
                 key = (sym, s, e)
                 if key not in CACHE:
                     CACHE[key] = (mock if MOCK else yahoo)(sym, s, e)
-                self.send(200, json.dumps(CACHE[key]).encode(), "application/json")
+                self.send(200, json.dumps(CACHE[key][0]).encode(), "application/json", CACHE[key][1])
             except Exception as ex:
                 self.send(502, json.dumps({"error": "%s" % ex}).encode(), "application/json")
         else:

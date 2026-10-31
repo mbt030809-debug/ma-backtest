@@ -44,13 +44,14 @@ class MainActivity : Activity() {
                 if (u.host != HOST) return null
                 if (u.path == "/api/prices") {
                     val sym = u.getQueryParameter("symbol")?.trim()?.uppercase() ?: ""
-                    val (code, body) = try {
+                    val (code, body, kind) = try {
                         require(sym.isNotEmpty()) { "종목이 비었습니다" }
-                        200 to prices(sym, u.getQueryParameter("start")!!, u.getQueryParameter("end")!!)
+                        val (b, k) = prices(sym, u.getQueryParameter("start")!!, u.getQueryParameter("end")!!)
+                        Triple(200, b, k)
                     } catch (e: Exception) {
-                        502 to JSONObject().put("error", "$sym: ${e.message}").toString()
+                        Triple(502, JSONObject().put("error", "$sym: ${e.message}").toString(), "")
                     }
-                    return json(code, body)
+                    return json(code, body, kind)
                 }
                 if (u.path == "/favicon.ico") return json(404, "")
                 val name = if (u.path == "/" || u.path.isNullOrEmpty()) "index_20261030.html" else u.path!!.trimStart('/')
@@ -67,11 +68,12 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
 
-    private fun json(code: Int, body: String) =
+    private fun json(code: Int, body: String, kind: String = "") =
         WebResourceResponse("application/json", "utf-8", code, if (code == 200) "OK" else "Error",
-            mapOf("Access-Control-Allow-Origin" to "*"), body.byteInputStream())
+            mapOf("Access-Control-Allow-Origin" to "*", "X-Price-Type" to kind), body.byteInputStream())
 
-    private fun prices(symbol: String, start: String, end: String): String {
+    /** 반환: (JSON 시세, 종류) — 종류 adj=배당 재투자 반영 수정종가(총수익), close=가격만 */
+    private fun prices(symbol: String, start: String, end: String): Pair<String, String> {
         val p1 = LocalDate.parse(start).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
         val p2 = LocalDate.parse(end).plusDays(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
         val url = "https://query1.finance.yahoo.com/v8/finance/chart/${URLEncoder.encode(symbol, "utf-8")}" +
@@ -89,15 +91,16 @@ class MainActivity : Activity() {
         val res = result.getJSONObject(0)
         val ts = res.optJSONArray("timestamp") ?: error("해당 기간 데이터 없음")
         val ind = res.getJSONObject("indicators")
-        val adj = ind.optJSONArray("adjclose")?.getJSONObject(0)?.getJSONArray("adjclose")
-            ?: ind.getJSONArray("quote").getJSONObject(0).getJSONArray("close")
+        val adjArr = ind.optJSONArray("adjclose")?.getJSONObject(0)?.getJSONArray("adjclose")
+        val adj = adjArr ?: ind.getJSONArray("quote").getJSONObject(0).getJSONArray("close")
+        val kind = if (adjArr != null) "adj" else "close"
         val out = JSONArray()
         for (i in 0 until ts.length()) {
             if (adj.isNull(i)) continue
             val d = Instant.ofEpochSecond(ts.getLong(i)).atOffset(ZoneOffset.UTC).toLocalDate().toString()
             out.put(JSONArray().put(d).put(adj.getDouble(i)))
         }
-        return out.toString()
+        return out.toString() to kind
     }
 
     companion object { const val HOST = "app.local" }
