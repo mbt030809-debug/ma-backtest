@@ -37,6 +37,12 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>수수료(%, 돌파 방식)</label><input id="fee" type="number" step="0.01" min="0" value="0">
 <label>매도 차익 세율(%)</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
 <div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 매도할 때마다 매도 수익(매도금액-평균단가)의 세율만큼 납부, 손실은 0(보유 비교는 그 시점에 매도한다고 가정해 수익의 세율만큼 차감한 세후 값, 전략의 미실현 이익은 과세 안 함). 미실현 이익은 과세 안 함.</div></div>
+<div class="card"><h2>이평 스윕 (최적 기간 탐색)</h2>
+<div class="row"><b>이평 1</b><input id="a1" type="number" min="2" value="50">~<input id="b1" type="number" min="2" value="300">간격<input id="c1" type="number" min="1" value="25"></div>
+<div class="row"><b>이평 2</b><input id="a2" type="number" min="2" value="200">~<input id="b2" type="number" min="2" value="600">간격<input id="c2" type="number" min="1" value="50"></div>
+<div class="row"><label>정렬 기준</label><select id="sk"><option value="comp">종합(수익률·MDD·샤프 순위합)</option><option value="tot">수익률(누적)</option><option value="cagr">CAGR</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option></select><button id="sw">스윕 실행</button><span id="swerr" class="mut"></span></div>
+<div class="mut">현재 입력된 종목·기간·비율·지연·이자·세금·수수료를 그대로 쓰고 이평 1·2 기간만 바꿔가며 돌파/이탈 방식으로 계산. 행을 누르면 그 값으로 적용·실행. 과최적화 주의: 기간을 나눠 검증해 보세요.</div>
+<div class="tbl"><table id="swt"></table></div></div>
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
@@ -61,7 +67,7 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk'];
 function save(){try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
@@ -118,5 +124,29 @@ out.forEach(o=>{g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i
 if(ctx){const e0=out[0].e,tri=(i,buy)=>{const px=X(i),py=Y(e0[i]),z=6,d=buy?1:-1;g.fillStyle=buy?'#2f9e44':'#e03131';g.strokeStyle='#fff';g.lineWidth=1;g.beginPath();g.moveTo(px,py-d*3);g.lineTo(px-z,py-d*(3-z*1.5));g.lineTo(px+z,py-d*(3-z*1.5));g.closePath();g.fill();g.stroke()};
 ctx.trades.forEach(t=>{if(t.rule!='시작'&&e0[t.i]!=null)tri(t.i,t.side=='B')})}}
 
+async function sweep(){const el=$('swerr');el.textContent='';$('sw').disabled=true;try{
+const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
+if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');
+const rg=(a,b,c)=>{a=+$(a).value;b=+$(b).value;c=+$(c).value;if(!(Number.isInteger(a)&&Number.isInteger(b)&&Number.isInteger(c)&&a>=2&&b>=a&&c>=1))throw Error('스윕 범위를 확인하세요 (정수, 시작≥2, 끝≥시작, 간격≥1)');const o=[];for(let v=a;v<=b;v+=c)o.push(v);return o};
+const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2');if(L1.length*L2.length>3000)throw Error('조합이 너무 많습니다 (최대 3000)');
+const maxN=Math.max(...L1,...L2),ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
+el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e)]);const ms=new Map(ds[0]),mt=new Map(ds[1]);
+const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+const fpx=full.map(d=>ms.get(d)),pos=dates.map(d=>full.indexOf(d)),px=dates.map(d=>mt.get(d));
+const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
+const rt=id=>Math.min(100,Math.max(0,+$(id).value||0))/100,br=[rt('br1'),rt('br2')],sr=[rt('sr1'),rt('sr2')];
+const cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return(cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i])))};
+const rows=[];let cnt=0;for(const n1 of L1)for(const n2 of L2){
+const sim=simulateEvents(dates,px,[{r:br[0],f:fl(n1,'up')},{r:br[1],f:fl(n2,'up')}],[{r:sr[0],n:n1,f:fl(n1,'dn')},{r:sr[1],n:n2,f:fl(n2,'dn')}],o);
+const st=stats(sim.eq,dates);rows.push({n1,n2,tot:st.tot,cagr:st.cagr,mdd:st.mdd,sh:st.sh,trades:sim.trades});
+if(++cnt%100==0){el.textContent=`계산 중 ${cnt}/${L1.length*L2.length}`;await new Promise(r=>setTimeout(r))}}
+const rank=k=>{const a=[...rows].sort((x,y)=>y[k]-x[k]);a.forEach((r,i)=>r['r_'+k]=i+1)};['tot','mdd','sh'].forEach(rank);rows.forEach(r=>r.comp=r.r_tot+r.r_mdd+r.r_sh);
+const key=$('sk').value;rows.sort((a,b)=>key=='comp'?a.comp-b.comp||b.sh-a.sh:b[key]-a[key]);
+const top=rows.slice(0,30),pc2=v=>(v*100).toFixed(1)+'%';
+$('swt').innerHTML='<tr><th>순위</th><th>이평1</th><th>이평2</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>매매</th></tr>'+top.map((r,i)=>`<tr class="swr" data-a="${r.n1}" data-b="${r.n2}" style="cursor:pointer"><td>${i+1}</td><td>${r.n1}</td><td>${r.n2}</td><td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.trades}</td></tr>`).join('');
+$('swt').querySelectorAll('.swr').forEach(t=>t.onclick=()=>{$('mn1').value=t.dataset.a;$('mn2').value=t.dataset.b;$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})});
+el.textContent=`${rows.length}개 조합 중 상위 ${top.length}개 (행을 누르면 적용). 체결 지연 ${o.delay}일, ${dates[0]}~${dates.at(-1)}`;window._sweep=rows;
+}catch(x){el.textContent=x.message}finally{$('sw').disabled=false}}
+$('sw').onclick=sweep;
 $('run').onclick=run;$('log').onchange=()=>window._last&&draw(...window._last);addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>
