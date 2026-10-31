@@ -24,6 +24,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 </div>
 <datalist id="symlist"><option value="^NDX">나스닥100 지수</option><option value="^IXIC">나스닥 종합 지수</option><option value="^GSPC">S&amp;P500 지수</option><option value="^DJI">다우존스 지수</option><option value="^RUT">러셀2000 지수</option><option value="^SOX">필라델피아 반도체 지수</option><option value="^KS11">코스피</option><option value="^KQ11">코스닥</option><option value="^N225">닛케이225</option><option value="^VIX">VIX 변동성 지수</option><option value="QQQ">나스닥100 ETF</option><option value="SPY">S&amp;P500 ETF</option><option value="DIA">다우 ETF</option><option value="IWM">러셀2000 ETF</option><option value="QLD">나스닥100 2배</option><option value="TQQQ">나스닥100 3배</option><option value="SSO">S&amp;P500 2배</option><option value="UPRO">S&amp;P500 3배</option><option value="SOXL">반도체 3배</option><option value="TECL">기술주 3배</option></datalist>
 <div class="row" id="idxrow"><label>지수 바로 선택(신호)</label></div>
+<div class="mut" id="symavail" style="margin:4px 0"></div>
 <div class="row"><label>시작</label><input id="s" type="date" value="2010-01-01"><label>종료</label><input id="e" type="date"></div></div>
 <div class="card"><h2>신호 방식</h2><div class="row"><select id="mode"><option value="cross">돌파/이탈 이벤트 (이평선 백테스터 아티팩트 방식)</option><option value="state">상태 유지 (조건 충족 동안 보유)</option></select></div>
 <div id="crossBox"><div class="mut">같은 이평선으로 매수·매도: 종가가 이평선을 위로 돌파한 날 매수 신호, 아래로 이탈한 날 매도 신호 → 지연일 뒤 종가 체결. 매수는 현금의 %, 매도는 보유의 %. 같은 날 매도 먼저. 세금은 매도 건별(손실 0), 현금이자는 달력일 365일 복리. 지연은 최소 1일.</div>
@@ -117,10 +118,10 @@ for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='pri
 // 이평선 워밍업: 시작일 이전 데이터도 받아 시작 첫날부터 이평선이 계산되게 함
 const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
 const syms=[...new Set([sig,trd,...cmp])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,x==sig?xs:s,e))));
-showChk([...[...new Set([sig,trd,...cmp])].map(x=>dataCheck(x,rowsOf(data[x]))),...(sig!=trd?[alignCheck(data[sig],data[trd],sig,trd)].filter(Boolean):[])]);
 const full=[...data[sig].keys()].sort(),dates=full.filter(d=>d>=s&&data[trd].has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+showChk([...[...new Set([sig,trd,...cmp])].map(x=>dataCheck(x,rowsOf(data[x]))),...(sig!=trd?[alignCheck(data[sig],data[trd],sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(data[trd])[0][0])]);
 // 비교 종목은 전략 기간과 무관: 전략 구간(신호+매매 종목)에 데이터가 없는 날이 있으면 비교에서 제외(전략 기간이 줄어드는 것을 방지)
-const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d)));cmp.splice(0,cmp.length,...cmp.filter(x=>!skipped.includes(x)));
+const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d))),skippedTxt=skipped.map(x=>`${x}(데이터 ${rowsOf(data[x])[0]?.[0]||'없음'}~)`);cmp.splice(0,cmp.length,...cmp.filter(x=>!skipped.includes(x)));
 const fidx=new Map(full.map((d,i)=>[d,i])),P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>fidx.get(d));
 let sim,w;
 if(cross){const fl={};const ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];
@@ -135,7 +136,7 @@ const out=[{name:`전략(${sig} 신호→${trd})${sfx}`,e:sim.eqL},{name:`${trd}
 out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates,ctx);
 $('lg').innerHTML=out.map(o=>`<span><i style="background:${o.c}"></i>${o.name}</span>`).join('')+'<span><i style="background:rgba(47,158,68,.5)"></i>배경 초록=보유(비중 10%+)</span><span><i style="background:rgba(224,49,49,.45)"></i>배경 빨강=현금</span><span>▲매수 ▼매도(전략선 위, 체결일)</span>';
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
-$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산${skipped.length?' · 비교 제외(기간 부족): '+skipped.join(','):''}</td></tr>`;
+$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산${skipped.length?' · 비교 제외(기간 부족): '+skippedTxt.join(', '):''}</td></tr>`;
 const ys=Object.keys(out[0].st.yr);$('yr').innerHTML='<tr><th>연도</th>'+out.map(o=>`<th>${o.name}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${out.map(o=>`<td class="${cl(o.st.yr[y])}">${pc(o.st.yr[y])}</td>`).join('')}</tr>`).join('');
 const nf=v=>v.toLocaleString('ko-KR',{maximumFractionDigits:2});$('trsum').textContent=`매수·매도 내역 (${sim.list.length}건, 시작=100 기준 금액)`;
 $('trd2').innerHTML='<tr><th>신호일</th><th>체결일</th><th>구분</th><th>규칙</th><th>체결가</th><th>수량</th><th>금액</th><th>실현손익</th><th>세금</th><th>현금</th><th>보유수량</th></tr>'+sim.list.map(t=>`<tr><td>${dates[t.si]}</td><td>${dates[t.i]}</td><td class="${t.side=='B'?'pos':'neg'}">${t.side=='B'?'매수':'매도'}</td><td>${t.rule}</td><td>${nf(t.price)}</td><td>${t.qty.toFixed(4)}</td><td>${nf(t.amt)}</td><td class="${(t.gain||0)>=0?'pos':'neg'}">${t.gain==null?'':nf(t.gain)}</td><td>${t.tax>0.005?nf(t.tax):''}</td><td>${nf(t.cash)}</td><td>${t.sh.toFixed(4)}</td></tr>`).join('');
@@ -192,7 +193,7 @@ function dataCheck(name,rows){const w=[];let bad=0,dup=0;const gaps=[],jumps=[];
 for(let i=0;i<rows.length;i++){const c=rows[i][1];if(!(c>0)||!isFinite(c))bad++;if(i){if(rows[i][0]==rows[i-1][0])dup++;const g=(new Date(rows[i][0])-new Date(rows[i-1][0]))/864e5;if(g>7)gaps.push(`${rows[i-1][0]}→${rows[i][0]}(${g}일)`);const r=c/rows[i-1][1]-1;if(Math.abs(r)>0.4)jumps.push(`${rows[i][0]} ${(r*100).toFixed(0)}%`)}}
 if(!rows.length)w.push('데이터 없음');if(bad)w.push(`0 이하/비정상 값 ${bad}개`);if(dup)w.push(`중복 날짜 ${dup}개`);if(gaps.length)w.push(`7일 넘는 공백 ${gaps.length}곳(${gaps.slice(0,3).join(', ')})`);if(jumps.length)w.push(`하루 ±40% 이상 변동 ${jumps.length}곳(${jumps.slice(0,4).join(', ')})`);
 return{name,n:rows.length,from:rows[0]?.[0],to:rows.at(-1)?.[0],warn:w}}
-function showChk(list){window._chk=list;const bad=list.filter(x=>x.warn.length);$('chk').innerHTML=list.map(x=>`<div>${x.warn.length?'⚠️':'✅'} <b>${x.name}</b> ${x.n.toLocaleString()}일 (${x.from}~${x.to})${x.warn.length?' — '+x.warn.join(' / '):' — 이상 없음'}${x.info&&!x.warn.length?' ('+x.info+')':''}</div>`).join('')+(bad.length?'<div style="color:#e03131">이상값이 있으면 MDD·샤프 등이 크게 왜곡될 수 있습니다. "시세 캐시 지우기" 후 다시 실행해 보세요.</div>':'')}
+function showChk(list){window._chk=list;const bad=list.filter(x=>x.warn.length&&!x.info);$('chk').innerHTML=list.map(x=>`<div>${x.warn.length?'⚠️':'✅'} <b>${x.name}</b> ${x.n.toLocaleString()}일 (${x.from}~${x.to})${x.warn.length?' — '+x.warn.join(' / '):' — 이상 없음'}${x.info&&!x.warn.length?' ('+x.info+')':''}</div>`).join('')+(bad.length?'<div style="color:#e03131">이상값이 있으면 MDD·샤프 등이 크게 왜곡될 수 있습니다. "시세 캐시 지우기" 후 다시 실행해 보세요.</div>':'')}
 // 신호·매매 종목의 날짜 정렬 점검: 일간 수익률 상관을 지연(-3~+3일)별로 계산. 0일이 최고가 아니면 날짜가 어긋난 것
 function alignCheck(sm,tm,sn,tn){const cd=[...sm.keys()].filter(d=>tm.has(d)).sort();if(cd.length<60)return null;
 const rs=[],rt=[];for(let i=1;i<cd.length;i++){rs.push(sm.get(cd[i])/sm.get(cd[i-1])-1);rt.push(tm.get(cd[i])/tm.get(cd[i-1])-1)}
@@ -200,6 +201,18 @@ const cor=L=>{let a=[],b=[];for(let i=0;i<rs.length;i++){const j=i+L;if(j>=0&&j<
 const cs={};for(let L=-3;L<=3;L++)cs[L]=cor(L);let best=0;for(let L=-3;L<=3;L++)if(Math.abs(cs[L])>Math.abs(cs[best]))best=L;
 const w=[];if(best!==0&&Math.abs(cs[best])>Math.abs(cs[0])+0.05)w.push(`날짜가 ${best>0?best+'일':(-best)+'일'} 어긋난 것으로 보임(상관: 0일 ${cs[0].toFixed(2)} → ${best}일 ${cs[best].toFixed(2)})`);else if(Math.abs(cs[0])<0.5)w.push(`두 종목의 일간 수익률 상관이 낮음(${cs[0].toFixed(2)}) — 서로 무관한 종목이면 정상`);
 return{name:`${sn}↔${tn} 날짜 정렬`,n:cd.length,from:cd[0],to:cd.at(-1),warn:w,info:`일간 수익률 상관 ${cs[0].toFixed(2)}`}}
+const dday=(a,b)=>(new Date(b)-new Date(a))/864e5;
+// 백테스트 구간 점검: 매매 종목 상장일·신호 종목 이평 계산 가능일을 따져서 실제 시작 구간을 알려줌
+function periodCheck(sig,trd,s,dates,full,maxN,trdFirst){const w=[],eff=dates[0];
+if(dday(s,trdFirst)>5)w.push(`${trd} 데이터가 ${trdFirst}부터라 시작일(${s})이 ${eff}로 조정됨`);
+const ready=full[Math.min(maxN,full.length)-1];if(maxN>1&&ready>eff)w.push(`${sig}의 ${maxN}일선은 ${ready}부터 계산 가능 → 그 전에는 신호 없음(초기 주식비율 유지)`);
+return{name:'백테스트 구간',n:dates.length,from:eff,to:dates.at(-1),warn:w,info:`${sig} 데이터 ${full[0]}~ · ${trd} 데이터 ${trdFirst}~`}}
+// 종목 입력 시 데이터 시작일(상장일) 표시
+let availTimer=null;
+async function updAvail(){const el=$('symavail');const syms=[...new Set([$('sig').value,$('trd').value,...$('cmp').value.split(',')].map(x=>x.trim().toUpperCase()).filter(Boolean))];if(!syms.length){el.textContent='';return}
+el.textContent='데이터 시작일 확인 중…';const e=$('e').value||new Date().toISOString().slice(0,10),sd=$('s').value;
+const out=await Promise.all(syms.map(async x=>{try{const r=await load(x,'2000-01-01',e);if(!r.length)return`<div>⚠️ <b>${x}</b> 데이터 없음</div>`;const f=r[0][0],l=r.at(-1)[0],late=sd&&dday(sd,f)>5;return`<div>${late?'⚠️':'📅'} <b>${x}</b> 데이터 ${f} ~ ${l} (${r.length.toLocaleString()}일)${late?` — 시작일(${sd})보다 늦어 <b>${f}</b>부터 계산됨`:''}</div>`}catch(x2){return`<div>⚠️ <b>${x}</b> ${x2.message}</div>`}}));
+el.innerHTML=out.join('')}
 const rowsOf=m=>[...m.entries()].sort((a,b)=>a[0]<b[0]?-1:1);
 function mddInfo(e,dates){let pk=100,pi=0,worst=0,wp=0,wt=0;e.forEach((v,i)=>{if(v>pk){pk=v;pi=i}const d=v/pk-1;if(d<worst){worst=d;wp=pi;wt=i}});return{mdd:worst,peak:dates[wp],trough:dates[wt],peakVal:e[wp],troughVal:e[wt]}}
 const fmtT=x=>x<1?'1초 미만':x<60?Math.ceil(x)+'초':Math.floor(x/60)+'분 '+Math.ceil(x%60)+'초';
@@ -286,8 +299,8 @@ const B1=pr('rb1',cr('br1')/100),S1=pr('rs1',cr('sr1')/100),B2=pr('rb2',cr('br2'
 if(!total)throw Error('매수 비율이 모두 0%인 조합만 있어 계산할 조합이 없습니다');
 if(total>MAXC)throw Error(`조합이 너무 많습니다 (${total.toLocaleString()}개, 최대 ${MAXC.toLocaleString()})`);
 const maxN=Math.max(...L1,...L2),ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
-el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e)]);const ms=new Map(ds[0]),mt=new Map(ds[1]);showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[alignCheck(ms,mt,sig,trd)].filter(Boolean):[])]);
-const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e)]);const ms=new Map(ds[0]),mt=new Map(ds[1]);const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[alignCheck(ms,mt,sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(mt)[0][0])]);
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d));
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
 const bhE=buyHold(px).map(v=>v-Math.max(0,v-100)*o.tax),bh=stats(bhE,dates);
@@ -317,7 +330,8 @@ $('dbgbtn').onclick=()=>{const st={};IDS.forEach(i=>st[i]=$(i).value);st.nohold=
 const sw=swMeta?{meta:{...swMeta,agg:undefined},agg:swMeta.agg,top:(window._swrows||[]).slice().sort((a,b)=>a.comp-b.comp).slice(0,5)}:null;
 const txt=JSON.stringify({앱:'ma-backtest',시각:new Date().toISOString(),코어:navigator.hardwareConcurrency,설정:st,데이터점검:window._chk,일반실행:window._dbgRun,스윕:sw,시세캐시:$('pxinfo').textContent},(k,v)=>typeof v=='number'&&!Number.isInteger(v)?+v.toPrecision(6):v,1);
 const t=$('dbgout');t.style.display='';t.value=txt;t.focus();t.select();try{navigator.clipboard&&navigator.clipboard.writeText(txt).catch(()=>{})}catch(e){}};
-$('sw').onclick=sweep;$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
+$('sw').onclick=sweep;
+['sig','trd','cmp','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
 $('r10').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
 ['a1','b1','c1','a2','b2','c2','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
 try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
