@@ -118,7 +118,7 @@ function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
 showMode();return true}catch(e){return false}}
 if(!restore()){addCond('buy','price',0,'sma',200);$('mode').onchange()}
-$('pxclr').onclick=()=>{try{for(let i=localStorage.length-1;i>=0;i--){const n=localStorage.key(i);if(n&&n.startsWith(PXK))localStorage.removeItem(n)}}catch(x){}pxMem.clear();pxStat()};
+$('pxclr').onclick=()=>{try{for(let i=localStorage.length-1;i>=0;i--){const n=localStorage.key(i);if(n&&n.startsWith(PXK))localStorage.removeItem(n)}}catch(x){}pxMem.clear();liteCover.clear();idbClear();pxStat()};
 addEventListener('change',save);addEventListener('click',()=>setTimeout(save,0));
 // 시세 캐시: 종목별로 2000-01-01~종료일 전체를 한 번 받아 저장(localStorage), 3일 뒤 자동 삭제. 같은 종목·기간은 API를 다시 부르지 않음
 const pxKind={},kindTxt=x=>pxKind[x]=='adj'?'배당 포함(수정종가)':pxKind[x]=='close'?'가격만·배당 미포함':'';
@@ -139,7 +139,7 @@ async function load(sym,s,e){const lc=liteCover.get(sym);if(lc&&lc.rf<=s&&lc.rt>
 if(hit&&hit.rf<=s&&hit.rt>=e){if(hit.pt)pxKind[sym]=hit.pt;return hit.rows.filter(r=>r[0]>=s&&r[0]<=e)}
 const key=sym+'|'+from+'|'+e;let p=pxFly.get(key);if(!p){p=(async()=>{const r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${from}&end=${e}`);const j=await r.json();if(j.error)throw Error(j.error);const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;pxWrite(sym,{t:Date.now(),rf:from,rt:e,rows:j,pt});pxStat();return j})().finally(()=>pxFly.delete(key));pxFly.set(key,p)}
 const rows=await p;return rows.filter(r=>r[0]>=s&&r[0]<=e)}
-pxClean();
+pxClean();setTimeout(()=>idbClean(),3000);
 const rt=a=>a.map((v,i)=>i?v/a[i-1]-1:0),eqOf=r=>{const o=[100];for(let i=1;i<r.length;i++)o.push(o[i-1]*(1+r[i]));return o};
 const pc=v=>(v*100).toFixed(1)+'%',cl=v=>v>=0?'pos':'neg';
 async function run(opts){const silent=!!(opts&&opts.silent);if(!silent)$('err').textContent='';try{
@@ -447,6 +447,22 @@ function corrCompact(refMap,c){let n=0,sx=0,sy=0,sxx=0,syy=0,sxy=0,pr=null,pc=nu
 if(n<30)return NaN;const cov=sxy-sx*sy/n,vx=sxx-sx*sx/n,vy=syy-sy*sy/n;return vx>0&&vy>0?cov/Math.sqrt(vx*vy):NaN}
 let UNI=null;
 async function getUniverse(){if(UNI)return UNI;try{const r=await fetch('/etf_universe_20261031.json');const j=await r.json();UNI=j.tickers||[]}catch(x){UNI=[]}if(!UNI.length)UNI=LC_ALL.slice();return UNI}
+// 스캔 전용 빠른 경로: 신호·매매 종목 데이터, 이평 신호 등 후보와 무관한 계산을 한 번만 하고 후보마다 시뮬레이션만 수행 (결과는 run()과 동일)
+async function prepScan(){const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
+const init=Math.min(100,Math.max(0,+$('init').value||0))/100,cross=$('mode').value=='cross',delay=Math.max(cross?1:0,Math.floor(+$('delay').value||0)),cashRate=(+$('cash').value||0)/100,taxRate=(+$('tax').value||0)/100,fee=(+$('fee').value||0)/100;
+let bc=[],sc=[],rules={b:[],s:[]},maxN=0;
+if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];for(const x of[...rules.b,...rules.s])maxN=Math.max(maxN,x.n)}
+else{bc=readConds('buy');sc=readConds('sell');for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price')maxN=Math.max(maxN,n)}
+const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
+const sigM=new Map(await load(sig,xs,e)),trdM=new Map(await load(trd,s,e)),full=[...sigM.keys()].sort(),dates0=full.filter(d=>d>=s&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
+let bF,sF,buy,sell;
+if(cross){const fl={},ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];bF=rules.b.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'up')[i])}));sF=rules.s.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'dn')[i])}))}
+else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};buy=pick(evalConds(fpx,bc));sell=pick(evalConds(fpx,sc))}
+return{one(c){const n0=dates0.length,keep=[],py=[];let j=0;for(let i=0;i<n0;i++){const di=d0i[i];while(j<c.d.length&&c.d[j]<di)j++;if(j<c.d.length&&c.d[j]===di){keep.push(i);py.push(c.p[j]);j++}}
+if(keep.length<3)return{error:'겹치는 데이터가 부족합니다'};const dates=keep.map(i=>dates0[i]),px=keep.map(i=>px0[i]);let sim;
+if(cross){const oo={delay,init,cashRate,tax:taxRate,fee,ig:new Array(keep.length).fill(1)};sim=simulateEventsAlt(dates,px,py,bF.map(x=>({r:x.r,n:x.n,f:keep.map(i=>x.f[i])})),sF.map(x=>({r:x.r,n:x.n,f:keep.map(i=>x.f[i])})),oo)}
+else{const sub=r=>r&&{v:keep.map(i=>r.v[i]),ok:keep.map(i=>r.ok[i])};const w=applied(targets(sub(buy),sub(sell),init),init,delay);sim=simulateAlt(dates,px,py,w,{cashRate,taxRate,delay})}
+return{st:statsLite(sim.eqL,yearsOf(dates)),pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length}}}}
 let altCancel=false;
 async function altScan(){const el={set textContent(v){$('alterr').textContent=v;$('recmsg').textContent=v},get textContent(){return $('alterr').textContent}};el.textContent='';altCancel=false;$('altgo').disabled=true;$('recbtn').disabled=true;$('altx').style.display='';try{
 const typed=$('altlist').value.trim(),N=Math.max(1,Math.min(2000,+$('altn').value||1000)),ref=($('altref').value.trim()||'^NDX').toUpperCase();checkSyms([ref]);
@@ -459,7 +475,7 @@ $('altp').style.display='';$('altp').max=cands.length;$('altp').value=0;el.textC
 const eta=(d,tot,t)=>{const el2=(performance.now()-t)/1000,r=d/Math.max(el2,.001);return `경과 ${fmtT(el2)} · 남은 약 ${fmtT((tot-d)/r)}`};
 // 6개씩 동시에 받아 압축 저장 (메모리 절약)
 const worker=async()=>{while(idx<cands.length&&!altCancel){const c=cands[idx++];try{const cp=await fetchCompact(c,sd,e);if(cp.d.length>20){info[c]={first:i2s(cp.d[0]),last:i2s(cp.d[cp.d.length-1])};liteCover.set(c,{rf:sd,rt:e,d:cp.d,p:cp.p})}else info[c]=null}catch(x){info[c]=null}$('altp').value=++done;if(done%10==0)el.textContent=`시세 받는 중… ${done}/${cands.length} · ${eta(done,cands.length,t0)}`}};
-await Promise.all(Array.from({length:6},worker));
+await Promise.all(Array.from({length:12},worker));
 if(altCancel)throw Error('중단했습니다');
 const ok=cands.filter(c=>info[c]),bad=cands.filter(c=>!info[c]).map(c=>c+'(데이터 없음)');
 // 내가 백테스트한 기간(시작일~종료일) 전체에 데이터가 없는 ETF는 예외 처리
@@ -474,10 +490,10 @@ if(!typed){el.textContent=`${ref} 상관 계산 중…`;const rc=await fetchComp
 for(const c of ok)if(!usable.includes(c))liteCover.delete(c);
 $('altp').max=usable.length+1;$('altp').value=0;const t1=performance.now();
 const base=await run({silent:true,alt:''});if(base.error)throw Error(base.error);
+el.textContent='비교 준비 중…';const scan=await prepScan();
 const rows=[{sym:'현금',name:'(기존 전략 그대로: 매도 대금은 현금)',base:true,...base}];let i=0;
-for(const c of usable){if(altCancel)break;if(++i%5==0){el.textContent=`${usable.length}개 ETF 비교 중… ${i}/${usable.length} · ${eta(i,usable.length,t1)}`;$('altp').value=i;await sleepMs(0)}
-const r=await run({silent:true,alt:c});if(r.error){bad.push(`${c}(${r.error.slice(0,40)})`);continue}
-r.dates=null;r.e=null;r.bhTrd=null;r.bhSig=null;r.bhAlt=null; // 메모리 절약: 차트에 쓸 상위만 나중에 다시 계산
+for(const c of usable){if(altCancel)break;if(++i%25==0){el.textContent=`${usable.length}개 ETF 비교 중… ${i}/${usable.length} · ${eta(i,usable.length,t1)}`;$('altp').value=i;await sleepMs(0)}
+const r=scan.one(liteCover.get(c));if(r.error){bad.push(`${c}(${r.error.slice(0,40)})`);continue}
 rows.push({sym:c,name:ALT_NAME[c]||LC_CAT[c]||'',corr:corr[c],...r})}
 window._altData={rows,bad,late,ended,corrOut,pins,total:cands.length,usable:usable.length,ref,byCorr:!typed,noCorr,pool:ok.length,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'}`;
 }catch(x){el.textContent=x.message}finally{$('altgo').disabled=false;$('recbtn').disabled=false;$('altp').style.display='none';$('altx').style.display='none'}}
@@ -493,10 +509,18 @@ const LC=[["단기국채·현금성", "SGOV,BIL,SHV,SHY,VGSH,SCHO,SPTS,IEI,GBIL,
 const LC_CAT=(()=>{const m={};LC.forEach(([c,t])=>t.split(',').forEach(x=>m[x]=c));return m})(),LC_ALL=LC.flatMap(([c,t])=>t.split(','))
 const sleepMs=ms=>new Promise(r=>setTimeout(r,ms));
 // 후보 1개의 시세를 받아 압축 형태로 반환 (요청 제한/일시 오류는 최대 4번 재시도)
+// 후보 시세 영구 캐시(IndexedDB, 3일): 두 번째 스캔부터는 네트워크 없이 바로 읽음
+let idbP=null;const idb=()=>idbP||(idbP=new Promise(res=>{try{const r=indexedDB.open('mabt_px',1);r.onupgradeneeded=()=>r.result.createObjectStore('px');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(x){res(null)}}));
+const idbGet=async k=>{const db=await idb();if(!db)return null;return new Promise(res=>{try{const q=db.transaction('px').objectStore('px').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(x){res(null)}})};
+const idbPut=async(k,v)=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').put(v,k)}catch(x){}};
+const idbClear=async()=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').clear()}catch(x){}};
+const idbClean=async()=>{const db=await idb();if(!db)return;try{const st=db.transaction('px','readwrite').objectStore('px'),q=st.openCursor();q.onsuccess=()=>{const c=q.result;if(c){if(!c.value||Date.now()-c.value.t>PXTTL)c.delete();c.continue()}}}catch(x){}};
+function sliceCompact(c,s,e){const a=s2i(s),b=s2i(e);let i0=0,i1=c.d.length;while(i0<i1&&c.d[i0]<a)i0++;while(i1>i0&&c.d[i1-1]>b)i1--;return{d:c.d.subarray(i0,i1),p:c.p.subarray(i0,i1)}}
 async function fetchCompact(sym,s,e){const hit=pxRead(sym);if(hit&&hit.rf<=s&&hit.rt>=e)return compactRows(hit.rows.filter(r=>r[0]>=s&&r[0]<=e));
+const ic=await idbGet(sym);if(ic&&Date.now()-ic.t<PXTTL&&ic.rf<=s&&ic.rt>=e){if(ic.pt)pxKind[sym]=ic.pt;return sliceCompact(ic,s,e)}
 for(let t=0;t<4;t++){let r,j;try{r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${s}&end=${e}`);j=await r.json()}catch(x){await sleepMs(600*2**t);continue}
 if(j&&j.error){if(/429|Too Many|rate|timed out|timeout|503|502/i.test(String(j.error))&&t<3){await sleepMs(900*2**t);continue}throw Error(j.error)}
-const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;return compactRows(j)}throw Error('요청 실패')}
+const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;const cp=compactRows(j);idbPut(sym,{t:Date.now(),rf:s,rt:e,pt,d:cp.d,p:cp.p});return cp}throw Error('요청 실패')}
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',renderAlt);
 $('sw').onclick=sweep;
 ['sig','trd','cmp','alt','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
