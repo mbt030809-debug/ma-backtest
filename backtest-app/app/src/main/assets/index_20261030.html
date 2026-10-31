@@ -24,11 +24,9 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 </div>
 <div class="row"><label>시작</label><input id="s" type="date" value="2010-01-01"><label>종료</label><input id="e" type="date"></div></div>
 <div class="card"><h2>신호 방식</h2><div class="row"><select id="mode"><option value="cross">돌파/이탈 이벤트 (이평선 백테스터 아티팩트 방식)</option><option value="state">상태 유지 (조건 충족 동안 보유)</option></select></div>
-<div id="crossBox"><div class="mut">종가가 이평선을 위로 돌파한 날 매수 신호, 아래로 이탈한 날 매도 신호 → 지연일 뒤 종가 체결. 매수는 현금의 %, 매도는 보유의 %. 같은 날 매도 먼저. 세금은 매도 건별(손실 0), 현금이자는 달력일 365일 복리. 지연은 최소 1일.</div>
-<div class="row"><b>매수 1</b><input id="bn1" type="number" min="2" value="20">일선 돌파 시 현금의<input id="br1" type="number" min="0" max="100" value="50">%</div>
-<div class="row"><b>매수 2</b><input id="bn2" type="number" min="2" value="60">일선 돌파 시 현금의<input id="br2" type="number" min="0" max="100" value="100">%</div>
-<div class="row"><b>매도 1</b><input id="sn1" type="number" min="2" value="20">일선 이탈 시 보유의<input id="sr1" type="number" min="0" max="100" value="50">%</div>
-<div class="row"><b>매도 2</b><input id="sn2" type="number" min="2" value="60">일선 이탈 시 보유의<input id="sr2" type="number" min="0" max="100" value="100">%</div></div></div>
+<div id="crossBox"><div class="mut">같은 이평선으로 매수·매도: 종가가 이평선을 위로 돌파한 날 매수 신호, 아래로 이탈한 날 매도 신호 → 지연일 뒤 종가 체결. 매수는 현금의 %, 매도는 보유의 %. 같은 날 매도 먼저. 세금은 매도 건별(손실 0), 현금이자는 달력일 365일 복리. 지연은 최소 1일.</div>
+<div class="row"><b>이평 1</b><input id="mn1" type="number" min="2" value="137">일선 · 돌파 시 현금의<input id="br1" type="number" min="0" max="100" value="100">% 매수 · 이탈 시 보유의<input id="sr1" type="number" min="0" max="100" value="100">% 매도</div>
+<div class="row"><b>이평 2</b><input id="mn2" type="number" min="2" value="512">일선 · 돌파 시 현금의<input id="br2" type="number" min="0" max="100" value="100">% 매수 · 이탈 시 보유의<input id="sr2" type="number" min="0" max="100" value="100">% 매도</div></div></div>
 <div id="stateBox"><div class="card"><h2>매수 조건 (충족 시 보유)</h2><div id="buy"></div><button class="add" data-t="buy">+ 매수 조건</button></div>
 <div class="card"><h2>매도 조건 (충족 시 전량 현금화)</h2><div id="sell"></div><button class="add" data-t="sell">+ 매도 조건</button>
 <div class="mut">매도 조건이 없으면 매수 조건이 깨질 때 매도. 둘 다 충족하면 매도 우선. 조건은 위에서 아래로 순서대로 AND/OR 결합.</div></div></div>
@@ -63,9 +61,9 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','bn1','br1','bn2','br2','sn1','sr1','sn2','sr2'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2'];
 function save(){try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
-function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});
+function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
 showMode();return true}catch(e){return false}}
 if(!restore()){addCond('buy','price',0,'sma',200);$('mode').onchange()}
@@ -79,7 +77,7 @@ if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,delay=Math.max($('mode').value=='cross'?1:0,Math.floor(+$('delay').value||0));
 const cross=$('mode').value=='cross',cashRate=(+$('cash').value||0)/100,taxRate=(+$('tax').value||0)/100;
 let bc=[],sc=[],rules={b:[],s:[]},maxN=0;
-if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('bn1','br1'),g('bn2','br2')];rules.s=[g('sn1','sr1'),g('sn2','sr2')];
+if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];
 for(const x of[...rules.b,...rules.s]){if(!(x.n>=2&&Number.isInteger(x.n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');maxN=Math.max(maxN,x.n)}}
 else{bc=readConds('buy');sc=readConds('sell');if(!bc.length)throw Error('매수 조건을 1개 이상 추가하세요');
 for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price'){if(!(n>=2&&Number.isInteger(n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');maxN=Math.max(maxN,n)}}
