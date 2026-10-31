@@ -64,7 +64,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><label>직접 후보(선택)</label><input id="altlist" type="text" placeholder="비우면 규모순 목록 사용 · 예: TLT,GLD,SHY" style="width:100%"></div>
 
 
-<div class="row"><label>차트·비교표에 넣을 상위</label><input id="altk" type="number" min="1" max="10" value="3" style="width:60px"><label>개</label></div>
+<div class="row"><label>차트·비교표에 넣을 상위</label><input id="altk2" type="number" min="1" max="20" value="10" style="width:60px"><label>개</label></div>
 <div class="row">
 <button id="altgo" type="button">후보 비교 실행</button><span id="alterr" class="mut"></span></div>
 
@@ -111,7 +111,7 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk2'];
 function altBadge(){const v=($('alt').value||'').trim().toUpperCase(),el=$('altbadge');if(!el)return;if(!v){el.innerHTML='';return}el.innerHTML=`🛡 방어자산 <b>${v.replace(/[^A-Z0-9.^=,\-+]/g,'')}</b> 적용 중 (매도 대금을 현금 대신 보유) <button id="altclr" type="button">해제(현금)</button>`;$('altclr').onclick=()=>{$('alt').value='';altBadge();save();run()}}
 function save(){altBadge();try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;
@@ -409,7 +409,7 @@ out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=o.w||1.6;g.setL
 // 시리즈를 백테스트 날짜(기준 전략의 날짜)에 맞춰 정렬 — 누락일은 직전 값으로 채움
 function alignSeries(series){const cd=series[0].dates;return{dates:cd,out:series.map(x=>{const m=new Map(x.dates.map((d,i)=>[d,x.e[i]])),v0=x.e.find(v=>v!=null)??100;let last=v0;const e=cd.map(d=>{let v=m.get(d);if(v==null)v=last;last=v;return v});return{...x,e}})}}
 let altTok=0;
-async function renderAltExtra(d,rows,base,key){const tok=++altTok;const K=Math.max(1,Math.min(10,+$('altk').value||3)),trdN=$('trd').value.trim().toUpperCase(),pc2=v=>(v*100).toFixed(1)+'%',sg=v=>(v>=0?'+':'')+v.toFixed(1);
+async function renderAltExtra(d,rows,base,key){const tok=++altTok;const K=Math.max(1,Math.min(20,+$('altk2').value||10)),trdN=$('trd').value.trim().toUpperCase(),pc2=v=>(v*100).toFixed(1)+'%',sg=v=>(v>=0?'+':'')+v.toFixed(1);
 // 찾는 기준(key) 하나로 정렬·"현금보다 나음" 판정·1위 선정을 모두 결정
 const MI={cagr:{n:'수익률(CAGR)',v:r=>r.st.cagr,f:v=>pc2(v)},tot:{n:'누적 수익(합산 손익)',v:r=>r.st.tot,f:v=>pc2(v)},sh:{n:'샤프',v:r=>r.st.sh,f:v=>v.toFixed(2)},so:{n:'소르티노',v:r=>r.st.so,f:v=>v.toFixed(2)},ca:{n:'칼마',v:r=>r.st.ca,f:v=>v.toFixed(2)},mdd:{n:'MDD(낙폭이 작은 순)',v:r=>r.st.mdd,f:v=>pc2(v)},comp:{n:'종합(수익률·MDD·소르티노 순위합)',v:r=>r.st.so,f:v=>v.toFixed(2)}}[key];
 const beats=key=='comp'?(r=>r.st.cagr>base.st.cagr&&r.st.mdd>=base.st.mdd&&r.st.so>base.st.so):(r=>MI.v(r)>MI.v(base));
@@ -429,7 +429,7 @@ $('altbetter').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').valu
 // 차트·비교표: 현금 전략 + 상위 K 추천 + 단순보유 (메모리 절약을 위해 상위만 시리즈를 다시 계산)
 const pick=(better.length?better:[...all].sort(key=='comp'?(a,b)=>a.comp-b.comp:(a,b)=>MI.v(b)-MI.v(a))).slice(0,K);
 for(const r of pick){if(!r.e){const x=await run({silent:true,alt:r.sym});if(x.error)continue;r.e=x.e;r.dates=x.dates;r.bhAlt=x.bhAlt}if(tok!==altTok)return}
-const PAL=['#2b6cf6','#e8590c','#2f9e44','#ae3ec9','#f08c00','#0c8599','#d6336c','#5c940d','#7048e8','#e67700'];
+const PAL=['#2b6cf6','#e8590c','#2f9e44','#ae3ec9','#f08c00','#0c8599','#d6336c','#5c940d','#7048e8','#e67700','#1c7ed6','#c92a2a','#37b24d','#9c36b5','#f59f00','#1098ad','#a61e4d','#74b816','#5f3dc4','#d9480f'];
 const ser=[{name:'기존 전략(현금)',dates:base.dates,e:base.e,c:'#868e96',w:2.4},...pick.map((r,i)=>({name:`${nm(r)} 전략`,dates:r.dates,e:r.e,c:PAL[i%PAL.length]})),{name:`${base.trdN} 단순보유(세후)`,dates:base.dates,e:base.bhTrd,c:'#e03131',dash:1,w:1.3}];
 if(base.bhSig)ser.push({name:`${base.sigN} 단순보유(세후)`,dates:base.dates,e:base.bhSig,c:'#364fc7',dash:1,w:1.3});
 const top=pick[0];if(top&&top.bhAlt)ser.push({name:`${nm(top)} 단독 보유(세후)`,dates:top.dates,e:top.bhAlt,c:'#099268',dash:1,w:1.3});
@@ -438,7 +438,7 @@ const stt=rb.out.map(o=>({...o,st:stats(o.e,rb.dates)})),b0=stt[0].st;
 $('altcmp').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th><th>기존(현금) 대비 누적</th></tr>'+stt.map((o,i)=>`<tr${i==0?' style="font-weight:600"':''}><td><i style="display:inline-block;width:10px;height:3px;background:${o.c};margin-right:4px"></i>${o.name}</td><td class="${cl(o.st.tot)}">${pc2(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc2(o.st.cagr)}</td><td class="neg">${pc2(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td><td>${o.st.so.toFixed(2)}</td><td>${o.st.ca.toFixed(2)}</td><td>${i==0?'-':sg((o.st.tot-b0.tot)*100)+'%p'}</td></tr>`).join('');
 const ys=Object.keys(stt[0].st.yr);$('altyr').innerHTML='<tr><th>연도</th>'+stt.map(o=>`<th>${o.name.replace(/ 전략$/,'')}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${stt.map(o=>`<td class="${cl(o.st.yr[y]||0)}">${pc2(o.st.yr[y]||0)}</td>`).join('')}</tr>`).join('')}
 addEventListener('resize',()=>{const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)});
-$('altk').addEventListener('change',renderAlt);
+$('altk2').addEventListener('change',renderAlt);
 function rankAlt(rows,key){const c=rows.filter(r=>!r.base&&!r.basket);['cagr','mdd','so'].forEach(k=>[...c].sort((a,b)=>b.st[k]-a.st[k]).forEach((r,i)=>r['r_'+k]=i+1));c.forEach(r=>r.comp=r.r_cagr+r.r_mdd+r.r_so);return c.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.st.so-a.st.so:(a,b)=>b.st[key]-a.st[key])}
 // 합산(바구니): 전체 후보 / 정렬 기준 상위 3개를 동일 비중으로 함께 보유
 const LEV=new Set('TQQQ SQQQ UPRO SPXU SSO SDS QLD QID SOXL SOXS TECL TECS TNA TZA FAS FAZ LABU LABD YINN YANG TMF TMV UVXY SVXY VIXY VIXM UDOW SDOW UMDD SMDD URTY SRTY NAIL DRN DRV DPST CURE UTSL ERX ERY GUSH DRIP NUGT DUST JNUG JDST BOIL KOLD UCO SCO UGL GLL AGQ ZSL SPXL SPXS SPYU FNGU FNGD BULZ BERZ WEBL WEBS MIDU MIDZ BNKU BNKD MEXX EDC EDZ EURL YCL YCS BIB BIS ROM REW USD SSG UYG SKF UXI SIJ UPW SDP URE SRS UCC SCC SH PSQ DOG DXD DDM TBT TBF UBT UST TWM UWM SBB SEF SH'.split(' '));
