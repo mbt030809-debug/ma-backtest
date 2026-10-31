@@ -1,7 +1,7 @@
 """백테스트 서버: 정적 파일 + Yahoo Finance 프록시 (표준 라이브러리만 사용).
 실행: python3 server_20261030.py  ->  http://localhost:8000
 MOCK=1 로 실행하면 가짜 랜덤 데이터 사용(오프라인 테스트용)."""
-import json, os, random, time, urllib.request, urllib.parse
+import json, os, random, re, time, urllib.request, urllib.parse
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -62,6 +62,10 @@ class H(BaseHTTPRequestHandler):
                 sym, s, e = q["symbol"][0].upper(), q["start"][0], q["end"][0]
                 if not sym:
                     raise ValueError("종목이 비었습니다")
+                if not re.fullmatch(r"[A-Z0-9.^=\-]{1,15}", sym):
+                    raise ValueError("종목 코드가 올바르지 않습니다")
+                for d in (s, e):
+                    time.strptime(d, "%Y-%m-%d")
                 key = (sym, s, e)
                 if key not in CACHE:
                     CACHE[key] = (mock if MOCK else yahoo)(sym, s, e)

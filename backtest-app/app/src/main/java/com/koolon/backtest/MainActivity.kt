@@ -46,6 +46,7 @@ class MainActivity : Activity() {
                     val sym = u.getQueryParameter("symbol")?.trim()?.uppercase() ?: ""
                     val (code, body, kind) = try {
                         require(sym.isNotEmpty()) { "종목이 비었습니다" }
+                        require(SYMBOL_OK.matches(sym)) { "종목 코드가 올바르지 않습니다" }
                         val (b, k) = prices(sym, u.getQueryParameter("start")!!, u.getQueryParameter("end")!!)
                         Triple(200, b, k)
                     } catch (e: Exception) {
@@ -103,5 +104,8 @@ class MainActivity : Activity() {
         return out.toString() to kind
     }
 
-    companion object { const val HOST = "app.local" }
+    companion object {
+        const val HOST = "app.local"
+        private val SYMBOL_OK = Regex("^[A-Z0-9.^=\\-]{1,15}$")
+    }
 }

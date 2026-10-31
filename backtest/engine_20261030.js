@@ -176,7 +176,7 @@ function interestFactors(dates, rate) {
 const yearsOf = dates => (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 31557600000;
 // 연도별 수익률 없이 핵심 지표만 빠르게 계산 (stats와 같은 값)
 function statsLite(e, yrs) {
-  const n = e.length; let sum = 0, pk = 100, mdd = 0, dn = 0;
+  const n = e.length; let sum = 0, pk = Math.max(100, e[0]), mdd = Math.min(0, e[0] / 100 - 1), dn = 0; // 첫날 값(수수료로 100 미만일 수 있음)도 낙폭에 포함 (stats와 동일)
   for (let i = 1; i < n; i++) { sum += e[i] / e[i - 1] - 1; }
   const m = sum / (n - 1); let ss = 0;
   for (let i = 1; i < n; i++) { const r0 = e[i] / e[i - 1] - 1; if (r0 < 0) dn += r0 * r0; const d = r0 - m; ss += d * d; if (e[i] > pk) pk = e[i]; const dd = e[i] / pk - 1; if (dd < mdd) mdd = dd; }
