@@ -91,16 +91,33 @@ function crossFlags(px, n) {
   }
   return { up, dn };
 }
+// 달력일 365일 복리 이자 계수 (스윕에서 한 번만 계산해 재사용)
+function interestFactors(dates, rate) {
+  const dr = Math.pow(1 + (rate || 0), 1 / 365) - 1, g = [1];
+  for (let i = 1; i < dates.length; i++) g.push(Math.pow(1 + dr, (new Date(dates[i]) - new Date(dates[i - 1])) / 864e5));
+  return g;
+}
+const yearsOf = dates => (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 31557600000;
+// 연도별 수익률 없이 핵심 지표만 빠르게 계산 (stats와 같은 값)
+function statsLite(e, yrs) {
+  const n = e.length; let sum = 0, pk = 100, mdd = 0;
+  for (let i = 1; i < n; i++) { sum += e[i] / e[i - 1] - 1; }
+  const m = sum / (n - 1); let ss = 0;
+  for (let i = 1; i < n; i++) { const d = e[i] / e[i - 1] - 1 - m; ss += d * d; if (e[i] > pk) pk = e[i]; const dd = e[i] / pk - 1; if (dd < mdd) mdd = dd; }
+  const sd = Math.sqrt(ss / (n - 2)); // 표본표준편차: 수익률 개수(n-1)에서 1을 뺌 (stats와 동일)
+  return { tot: e[n - 1] / 100 - 1, cagr: (e[n - 1] / 100) ** (1 / yrs) - 1, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0 };
+}
+
 // buys: [{r:현금 비율, f:bool[](dates 정렬)}], sells: [{r:보유 비율, f}]. o: {delay>=1, init, cashRate, tax, fee}
 // 시작일 종가에 init 비율 매수. 신호일 i의 주문은 i+delay 거래일 종가 체결, 같은 날은 매도 먼저(규칙 순서).
 // 현금이자는 달력일 기준 365일 복리, 세금은 매도 건별 평균단가 대비 이익에만(손실 0, 통산·공제 없음).
 function simulateEvents(dates, px, buys, sells, o) {
-  const n = px.length, dr = Math.pow(1 + (o.cashRate || 0), 1 / 365) - 1, fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
   let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0; const orders = {}, eq = [], w = [];
   const list = [], amt0 = cash * o.init;
   if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
   for (let i = 0; i < n; i++) {
-    if (i > 0) cash *= Math.pow(1 + dr, (new Date(dates[i]) - new Date(dates[i - 1])) / 864e5);
+    if (i > 0) cash *= ig[i];
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.s) {
         if (!(sh > 0)) return;
@@ -121,4 +138,4 @@ function simulateEvents(dates, px, buys, sells, o) {
   return { eq, paid, trades, w, list };
 }
 
-if (typeof module !== 'undefined') module.exports = { crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+if (typeof module !== 'undefined') module.exports = { interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
