@@ -59,7 +59,7 @@ function simulate(dates, px, w, o) {
     if (tS < S - 1e-9) { // 매도: 실현이익(매도금액-평균단가 원가)에만 세율 적용, 손실이면 0 (통산·공제 없음)
       const sold = S - tS, cost = B * (sold / S), t = Math.max(0, sold - cost) * tax;
       B -= cost; S = tS; C = V - S - t; paid += t; trades++; if (o.log) o.log.push({ j, sold, cost, t, p: px[j - 1] });
-      list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'S', rule: '매도 조건', price: px[j - 1], qty: sold / px[j - 1], amt: sold, tax: t, cash: C, sh: S / px[j - 1] });
+      list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'S', rule: '매도 조건', price: px[j - 1], qty: sold / px[j - 1], amt: sold, gain: sold - cost, tax: t, cash: C, sh: S / px[j - 1] });
     }
     else if (tS > S + 1e-9) { const add = tS - S; B += add; S = tS; C = V - S; trades++; list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'B', rule: '매수 조건', price: px[j - 1], qty: add / px[j - 1], amt: add, tax: 0, cash: C, sh: S / px[j - 1] }); }
     S *= px[j] / px[j - 1]; C *= 1 + cd;
@@ -106,7 +106,7 @@ function simulateEvents(dates, px, buys, sells, o) {
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
         basis -= cost; sh -= q; cash += amt - t; paid += t; trades++; if (o.log) o.log.push({ j: i, sold: amt, cost, t, p: px[i], q });
-        list.push({ i, si: od.si, side: 'S', rule: od.label, price: px[i], qty: q, amt, tax: t, cash, sh });
+        list.push({ i, si: od.si, side: 'S', rule: od.label, price: px[i], qty: q, amt, gain: amt - cost, tax: t, cash, sh });
       } else {
         if (!(cash > 0)) return;
         const amt = cash * od.r; const q = amt * (1 - fee) / px[i]; cash -= amt; sh += q; basis += amt; trades++;
