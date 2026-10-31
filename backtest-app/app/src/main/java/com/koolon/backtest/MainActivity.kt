@@ -2,6 +2,8 @@ package com.koolon.backtest
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
+import android.webkit.JavascriptInterface
 import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -26,6 +28,16 @@ class MainActivity : Activity() {
         web = WebView(this)
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true // localStorage: 설정 유지
+        // 스윕 중 백그라운드 유지: JS에서 AndroidApp.keepAlive(true/false)
+        web.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun keepAlive(on: Boolean) {
+                val i = Intent(this@MainActivity, KeepAliveService::class.java)
+                try { if (on) startForegroundService(i) else stopService(i) } catch (e: Exception) { }
+            }
+        }, "AndroidApp")
+        if (android.os.Build.VERSION.SDK_INT >= 33)
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(v: WebView, r: WebResourceRequest): WebResourceResponse? {
                 val u = r.url
