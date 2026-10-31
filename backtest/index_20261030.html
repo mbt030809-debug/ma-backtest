@@ -21,6 +21,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>기준 지표(신호)</label><input id="sig" type="text" value="SPY" list="symlist">
 <label>실제 매매</label><input id="trd" type="text" value="SSO" list="symlist">
 <label>비교 종목(쉼표)</label><input id="cmp" type="text" value="QQQ" list="symlist">
+<label>현금 대신할 ETF</label><input id="alt" type="text" placeholder="비우면 현금" list="symlist" style="width:120px" title="매도한 대금으로 현금 대신 이 ETF를 보유 (매수할 때 이 ETF를 팔아 자금 마련)">
 </div>
 <datalist id="symlist"><option value="^NDX">나스닥100 지수</option><option value="^IXIC">나스닥 종합 지수</option><option value="^GSPC">S&amp;P500 지수</option><option value="^DJI">다우존스 지수</option><option value="^RUT">러셀2000 지수</option><option value="^SOX">필라델피아 반도체 지수</option><option value="^KS11">코스피</option><option value="^KQ11">코스닥</option><option value="^N225">닛케이225</option><option value="^VIX">VIX 변동성 지수</option><option value="QQQ">나스닥100 ETF</option><option value="SPY">S&amp;P500 ETF</option><option value="DIA">다우 ETF</option><option value="IWM">러셀2000 ETF</option><option value="QLD">나스닥100 2배</option><option value="TQQQ">나스닥100 3배</option><option value="SSO">S&amp;P500 2배</option><option value="UPRO">S&amp;P500 3배</option><option value="SOXL">반도체 3배</option><option value="TECL">기술주 3배</option><option value="SGOV">초단기 국채(0-3M)</option><option value="BIL">초단기 국채(1-3M)</option><option value="SHV">단기 국채(≤1Y)</option><option value="SHY">단기 국채(1-3Y)</option><option value="IEF">중기 국채(7-10Y)</option><option value="TLT">장기 국채(20Y+)</option><option value="AGG">미국 종합채권</option><option value="BND">미국 종합채권(뱅가드)</option><option value="TIP">물가연동채</option><option value="LQD">투자등급 회사채</option><option value="GLD">금</option><option value="IAU">금(아이셰어즈)</option><option value="SCHD">배당성장</option><option value="VYM">고배당</option><option value="XLP">필수소비재</option><option value="XLU">유틸리티</option><option value="USMV">최소변동성</option><option value="SPLV">저변동성</option><option value="DBC">원자재</option><option value="UUP">달러 인덱스</option></datalist>
 <div class="row" id="idxrow"><label>지수 바로 선택(신호)</label></div>
@@ -64,7 +65,6 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 
 
 <div class="row"><label>차트·비교표에 넣을 상위</label><input id="altk" type="number" min="1" max="10" value="3" style="width:60px"><label>개</label></div>
-<div class="row"><label>방어자산 직접 지정</label><input id="alt" type="text" placeholder="ETF 1개 (비우면 현금)" list="symlist" style="width:100%;max-width:340px"><span class="mut">누르면 일반 실행 결과에 적용</span></div>
 <div class="row">
 <button id="altgo" type="button">후보 비교 실행</button><span id="alterr" class="mut"></span></div>
 
@@ -261,7 +261,7 @@ const ready=full[Math.min(maxN,full.length)-1];if(maxN>1&&ready>eff)w.push(`${si
 return{name:'백테스트 구간',n:dates.length,from:eff,to:dates.at(-1),warn:w,info:`${sig} 데이터 ${full[0]}~ · ${trd} 데이터 ${trdFirst}~`}}
 // 종목 입력 시 데이터 시작일(상장일) 표시
 let availTimer=null;
-async function updAvail(){const el=$('symavail');const syms=[...new Set([$('sig').value,$('trd').value,...$('cmp').value.split(',')].map(x=>x.trim().toUpperCase()).filter(Boolean))];if(!syms.length){el.textContent='';return}
+async function updAvail(){const el=$('symavail');const syms=[...new Set([$('sig').value,$('trd').value,...$('cmp').value.split(','),...$('alt').value.split(',')].map(x=>x.trim().toUpperCase()).filter(x=>x&&x!='AUTO'))];if(!syms.length){el.textContent='';return}
 if(syms.some(x=>!SYM_OK.test(x))){el.textContent='⚠️ 종목 코드가 올바르지 않습니다 (영문 대문자·숫자·.^=- 만 사용)';return}el.textContent='데이터 시작일 확인 중…';const e=$('e').value||new Date().toISOString().slice(0,10),sd=$('s').value;
 const out=await Promise.all(syms.map(async x=>{try{const r=await load(x,'2000-01-01',e);if(!r.length)return`<div>⚠️ <b>${x}</b> 데이터 없음</div>`;const f=r[0][0],l=r.at(-1)[0],late=sd&&dday(sd,f)>5;return`<div>${late?'⚠️':'📅'} <b>${x}</b> 데이터 ${f} ~ ${l} (${r.length.toLocaleString()}일)${kindTxt(x)?' · '+kindTxt(x):''}${late?` — 시작일(${sd})보다 늦어 <b>${f}</b>부터 계산됨`:''}</div>`}catch(x2){return`<div>⚠️ <b>${x}</b> ${x2.message}</div>`}}));
 el.innerHTML=out.join('')}
@@ -499,7 +499,7 @@ if(j&&j.error){if(/429|Too Many|rate|timed out|timeout|503|502/i.test(String(j.e
 const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;return compactRows(j)}throw Error('요청 실패')}
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',renderAlt);
 $('sw').onclick=sweep;
-['sig','trd','cmp','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
+['sig','trd','cmp','alt','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
 $('r10').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
 ['a1','b1','c1','a2','b2','c2','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
 try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.rows[0].so!==undefined&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
