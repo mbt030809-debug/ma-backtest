@@ -65,7 +65,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><label>차트·비교표에 넣을 상위</label><input id="altk" type="number" min="1" max="10" value="3" style="width:60px"><label>개</label></div>
 <div class="row"><label>방어자산 직접 지정</label><input id="alt" type="text" placeholder="ETF 1개 (비우면 현금)" list="symlist" style="width:100%;max-width:340px"><span class="mut">누르면 일반 실행 결과에 적용</span></div>
 <div class="row">
-<label><input type="checkbox" id="altcommon"> 데이터가 짧은 ETF도 포함(각자 가능한 구간 — 비교가 불공정)</label><button id="altgo" type="button">후보 비교 실행</button><span id="alterr" class="mut"></span></div>
+<button id="altgo" type="button">후보 비교 실행</button><span id="alterr" class="mut"></span></div>
 
 
 </details>
@@ -112,8 +112,8 @@ document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
 const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altk'];
 function altBadge(){const v=($('alt').value||'').trim().toUpperCase(),el=$('altbadge');if(!el)return;if(!v){el.innerHTML='';return}el.innerHTML=`🛡 방어자산 <b>${v.replace(/[^A-Z0-9.^=,\-+]/g,'')}</b> 적용 중 (매도 대금을 현금 대신 보유) <button id="altclr" type="button">해제(현금)</button>`;$('altclr').onclick=()=>{$('alt').value='';altBadge();save();run()}}
-function save(){altBadge();try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.altcommon=$('altcommon').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
-function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;if(o.altcommon!=null)$('altcommon').checked=o.altcommon;
+function save(){altBadge();try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
 showMode();return true}catch(e){return false}}
 if(!restore()){addCond('buy','price',0,'sma',200);$('mode').onchange()}
@@ -396,7 +396,7 @@ const line=(r,i)=>{const yy=r.pnl.y.reduce((a,b)=>a+b,0),oth=r.pnl.int-r.pnl.tax
 $('altt').innerHTML=`<tr><th>순위</th><th>ETF</th><th>이름</th><th>구간</th><th>${trdN} 손익</th><th>방어 ETF 손익</th><th>이자·세금</th><th>합산 손익</th><th>합산 CAGR</th><th>합산 MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th><th>기존(현금) 대비</th></tr>`+line(base,0)+baskets.map(r=>line(r,0)).join('')+rows.map((r,i)=>line(r,i)).join('');
 $('altt').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();run();scrollTo({top:0,behavior:'smooth'})});
 const top=rows[0],better=rows.filter(r=>r.st[key=='comp'?'so':key]>base.st[key=='comp'?'so':key]).length;
-$('altnote').innerHTML=top?`후보 ${d.total}개 중 비교 ${rows.length}개${d.late.length?` · 상장이 늦어 제외 ${d.late.length}개(시작일을 늦추거나 "데이터가 짧은 ETF도 포함"을 켜면 포함)`:''}${d.bad.length?` · 데이터 없음/오류 ${d.bad.length}개`:''}.<br>※ 모든 ETF를 같은 백테스트 구간으로 비교(배당 재투자 총수익). 과거 성과이며 미래를 보장하지 않음. 행을 누르면 그 ETF로 일반 실행.${d.late.length?`<details><summary>제외된 상장 늦은 ETF</summary>${d.late.join(', ')}</details>`:''}${d.bad.length?`<details><summary>데이터 없는 ETF</summary>${d.bad.join(', ')}</details>`:''}`:'비교할 후보가 없습니다';renderAltExtra(d,rows,base,key)}
+$('altnote').innerHTML=top?`후보 ${d.total}개 중 비교 ${rows.length}개${d.late.length+d.ended.length?` · <b>백테스트 기간에 데이터가 없어 제외 ${d.late.length+d.ended.length}개</b>(상장이 시작일보다 늦음 ${d.late.length}, 데이터 종료 ${d.ended.length} — 시작일을 늦추면 새 ETF도 포함)`:''}${d.bad.length?` · 데이터 없음/오류 ${d.bad.length}개`:''}.<br>※ 백테스트 기간 전체에 데이터가 있는 ETF만 비교(배당 재투자 총수익). 과거 성과이며 미래를 보장하지 않음. 행을 누르면 그 ETF로 일반 실행.${d.late.length+d.ended.length?`<details><summary>기간 부족으로 제외된 ETF</summary>${[...d.late,...d.ended].join(', ')}</details>`:''}${d.bad.length?`<details><summary>데이터 없는 ETF</summary>${d.bad.join(', ')}</details>`:''}`:'비교할 후보가 없습니다';renderAltExtra(d,rows,base,key)}
 
 // ---- 현금보다 나은 방어자산 목록 + 차트 + 비교표 ----
 function lineChart(id,out,dates){const c=$(id),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight||320;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
@@ -405,9 +405,8 @@ const X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getCompu
 for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((lg?Math.exp(v):v).toFixed(0),4,y+4)}
 let ly='';dates.forEach((d,i)=>{if(d.slice(0,4)!=ly){ly=d.slice(0,4);g.fillText(ly,X(i),H-6)}});
 out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=o.w||1.6;g.setLineDash(o.dash?[5,4]:[]);g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});g.setLineDash([])}
-// 서로 다른 구간의 시리즈를 공통 시작일 기준 100으로 맞춤
-function rebase(series){const cs=series.map(x=>x.dates[0]).sort().at(-1),cd=series[0].dates.filter(d=>d>=cs);
-return{dates:cd,out:series.map(x=>{const m=new Map(x.dates.map((d,i)=>[d,x.e[i]])),vals=cd.map(d=>m.get(d)),v0=vals.find(v=>v!=null)??1;let last=v0;const e=vals.map(v=>{if(v==null)v=last;last=v;return v/v0*100});return{...x,e}})}}
+// 시리즈를 백테스트 날짜(기준 전략의 날짜)에 맞춰 정렬 — 누락일은 직전 값으로 채움
+function alignSeries(series){const cd=series[0].dates;return{dates:cd,out:series.map(x=>{const m=new Map(x.dates.map((d,i)=>[d,x.e[i]])),v0=x.e.find(v=>v!=null)??100;let last=v0;const e=cd.map(d=>{let v=m.get(d);if(v==null)v=last;last=v;return v});return{...x,e}})}}
 let altTok=0;
 async function renderAltExtra(d,rows,base,key){const tok=++altTok;const K=Math.max(1,Math.min(10,+$('altk').value||3)),trdN=$('trd').value.trim().toUpperCase(),pc2=v=>(v*100).toFixed(1)+'%',sg=v=>(v>=0?'+':'')+v.toFixed(1);
 // 찾는 기준(key) 하나로 정렬·"현금보다 나음" 판정·1위 선정을 모두 결정
@@ -425,7 +424,7 @@ const PAL=['#2b6cf6','#e8590c','#2f9e44','#ae3ec9','#f08c00','#0c8599','#d6336c'
 const ser=[{name:'기존 전략(현금)',dates:base.dates,e:base.e,c:'#868e96',w:2.4},...pick.map((r,i)=>({name:`${nm(r)} 전략`,dates:r.dates,e:r.e,c:PAL[i%PAL.length]})),{name:`${base.trdN} 단순보유(세후)`,dates:base.dates,e:base.bhTrd,c:'#e03131',dash:1,w:1.3}];
 if(base.bhSig)ser.push({name:`${base.sigN} 단순보유(세후)`,dates:base.dates,e:base.bhSig,c:'#364fc7',dash:1,w:1.3});
 const top=pick[0];if(top&&top.bhAlt)ser.push({name:`${nm(top)} 단독 보유(세후)`,dates:top.dates,e:top.bhAlt,c:'#099268',dash:1,w:1.3});
-const rb=rebase(ser);window._altChart=rb;$('altcv').style.display='';buildLegend('altlg',rb.out,`<span class="mut">공통 시작일 ${rb.dates[0]}=100 기준</span>`,()=>lineChart('altcv',rb.out,rb.dates));lineChart('altcv',rb.out,rb.dates);
+const rb=alignSeries(ser);window._altChart=rb;$('altcv').style.display='';buildLegend('altlg',rb.out,`<span class="mut">백테스트 시작일 ${rb.dates[0]}=100 기준</span>`,()=>lineChart('altcv',rb.out,rb.dates));lineChart('altcv',rb.out,rb.dates);
 const stt=rb.out.map(o=>({...o,st:stats(o.e,rb.dates)})),b0=stt[0].st;
 $('altcmp').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th><th>기존(현금) 대비 누적</th></tr>'+stt.map((o,i)=>`<tr${i==0?' style="font-weight:600"':''}><td><i style="display:inline-block;width:10px;height:3px;background:${o.c};margin-right:4px"></i>${o.name}</td><td class="${cl(o.st.tot)}">${pc2(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc2(o.st.cagr)}</td><td class="neg">${pc2(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td><td>${o.st.so.toFixed(2)}</td><td>${o.st.ca.toFixed(2)}</td><td>${i==0?'-':sg((o.st.tot-b0.tot)*100)+'%p'}</td></tr>`).join('');
 const ys=Object.keys(stt[0].st.yr);$('altyr').innerHTML='<tr><th>연도</th>'+stt.map(o=>`<th>${o.name.replace(/ 전략$/,'')}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${stt.map(o=>`<td class="${cl(o.st.yr[y]||0)}">${pc2(o.st.yr[y]||0)}</td>`).join('')}</tr>`).join('')}
@@ -440,15 +439,17 @@ let altCancel=false;
 async function altScan(){const el={set textContent(v){$('alterr').textContent=v;$('recmsg').textContent=v},get textContent(){return $('alterr').textContent}};el.textContent='';altCancel=false;$('altgo').disabled=true;$('recbtn').disabled=true;$('altx').style.display='';try{
 const typed=$('altlist').value.trim(),N=Math.max(1,Math.min(1500,+$('altn').value||1000));
 let cands=typed?[...new Set(typed.split(/[\s,]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))]:(await getUniverse()).slice(0,N);const trdSym=$('trd').value.trim().toUpperCase();cands=cands.filter(x=>SYM_OK.test(x)&&x!==trdSym);
-const e=$('e').value,sd=$('s').value,incShort=$('altcommon').checked,info={},t0=performance.now();let idx=0,done=0;
+const e=$('e').value,sd=$('s').value,info={},t0=performance.now();let idx=0,done=0;
 $('altp').style.display='';$('altp').max=cands.length;$('altp').value=0;el.textContent=`후보 ${cands.length}개 시세 받는 중…`;
 const eta=(d,tot,t)=>{const el2=(performance.now()-t)/1000,r=d/Math.max(el2,.001);return `경과 ${fmtT(el2)} · 남은 약 ${fmtT((tot-d)/r)}`};
 // 6개씩 동시에 받아 압축 저장 → 이후 계산에서 재사용 (메모리 절약)
-const worker=async()=>{while(idx<cands.length&&!altCancel){const c=cands[idx++];try{const cp=await fetchCompact(c,sd,e);if(cp.d.length>20){info[c]={first:i2s(cp.d[0])};liteCover.set(c,{rf:sd,rt:e,d:cp.d,p:cp.p})}else info[c]=null}catch(x){info[c]=null}$('altp').value=++done;if(done%10==0)el.textContent=`시세 받는 중… ${done}/${cands.length} · ${eta(done,cands.length,t0)}`}};
+const worker=async()=>{while(idx<cands.length&&!altCancel){const c=cands[idx++];try{const cp=await fetchCompact(c,sd,e);if(cp.d.length>20){info[c]={first:i2s(cp.d[0]),last:i2s(cp.d[cp.d.length-1])};liteCover.set(c,{rf:sd,rt:e,d:cp.d,p:cp.p})}else info[c]=null}catch(x){info[c]=null}$('altp').value=++done;if(done%10==0)el.textContent=`시세 받는 중… ${done}/${cands.length} · ${eta(done,cands.length,t0)}`}};
 await Promise.all(Array.from({length:6},worker));
 if(altCancel)throw Error('중단했습니다');
-const ok=cands.filter(c=>info[c]),bad=cands.filter(c=>!info[c]).map(c=>c+'(데이터 없음)'),late=ok.filter(c=>dday(sd,info[c].first)>5).map(c=>`${c}(${info[c].first}~)`);
-const usable=incShort?ok:ok.filter(c=>dday(sd,info[c].first)<=5);if(!usable.length)throw Error('백테스트 시작일에 데이터가 있는 후보가 없습니다 (시작일을 늦추거나 "데이터가 짧은 ETF도 포함"을 켜세요)');
+const ok=cands.filter(c=>info[c]),bad=cands.filter(c=>!info[c]).map(c=>c+'(데이터 없음)');
+// 내가 백테스트한 기간(시작일~종료일) 전체에 데이터가 없는 ETF는 예외 처리
+const late=ok.filter(c=>dday(sd,info[c].first)>5).map(c=>`${c}(${info[c].first}~ 시작일보다 늦게 상장)`),ended=ok.filter(c=>dday(sd,info[c].first)<=5&&dday(info[c].last,e)>10).map(c=>`${c}(~${info[c].last} 데이터 종료)`);
+const usable=ok.filter(c=>dday(sd,info[c].first)<=5&&dday(info[c].last,e)<=10);if(!usable.length)throw Error('백테스트 기간 전체에 데이터가 있는 후보가 없습니다 (시작일을 늦춰 보세요)');
 $('altp').max=usable.length+1;$('altp').value=0;const t1=performance.now();
 const base=await run({silent:true,alt:''});if(base.error)throw Error(base.error);
 const rows=[{sym:'현금',name:'(기존 전략 그대로: 매도 대금은 현금)',base:true,...base}];let i=0;
@@ -456,7 +457,7 @@ for(const c of usable){if(altCancel)break;if(++i%5==0){el.textContent=`${usable.
 const r=await run({silent:true,alt:c});if(r.error){bad.push(`${c}(${r.error.slice(0,40)})`);continue}
 r.dates=null;r.e=null;r.bhTrd=null;r.bhSig=null;r.bhAlt=null; // 메모리 절약: 차트에 쓸 상위만 나중에 다시 계산
 rows.push({sym:c,name:ALT_NAME[c]||LC_CAT[c]||'',...r})}
-window._altData={rows,bad,late,total:cands.length,usable:usable.length,incShort,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'}`;
+window._altData={rows,bad,late,ended,total:cands.length,usable:usable.length,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'}`;
 }catch(x){el.textContent=x.message}finally{$('altgo').disabled=false;$('recbtn').disabled=false;$('altp').style.display='none';$('altx').style.display='none'}}
 // 백테스트 결과를 기준으로, 후보 ETF를 자동으로 바꿔가며 비교 (한 번에)
 async function recommend(){const m=$('recmsg');m.textContent='';try{
