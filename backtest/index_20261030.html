@@ -38,7 +38,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>신호 후 체결 지연(일)</label><input id="delay" type="number" min="0" value="0">
 <label>수수료(%, 돌파 방식)</label><input id="fee" type="number" step="0.01" min="0" value="0">
 <label>매도 차익 세율(%)</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
-<div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 매도할 때마다 매도 수익(매도금액-평균단가)의 세율만큼 납부, 손실은 0(전략만 적용, 보유 비교는 세전). 미실현 이익은 과세 안 함.</div></div>
+<div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 매도할 때마다 매도 수익(매도금액-평균단가)의 세율만큼 납부, 손실은 0(보유 비교는 그 시점에 매도한다고 가정해 수익의 세율만큼 차감한 세후 값, 전략의 미실현 이익은 과세 안 함). 미실현 이익은 과세 안 함.</div></div>
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
@@ -97,7 +97,9 @@ else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
 const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets(buy,sell,init),init,delay);
 sim=simulate(dates,P(trd),w,{cashRate,taxRate})}
 const ctx={trades:sim.list,w};
-const out=[{name:`전략(${sig} 신호→${trd})`,e:sim.eq},{name:`${trd} 보유`,e:buyHold(P(trd))},...[...new Set([sig,...cmp])].filter(x=>x!=trd).map(x=>({name:`${x} 보유`,e:buyHold(P(x))}))];
+// 보유 비교는 그 시점에 팔았다고 가정한 세후 가치(수익의 세율만큼 차감, 손실은 그대로)
+const ath=e=>e.map(v=>v-Math.max(0,v-100)*taxRate),sfx=taxRate>0?' (세후)':'';
+const out=[{name:`전략(${sig} 신호→${trd})`,e:sim.eq},{name:`${trd} 보유${sfx}`,e:ath(buyHold(P(trd)))},...[...new Set([sig,...cmp])].filter(x=>x!=trd).map(x=>({name:`${x} 보유${sfx}`,e:ath(buyHold(P(x)))}))];
 out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates,ctx);
 $('lg').innerHTML=out.map(o=>`<span><i style="background:${o.c}"></i>${o.name}</span>`).join('')+'<span><i style="background:rgba(47,158,68,.5)"></i>배경 초록=보유(비중 10%+)</span><span><i style="background:rgba(224,49,49,.45)"></i>배경 빨강=현금</span><span>▲매수 ▼매도(전략선 위, 체결일)</span>';
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
