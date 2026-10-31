@@ -11,7 +11,7 @@ main{max-width:980px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0 0 12p
 label{color:var(--mut);font-size:12px}input,select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 8px}
 input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
 .tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}th:first-child,td:first-child{text-align:left}
-.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:340px;display:block}
+.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:340px;display:block}#cv2{height:300px}
 .lg{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:12px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
 #err{color:#e03131;margin:6px 0}.mut{color:var(--mut);font-size:12px}
 </style></head><body><main>
@@ -42,7 +42,9 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
+<div class="card"><h2>신호 차트 (기준 지표·이평선·매수/매도)</h2><canvas id="cv2"></canvas><div class="lg" id="lg2"></div><div class="mut">▲ 초록=매수, ▼ 빨강=매도 (신호일 기준 위치). 체결은 지연일 뒤이며 아래 매수·매도 내역에서 확인.</div></div>
 <div class="card"><h2>요약</h2><div class="tbl"><table id="sum"></table></div></div>
+<div class="card"><details><summary><b id="trsum">매수·매도 내역</b></summary><div class="tbl"><table id="trd2"></table></div></details></div>
 <div class="card"><h2>연도별 수익률</h2><div class="tbl"><table id="yr"></table></div></div>
 </main>
 <script src="/engine_20261030.js"></script>
@@ -91,22 +93,39 @@ const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d)));cmp.
 const P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>full.indexOf(d));
 let sim,w;
 if(cross){const fl={};const ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];
-sim=simulateEvents(dates,P(trd),rules.b.map(x=>({r:x.r,f:pos.map(i=>ff(x,'up')[i])})),rules.s.map(x=>({r:x.r,f:pos.map(i=>ff(x,'dn')[i])})),{delay,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100});w=sim.w}
+sim=simulateEvents(dates,P(trd),rules.b.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'up')[i])})),rules.s.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'dn')[i])})),{delay,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100});w=sim.w}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
 const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets(buy,sell,init),init,delay);
 sim=simulate(dates,P(trd),w,{cashRate,taxRate})}
+const specs=new Map();const addSpec=(k,n)=>{if(k!='price')specs.set(k+n,{k,n})};
+if(cross)[...rules.b,...rules.s].forEach(x=>addSpec('sma',x.n));else[...bc,...sc].forEach(c=>{addSpec(c.lk,c.ln);addSpec(c.rk,c.rn)});
+const ctx={px:P(sig),sig,dates,trades:sim.list,mas:[...specs.values()].map(m=>({name:`${m.k.toUpperCase()}${m.n}`,v:pos.map(i=>series(fpx,m.k,m.n)[i])}))};
 const out=[{name:`전략(${sig} 신호→${trd})`,e:sim.eq},{name:`${trd} 보유`,e:buyHold(P(trd))},...[...new Set([sig,...cmp])].filter(x=>x!=trd).map(x=>({name:`${x} 보유`,e:buyHold(P(x))}))];
-out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates);
+out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates,ctx);
 $('lg').innerHTML=out.map(o=>`<span><i style="background:${o.c}"></i>${o.name}</span>`).join('');
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
 $('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산${skipped.length?' · 비교 제외(기간 부족): '+skipped.join(','):''}</td></tr>`;
 const ys=Object.keys(out[0].st.yr);$('yr').innerHTML='<tr><th>연도</th>'+out.map(o=>`<th>${o.name}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${out.map(o=>`<td class="${cl(o.st.yr[y])}">${pc(o.st.yr[y])}</td>`).join('')}</tr>`).join('');
-window._last=[out,dates]}catch(x){$('err').textContent=x.message}}
-function draw(out,dates){const c=$('cv'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
+const nf=v=>v.toLocaleString('ko-KR',{maximumFractionDigits:2});$('trsum').textContent=`매수·매도 내역 (${sim.list.length}건, 시작=100 기준 금액)`;
+$('trd2').innerHTML='<tr><th>신호일</th><th>체결일</th><th>구분</th><th>규칙</th><th>체결가</th><th>수량</th><th>금액</th><th>세금</th><th>현금</th><th>보유수량</th></tr>'+sim.list.map(t=>`<tr><td>${dates[t.si]}</td><td>${dates[t.i]}</td><td class="${t.side=='B'?'pos':'neg'}">${t.side=='B'?'매수':'매도'}</td><td>${t.rule}</td><td>${nf(t.price)}</td><td>${t.qty.toFixed(4)}</td><td>${nf(t.amt)}</td><td>${t.tax>0.005?nf(t.tax):''}</td><td>${nf(t.cash)}</td><td>${t.sh.toFixed(4)}</td></tr>`).join('');
+window._last=[out,dates,ctx]}catch(x){$('err').textContent=x.message}}
+function draw(out,dates,ctx){const c=$('cv'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
 const lg=$('log').checked,f=v=>lg?Math.log(v):v,all=out.flatMap(o=>o.e).map(f),lo=Math.min(...all),hi=Math.max(...all),L=50,B=22,T=8,R=8,n=dates.length;
 const X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');
 for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((lg?Math.exp(v):v).toFixed(0),4,y+4)}
 let ly='';dates.forEach((d,i)=>{if(d.slice(0,4)!=ly){ly=d.slice(0,4);g.fillText(ly,X(i),H-6)}});
-out.forEach(o=>{g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()})}
+out.forEach(o=>{g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()})
+if(ctx)drawSig(ctx)}
+function drawSig(x){const c=$('cv2'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
+const lg=$('log').checked,f=v=>lg?Math.log(v):v,n=x.dates.length,vals=[...x.px,...x.mas.flatMap(m=>m.v)].filter(v=>v>0&&isFinite(v)).map(f),lo=Math.min(...vals),hi=Math.max(...vals),L=56,B=22,T=8,R=8;
+const X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');
+for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((lg?Math.exp(v):v).toFixed(0),4,y+4)}
+let ly='';x.dates.forEach((d,i)=>{if(d.slice(0,4)!=ly){ly=d.slice(0,4);g.fillText(ly,X(i),H-6)}});
+const line=(a,col,w)=>{g.strokeStyle=col;g.lineWidth=w;g.beginPath();let on=false;a.forEach((v,i)=>{if(!(v>0)){on=false;return}on?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v));on=true});g.stroke()};
+line(x.px,'#8a93a8',1.2);const mc=['#e8590c','#0c8599','#ae3ec9','#f08c00','#2f9e44'];x.mas.forEach((m,i)=>line(m.v,mc[i%5],1.6));
+const idx={};x.dates.forEach((d,i)=>idx[d]=i);const tri=(i,buy)=>{const px=X(i),py=Y(x.px[i]),s=7,d=buy?1:-1;g.fillStyle=buy?'#2f9e44':'#e03131';g.beginPath();g.moveTo(px,py+d*3);g.lineTo(px-s,py+d*(3+s*1.6));g.lineTo(px+s,py+d*(3+s*1.6));g.closePath();g.fill()};
+x.trades.forEach(t=>{if(t.rule=='시작')return;tri(idx[x.dates[t.si]],t.side=='B')});
+$('lg2').innerHTML=`<span><i style="background:#8a93a8"></i>${x.sig} 종가</span>`+x.mas.map((m,i)=>`<span><i style="background:${mc[i%5]}"></i>${m.name}</span>`).join('')}
+
 $('run').onclick=run;$('log').onchange=()=>window._last&&draw(...window._last);addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>

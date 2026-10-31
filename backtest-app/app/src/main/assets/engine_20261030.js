@@ -52,18 +52,20 @@ const applied = (tg, init, delay) => tg.map((_, j) => j - 1 - delay >= 0 ? tg[j 
 function simulate(dates, px, w, o) {
   const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
   let S = w[0] * 100, C = 100 - S, B = S, paid = 0, trades = 0;
-  const eq = [100];
+  const eq = [100], list = [];
+  if (S > 0) list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: S / px[0], amt: S, tax: 0, cash: C, sh: S / px[0] });
   for (let j = 1; j < n; j++) {
     const V = S + C, tS = w[j] * V;
     if (tS < S - 1e-9) { // 매도: 실현이익(매도금액-평균단가 원가)에만 세율 적용, 손실이면 0 (통산·공제 없음)
       const sold = S - tS, cost = B * (sold / S), t = Math.max(0, sold - cost) * tax;
-      B -= cost; S = tS; C = V - S - t; paid += t; trades++;
+      B -= cost; S = tS; C = V - S - t; paid += t; trades++; if (o.log) o.log.push({ j, sold, cost, t, p: px[j - 1] });
+      list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'S', rule: '매도 조건', price: px[j - 1], qty: sold / px[j - 1], amt: sold, tax: t, cash: C, sh: S / px[j - 1] });
     }
-    else if (tS > S + 1e-9) { B += tS - S; S = tS; C = V - S; trades++; }
+    else if (tS > S + 1e-9) { const add = tS - S; B += add; S = tS; C = V - S; trades++; list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'B', rule: '매수 조건', price: px[j - 1], qty: add / px[j - 1], amt: add, tax: 0, cash: C, sh: S / px[j - 1] }); }
     S *= px[j] / px[j - 1]; C *= 1 + cd;
     eq.push(S + C);
   }
-  return { eq, paid, trades };
+  return { eq, paid, trades, list };
 }
 
 const buyHold = px => px.map(v => v / px[0] * 100);
@@ -95,25 +97,28 @@ function crossFlags(px, n) {
 function simulateEvents(dates, px, buys, sells, o) {
   const n = px.length, dr = Math.pow(1 + (o.cashRate || 0), 1 / 365) - 1, fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
   let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0; const orders = {}, eq = [], w = [];
-  const amt0 = cash * o.init; if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; trades++; }
+  const list = [], amt0 = cash * o.init;
+  if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
   for (let i = 0; i < n; i++) {
     if (i > 0) cash *= Math.pow(1 + dr, (new Date(dates[i]) - new Date(dates[i - 1])) / 864e5);
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.s) {
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
-        basis -= cost; sh -= q; cash += amt - t; paid += t; trades++;
+        basis -= cost; sh -= q; cash += amt - t; paid += t; trades++; if (o.log) o.log.push({ j: i, sold: amt, cost, t, p: px[i], q });
+        list.push({ i, si: od.si, side: 'S', rule: od.label, price: px[i], qty: q, amt, tax: t, cash, sh });
       } else {
         if (!(cash > 0)) return;
-        const amt = cash * od.r; cash -= amt; sh += amt * (1 - fee) / px[i]; basis += amt; trades++;
+        const amt = cash * od.r; const q = amt * (1 - fee) / px[i]; cash -= amt; sh += q; basis += amt; trades++;
+        list.push({ i, si: od.si, side: 'B', rule: od.label, price: px[i], qty: q, amt, tax: 0, cash, sh });
       }
     });
-    const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k }); };
+    const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const v = cash + sh * px[i]; eq.push(v); w.push(v ? sh * px[i] / v : 0);
   }
-  return { eq, paid, trades, w };
+  return { eq, paid, trades, w, list };
 }
 
 if (typeof module !== 'undefined') module.exports = { crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
