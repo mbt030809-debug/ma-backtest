@@ -11,7 +11,7 @@ main{max-width:980px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0 0 12p
 label{color:var(--mut);font-size:12px}input,select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 8px}
 input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
 .tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}th:first-child,td:first-child{text-align:left}
-.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:340px;display:block}
+.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:340px;display:block}canvas.hm{margin-bottom:8px;cursor:pointer}
 .lg{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:12px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
 #err{color:#e03131;margin:6px 0}.mut{color:var(--mut);font-size:12px}
 </style></head><body><main>
@@ -44,6 +44,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <progress id="swp" value="0" max="1" style="width:100%;display:none"></progress><div class="mut" id="swinfo"></div>
 <div class="mut">현재 입력된 종목·기간·비율·지연·이자·세금·수수료를 그대로 쓰고 이평 1·2 기간만 바꿔가며 돌파/이탈 방식으로 계산. 행을 누르면 그 값으로 적용·실행. 과최적화 주의: 기간을 나눠 검증해 보세요.</div>
 <div id="swsum"></div>
+<div id="swheat"></div><div class="mut" id="swhov"></div>
 <div class="tbl"><table id="swt"></table></div></div>
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
@@ -148,10 +149,43 @@ row('종합 1위',best)+row('수익률 1위',by('tot'))+row('CAGR 1위',by('cagr
 · 상위 ${top.length}개 평균: 누적 ${pc2(avg(top,'tot'))}, MDD ${pc2(avg(top,'mdd'))}, 샤프 ${avg(top,'sh').toFixed(2)} / 전체 ${rows.length}개 평균: 누적 ${pc2(avg(rows,'tot'))}, MDD ${pc2(avg(rows,'mdd'))}, 샤프 ${allSh.toFixed(2)}<br>
 · 종합 1위(${best.n1}/${best.n2}) 주변(±1간격) 조합 ${nbs.length}개 평균 샤프 ${isNaN(nbSh)?'-':nbSh.toFixed(2)} → ${!nbs.length?'주변 조합 없음':stable?'주변도 비슷해 비교적 안정적':'주변이 크게 떨어져 우연일 가능성(과최적화 주의)'}</div>`}
 function showSweep(rows,meta){const pc2=v=>(v*100).toFixed(1)+'%';const top=rows.slice(0,30);
-$('swsum').innerHTML=summarize(rows,meta.c1,meta.c2);
+$('swsum').innerHTML=summarize(rows,meta.c1,meta.c2);drawHeat(rows,meta);
 $('swt').innerHTML='<tr><th>순위</th><th>이평1</th><th>이평2</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>매매</th></tr>'+top.map((r,i)=>`<tr class="swr" data-a="${r.n1}" data-b="${r.n2}" style="cursor:pointer"><td>${i+1}</td><td>${r.n1}</td><td>${r.n2}</td><td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.trades}</td></tr>`).join('');
 $('swt').querySelectorAll('.swr').forEach(t=>t.onclick=()=>{$('mn1').value=t.dataset.a;$('mn2').value=t.dataset.b;$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})});
 $('swerr').textContent=`${rows.length}개 조합 중 상위 ${top.length}개 (행을 누르면 적용). 지연 ${meta.delay}일, ${meta.range}`}
+
+// ---- 스윕 히트맵 (x=이평2 장기선, y=이평1 단기선) ----
+const HM=[['cagr','CAGR (%)',v=>(v*100).toFixed(1),'blue'],['mdd','MDD (%)',v=>(v*100).toFixed(1),'red'],['sh','샤프',v=>v.toFixed(2),'blue']];
+const lerp=(a,b,t)=>a.map((x,i)=>Math.round(x+(b[i]-x)*t)),PAL={blue:[[238,244,251],[8,48,107]],red:[[255,245,240],[103,0,13]]};
+const rgb=(pal,t)=>{const c=lerp(PAL[pal][0],PAL[pal][1],Math.min(1,Math.max(0,t)));return `rgb(${c})`};
+let hmGeo=[];
+function drawHeat(rows,meta){const box=$('swheat');if(!rows.length){box.innerHTML='';return}
+window._swrows=rows;window._swmeta=meta;const L1=[...new Set(rows.map(r=>r.n1))].sort((a,b)=>a-b),L2=[...new Set(rows.map(r=>r.n2))].sort((a,b)=>a-b),mp=new Map(rows.map(r=>[r.n1+'|'+r.n2,r]));
+const best=[...rows].sort((a,b)=>a.comp-b.comp||b.sh-a.sh)[0],bC=[...rows].sort((a,b)=>b.cagr-a.cagr)[0],bM=[...rows].sort((a,b)=>b.mdd-a.mdd)[0],cur=mp.get($('mn1').value+'|'+$('mn2').value);
+const marks=[['★',best,'종합1위'],['◆',cur,'현재설정'],['■',bC,'CAGR1위'],['○',bM,'MDD최소']];
+if(box.children.length!=HM.length){box.innerHTML=HM.map((h,i)=>`<canvas class="hm" data-i="${i}" style="height:${i==2?280:300}px"></canvas>`).join('')}
+hmGeo=[];box.querySelectorAll('canvas.hm').forEach((c,ci)=>{const [key,lab,fmt,pal]=HM[ci],dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,W,H);
+const st=getComputedStyle(document.body),fg=st.color,Lm=48,Rm=62,Tm=34,Bm=34,pw=W-Lm-Rm,ph=H-Tm-Bm,cw=pw/L2.length,ch=ph/L1.length,vals=rows.map(r=>r[key]),mn=Math.min(...vals),mx=Math.max(...vals),span=mx-mn||1;
+const tt=v=>pal=='red'?(mx-v)/span:(v-mn)/span;
+L1.forEach((a,yi)=>L2.forEach((b,xi)=>{const r=mp.get(a+'|'+b);if(!r)return;g.fillStyle=rgb(pal,tt(r[key]));g.fillRect(Lm+xi*cw,Tm+(L1.length-1-yi)*ch,Math.ceil(cw),Math.ceil(ch))}));
+g.fillStyle=fg;g.font='11px system-ui';g.textAlign='right';const stepY=Math.max(1,Math.ceil(L1.length/8)),stepX=Math.max(1,Math.ceil(L2.length/8));
+L1.forEach((a,yi)=>{if(yi%stepY==0)g.fillText(a,Lm-4,Tm+(L1.length-1-yi)*ch+ch/2+4)});g.textAlign='center';L2.forEach((b,xi)=>{if(xi%stepX==0)g.fillText(b,Lm+xi*cw+cw/2,Tm+ph+14)});
+g.fillText('장기선(이평2, 일)',Lm+pw/2,H-4);g.save();g.translate(11,Tm+ph/2);g.rotate(-Math.PI/2);g.fillText('단기선(이평1, 일)',0,0);g.restore();
+g.textAlign='left';g.font='12px system-ui';g.fillText(`${meta.trd||''} · ${meta.sig||''} 신호 · ${lab}`,Lm,16);
+// 컬러바
+const cx=W-Rm+14,cb=Tm,chh=ph;for(let k=0;k<chh;k++){const t=1-k/chh;g.fillStyle=rgb(pal,pal=='red'?1-t:t);g.fillRect(cx,cb+k,12,1.5)}g.fillStyle=fg;g.font='10px system-ui';
+for(let k=0;k<=4;k++){const v=mn+span*(1-k/4);g.fillText(fmt(v),cx+16,cb+chh*k/4+4)}
+// 마커
+const shape=(m,x,y)=>{g.lineWidth=1.4;g.strokeStyle='#111';g.fillStyle=m=='○'?'rgba(255,255,255,.15)':m=='◆'?'#f5b301':m=='■'?'#12968a':'#e8453c';g.beginPath();
+if(m=='★'){for(let k=0;k<10;k++){const r=k%2?3.5:8,a=-Math.PI/2+k*Math.PI/5;g.lineTo(x+r*Math.cos(a),y+r*Math.sin(a))}g.closePath()}
+else if(m=='◆'){g.moveTo(x,y-8);g.lineTo(x+7,y);g.lineTo(x,y+8);g.lineTo(x-7,y);g.closePath()}else if(m=='■')g.rect(x-6,y-6,12,12);else g.arc(x,y,6,0,7);g.fill();g.stroke()};
+marks.forEach(m=>{const r=m[1];if(!r)return;shape(m[0],Lm+L2.indexOf(r.n2)*cw+cw/2,Tm+(L1.length-1-L1.indexOf(r.n1))*ch+ch/2)});
+hmGeo[ci]={Lm,Tm,cw,ch,L1,L2,mp}});
+box.querySelectorAll('canvas.hm').forEach((c,ci)=>{const at=e=>{const r=c.getBoundingClientRect(),g=hmGeo[ci],xi=Math.floor((e.clientX-r.left-g.Lm)/g.cw),yi=g.L1.length-1-Math.floor((e.clientY-r.top-g.Tm)/g.ch);return g.mp.get(g.L1[yi]+'|'+g.L2[xi])};
+c.onmousemove=e=>{const x=at(e);if(x)$('swhov').textContent=`이평1 ${x.n1} / 이평2 ${x.n2} → CAGR ${(x.cagr*100).toFixed(1)}%, MDD ${(x.mdd*100).toFixed(1)}%, 샤프 ${x.sh.toFixed(2)}, 누적 ${(x.tot*100).toFixed(0)}% (누르면 적용)`};
+c.onclick=e=>{const x=at(e);if(x){$('mn1').value=x.n1;$('mn2').value=x.n2;$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})}}});
+$('swhov').textContent=marks.map(m=>m[1]?`${m[0]}${m[2]} ${m[1].n1}/${m[1].n2}`:`${m[0]}${m[2]} (범위 밖)`).join('  ')+' · 칸을 누르면 그 조합으로 적용·실행'}
+addEventListener('resize',()=>window._swrows&&drawHeat(window._swrows,window._swmeta));
 function rankRows(rows,key){const rank=k=>{[...rows].sort((x,y)=>y[k]-x[k]).forEach((r,i)=>r['r_'+k]=i+1)};['tot','mdd','sh'].forEach(rank);rows.forEach(r=>r.comp=r.r_tot+r.r_mdd+r.r_sh);
 return rows.sort((a,b)=>key=='comp'?a.comp-b.comp||b.sh-a.sh:b[key]-a[key])}
 const keep=on=>{try{window.AndroidApp&&AndroidApp.keepAlive(on)}catch(e){}};
@@ -167,11 +201,11 @@ const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d));
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
 const rt=id=>Math.min(100,Math.max(0,+$(id).value||0))/100,br=[rt('br1'),rt('br2')],sr=[rt('sr1'),rt('sr2')],key=$('sk').value;
-const meta={c1:+$('c1').value,c2:+$('c2').value,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`};
+const meta={c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
 // 백그라운드(워커) 실행: 화면 조작·다른 탭 이동 중에도 계산 계속
 keep(true);swWorker=new Worker(URL.createObjectURL(new Blob([swEngine+'\n'+WK],{type:'application/javascript'})));
-$('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=L1.length*L2.length;$('swt').innerHTML='';$('swsum').innerHTML='';
+$('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=L1.length*L2.length;$('swt').innerHTML='';$('swsum').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';window._swrows=null;
 swWorker.onmessage=m=>{const d=m.data;if(d.t=='p'){swEl=d.el;$('swp').value=d.done;$('swinfo').textContent=`진행 ${d.done}/${d.total} (${(d.done/d.total*100).toFixed(0)}%) · 경과 ${fmtT(d.el)} · 남은 시간 약 ${fmtT(d.eta)} · 예상 총 ${fmtT(d.el+d.eta)} (백그라운드 실행 중, 다른 작업 가능)`;el.textContent='계산 중…'}
 else{const rows=rankRows(d.rows,key);showSweep(rows,meta);$('swinfo').textContent=`완료 (소요 ${fmtT(swEl)}) — ${d.rows.length}개 조합 계산`;try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows:rows.slice(0,3000),meta}))}catch(x){}endSweep()}};
 swWorker.onerror=x=>{el.textContent='스윕 오류: '+x.message;endSweep()};
