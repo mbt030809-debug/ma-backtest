@@ -85,7 +85,9 @@ for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='pri
 // 이평선 워밍업: 시작일 이전 데이터도 받아 시작 첫날부터 이평선이 계산되게 함
 const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
 const syms=[...new Set([sig,trd,...cmp])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,x==sig?xs:s,e))));
-const full=[...data[sig].keys()].sort(),dates=full.filter(d=>d>=s&&syms.every(x=>data[x].has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+const full=[...data[sig].keys()].sort(),dates=full.filter(d=>d>=s&&data[trd].has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
+// 비교 종목은 전략 기간과 무관: 전략 구간(신호+매매 종목)에 데이터가 없는 날이 있으면 비교에서 제외(전략 기간이 줄어드는 것을 방지)
+const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d)));cmp.splice(0,cmp.length,...cmp.filter(x=>!skipped.includes(x)));
 const P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>full.indexOf(d));
 let sim,w;
 if(cross){const fl={};const ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];
@@ -97,7 +99,7 @@ const out=[{name:`전략(${sig} 신호→${trd})`,e:sim.eq},{name:`${trd} 보유
 out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates);
 $('lg').innerHTML=out.map(o=>`<span><i style="background:${o.c}"></i>${o.name}</span>`).join('');
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
-$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산</td></tr>`;
+$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산${skipped.length?' · 비교 제외(기간 부족): '+skipped.join(','):''}</td></tr>`;
 const ys=Object.keys(out[0].st.yr);$('yr').innerHTML='<tr><th>연도</th>'+out.map(o=>`<th>${o.name}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${out.map(o=>`<td class="${cl(o.st.yr[y])}">${pc(o.st.yr[y])}</td>`).join('')}</tr>`).join('');
 window._last=[out,dates]}catch(x){$('err').textContent=x.message}}
 function draw(out,dates){const c=$('cv'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);

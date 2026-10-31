@@ -72,10 +72,10 @@ function stats(e, dates) {
   const n = e.length, yrs = (new Date(dates[n - 1]) - new Date(dates[0])) / 31557600000;
   const r = e.map((v, i) => i ? v / e[i - 1] - 1 : 0).slice(1);
   const m = r.reduce((a, b) => a + b, 0) / r.length, sd = Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / (r.length - 1));
-  let pk = e[0], mdd = 0; e.forEach(v => { pk = Math.max(pk, v); mdd = Math.min(mdd, v / pk - 1); });
+  let pk = 100, mdd = 0; e.forEach(v => { pk = Math.max(pk, v); mdd = Math.min(mdd, v / pk - 1); });
   const by = {}; dates.forEach((d, i) => by[d.slice(0, 4)] = i);
-  const yr = {}; let prev = 0; Object.keys(by).forEach(y => { yr[y] = e[by[y]] / e[prev] - 1; prev = by[y]; });
-  return { tot: e[n - 1] / e[0] - 1, cagr: (e[n - 1] / e[0]) ** (1 / yrs) - 1, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0, yr };
+  const yr = {}; let pv = 100; Object.keys(by).forEach(y => { yr[y] = e[by[y]] / pv - 1; pv = e[by[y]]; });
+  return { tot: e[n - 1] / 100 - 1, cagr: (e[n - 1] / 100) ** (1 / yrs) - 1, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0, yr };
 }
 
 // ---- 돌파/이탈 이벤트 방식 (이평선 백테스터 아티팩트와 동일 규칙) ----
