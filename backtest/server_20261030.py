@@ -74,7 +74,7 @@ class H(BaseHTTPRequestHandler):
             if not os.path.isfile(fp):
                 return self.send(404, b"", "text/plain")
             with open(fp, "rb") as f:
-                ct = "application/javascript" if name.endswith(".js") else "text/html; charset=utf-8"
+                ct = "application/javascript" if name.endswith(".js") else "application/json" if name.endswith(".json") else "text/html; charset=utf-8"
                 self.send(200, f.read(), ct)
 
 

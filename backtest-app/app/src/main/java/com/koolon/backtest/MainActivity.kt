@@ -56,7 +56,7 @@ class MainActivity : Activity() {
                 if (u.path == "/favicon.ico") return json(404, "")
                 val name = if (u.path == "/" || u.path.isNullOrEmpty()) "index_20261030.html" else u.path!!.trimStart('/')
                 return try {
-                    val mime = if (name.endsWith(".js")) "application/javascript" else "text/html"
+                    val mime = if (name.endsWith(".js")) "application/javascript" else if (name.endsWith(".json")) "application/json" else "text/html"
                     WebResourceResponse(mime, "utf-8", assets.open(name))
                 } catch (e: Exception) { json(404, "") }
             }
