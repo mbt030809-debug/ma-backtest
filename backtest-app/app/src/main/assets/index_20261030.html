@@ -41,7 +41,8 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><b>이평 1</b><input id="a1" type="number" min="2" value="50">~<input id="b1" type="number" min="2" value="300">간격<input id="c1" type="number" min="1" value="25"></div>
 <div class="row"><b>이평 2</b><input id="a2" type="number" min="2" value="200">~<input id="b2" type="number" min="2" value="600">간격<input id="c2" type="number" min="1" value="50"></div>
 <div class="row"><b>비율</b><label>매수1%</label><input id="rb1" type="text" placeholder="현재값" style="width:90px"><label>매도1%</label><input id="rs1" type="text" placeholder="현재값" style="width:90px"><label>매수2%</label><input id="rb2" type="text" placeholder="현재값" style="width:90px"><label>매도2%</label><input id="rs2" type="text" placeholder="현재값" style="width:90px"></div>
-<div class="mut">비율 스윕: 비우면 위 이평 행의 현재 비율 고정. 값 목록(예 50,100) 또는 범위(예 0-100/25)로 입력하면 그 값들을 모두 돌려봄. 조합 수 = 이평1×이평2×각 비율 개수의 곱.</div>
+<div class="row"><button id="r10" type="button">비율 4개 10% 단위(0~100) 채우기</button><button id="r0" type="button">비율 고정(비우기)</button><span id="swest" class="mut"></span></div>
+<div class="mut">비율 스윕: 비우면 위 이평 행의 현재 비율 고정. 값 목록(예 50,100) 또는 범위(예 0-100/25)로 입력하면 그 값들을 모두 돌려봄. 조합 수 = 이평1×이평2×각 비율 개수의 곱(매수 비율이 둘 다 0%인 재진입 없는 조합은 제외).</div>
 <div class="row"><label>정렬 기준</label><select id="sk"><option value="comp">종합(수익률·MDD·샤프 순위합)</option><option value="tot">수익률(누적)</option><option value="cagr">CAGR</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option></select><button id="sw">스윕 실행</button><button id="swx" style="display:none">취소</button><span id="swerr" class="mut"></span></div>
 <progress id="swp" value="0" max="1" style="width:100%;display:none"></progress><div class="mut" id="swinfo"></div>
 <div class="mut">현재 입력된 종목·기간·비율·지연·이자·세금·수수료를 그대로 쓰고 이평 1·2 기간만 바꿔가며 돌파/이탈 방식으로 계산. 행을 누르면 그 값으로 적용·실행. 과최적화 주의: 기간을 나눠 검증해 보세요.</div>
@@ -132,8 +133,8 @@ ctx.trades.forEach(t=>{if(t.rule!='시작'&&e0[t.i]!=null)tri(t.i,t.side=='B')})
 const rsx=r=>`${+(r.b1*100).toFixed(1)}/${+(r.s1*100).toFixed(1)}/${+(r.b2*100).toFixed(1)}/${+(r.s2*100).toFixed(1)}`;
 function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.b1!=null){$('br1').value=+(r.b1*100).toFixed(2);$('sr1').value=+(r.s1*100).toFixed(2);$('br2').value=+(r.b2*100).toFixed(2);$('sr2').value=+(r.s2*100).toFixed(2)}$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})}
 const WK=`self.onmessage=e=>{const{fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o}=e.data,cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
-const total=L1.length*L2.length*B1.length*S1.length*B2.length*S2.length,t0=performance.now(),rows=[];let done=0,last=0,pd=0,pt=t0;
-for(const n1 of L1)for(const n2 of L2)for(const b1 of B1)for(const s1 of S1)for(const b2 of B2)for(const s2 of S2){const sim=simulateEvents(dates,px,[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],o);
+const total=e.data.total,t0=performance.now(),rows=[];let done=0,last=0,pd=0,pt=t0;
+for(const n1 of L1)for(const n2 of L2)for(const b1 of B1)for(const s1 of S1)for(const b2 of B2)for(const s2 of S2){if(b1==0&&b2==0)continue;const sim=simulateEvents(dates,px,[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],o);
 const st=stats(sim.eq,dates);rows.push({n1,n2,b1,s1,b2,s2,tot:st.tot,cagr:st.cagr,mdd:st.mdd,sh:st.sh,trades:sim.trades});done++;
 const now=performance.now();if(now-last>120||done==total){last=now;const el=(now-t0)/1000,rate=done>pd&&now>pt?(done-pd)/((now-pt)/1000):done/el;pd=done;pt=now;self.postMessage({t:'p',done,total,el,eta:(total-done)/rate})}}
 self.postMessage({t:'d',rows})}`;
@@ -195,15 +196,25 @@ function rankRows(rows,key){const rank=k=>{[...rows].sort((x,y)=>y[k]-x[k]).forE
 return rows.sort((a,b)=>key=='comp'?a.comp-b.comp||b.sh-a.sh:b[key]-a[key])}
 const keep=on=>{try{window.AndroidApp&&AndroidApp.keepAlive(on)}catch(e){}};
 function endSweep(){keep(false);$('sw').disabled=false;$('swx').style.display='none';$('swp').style.display='none';if(swWorker){swWorker.terminate();swWorker=null}}
+const rg=(a,b,c)=>{a=+$(a).value;b=+$(b).value;c=+$(c).value;if(!(Number.isInteger(a)&&Number.isInteger(b)&&Number.isInteger(c)&&a>=2&&b>=a&&c>=1))throw Error('스윕 범위를 확인하세요 (정수, 시작≥2, 끝≥시작, 간격≥1)');const o=[];for(let v=a;v<=b;v+=c)o.push(v);return o};
+const pr=(id,cur)=>{const t=$(id).value.trim();if(!t)return[cur];const out=[];for(const tok of t.split(',').map(x=>x.trim()).filter(Boolean)){const m=tok.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);if(m){const a=+m[1],b=+m[2],c=+m[3];if(!(c>0&&b>=a))throw Error('비율 범위를 확인하세요: '+tok);for(let v=a;v<=b+1e-9;v+=c)out.push(v)}else{if(!(tok!==''&&isFinite(+tok)))throw Error('비율 값을 확인하세요: '+tok);out.push(+tok)}}
+if(!out.length||out.some(v=>v<0||v>100))throw Error('비율은 0~100 사이여야 합니다');return[...new Set(out.map(v=>Math.round(v*100)/100))].map(v=>v/100)};
+const cr=id=>Math.min(100,Math.max(0,+$(id).value||0));
+const MAXC=100000;
+// 매수 비율이 둘 다 0%인 조합(재진입 없음)은 제외하고 센다
+const tot=(L1,L2,B1,S1,B2,S2)=>L1.length*L2.length*(B1.length*B2.length-(B1.includes(0)&&B2.includes(0)?1:0))*S1.length*S2.length;
+function estSweep(){try{const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2'),n=tot(L1,L2,pr('rb1',cr('br1')/100),pr('rs1',cr('sr1')/100),pr('rb2',cr('br2')/100),pr('rs2',cr('sr2')/100));
+let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
+$('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
 async function sweep(){const el=$('swerr');el.textContent='';if(swWorker)return;$('sw').disabled=true;try{
 const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
 if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');
-const rg=(a,b,c)=>{a=+$(a).value;b=+$(b).value;c=+$(c).value;if(!(Number.isInteger(a)&&Number.isInteger(b)&&Number.isInteger(c)&&a>=2&&b>=a&&c>=1))throw Error('스윕 범위를 확인하세요 (정수, 시작≥2, 끝≥시작, 간격≥1)');const o=[];for(let v=a;v<=b;v+=c)o.push(v);return o};
-const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2');const pr=(id,cur)=>{const t=$(id).value.trim();if(!t)return[cur];const out=[];for(const tok of t.split(',').map(x=>x.trim()).filter(Boolean)){const m=tok.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);if(m){const a=+m[1],b=+m[2],c=+m[3];if(!(c>0&&b>=a))throw Error('비율 범위를 확인하세요: '+tok);for(let v=a;v<=b+1e-9;v+=c)out.push(v)}else{if(!(tok!==''&&isFinite(+tok)))throw Error('비율 값을 확인하세요: '+tok);out.push(+tok)}}
-if(!out.length||out.some(v=>v<0||v>100))throw Error('비율은 0~100 사이여야 합니다');return[...new Set(out.map(v=>Math.round(v*100)/100))].map(v=>v/100)};
-const cr=id=>Math.min(100,Math.max(0,+$(id).value||0));
-const B1=pr('rb1',cr('br1')/100),S1=pr('rs1',cr('sr1')/100),B2=pr('rb2',cr('br2')/100),S2=pr('rs2',cr('sr2')/100),total=L1.length*L2.length*B1.length*S1.length*B2.length*S2.length;
-if(total>10000)throw Error(`조합이 너무 많습니다 (${total}개, 최대 10000)`);
+
+const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2');
+
+const B1=pr('rb1',cr('br1')/100),S1=pr('rs1',cr('sr1')/100),B2=pr('rb2',cr('br2')/100),S2=pr('rs2',cr('sr2')/100),total=tot(L1,L2,B1,S1,B2,S2);
+if(!total)throw Error('매수 비율이 모두 0%인 조합만 있어 계산할 조합이 없습니다');
+if(total>MAXC)throw Error(`조합이 너무 많습니다 (${total.toLocaleString()}개, 최대 ${MAXC.toLocaleString()})`);
 const maxN=Math.max(...L1,...L2),ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
 el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e)]);const ms=new Map(ds[0]),mt=new Map(ds[1]);
 const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
@@ -217,12 +228,14 @@ if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
 keep(true);swWorker=new Worker(URL.createObjectURL(new Blob([swEngine+'\n'+WK],{type:'application/javascript'})));
 $('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=total;$('swt').innerHTML='';$('swsum').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';window._swrows=null;
 swWorker.onmessage=m=>{const d=m.data;if(d.t=='p'){swEl=d.el;$('swp').value=d.done;$('swinfo').textContent=`진행 ${d.done}/${d.total} (${(d.done/d.total*100).toFixed(0)}%) · 경과 ${fmtT(d.el)} · 남은 시간 약 ${fmtT(d.eta)} · 예상 총 ${fmtT(d.el+d.eta)} (백그라운드 실행 중, 다른 작업 가능)`;el.textContent='계산 중…'}
-else{const rows=rankRows(d.rows,key);showSweep(rows,meta);$('swinfo').textContent=`완료 (소요 ${fmtT(swEl)}) — ${d.rows.length}개 조합 계산`;try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows:rows.slice(0,10000),meta}))}catch(x){}endSweep()}};
+else{const rows=rankRows(d.rows,key);showSweep(rows,meta);$('swinfo').textContent=`완료 (소요 ${fmtT(swEl)}) — ${d.rows.length}개 조합 계산`;try{{const bc=new Map();rows.forEach(r=>{const k=r.n1+'|'+r.n2,o=bc.get(k);if(!o||r.comp<o.comp)bc.set(k,r)});const keep=new Set([...bc.values(),...rows.slice(0,2000)]);localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows:[...keep],meta}));localStorage.setItem('mabt_ms',String(Math.max(0.05,swEl*1000/rows.length)))}}catch(x){}endSweep()}};
 swWorker.onerror=x=>{el.textContent='스윕 오류: '+x.message;endSweep()};
-swWorker.postMessage({fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o});
+swWorker.postMessage({fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o,total});
 }catch(x){el.textContent=x.message;endSweep()}}
 $('swx').onclick=()=>{endSweep();$('swerr').textContent='취소됨';$('swinfo').textContent=''};
 $('sw').onclick=sweep;
+$('r10').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
+['a1','b1','c1','a2','b2','c2','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
 try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length){showSweep(r.rows,r.meta);$('swinfo').textContent='이전 스윕 결과 (저장됨)'}}catch(x){}
 $('run').onclick=run;$('log').onchange=()=>window._last&&draw(...window._last);addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>
