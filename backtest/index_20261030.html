@@ -44,8 +44,8 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 매도할 때마다 매도 수익(매도금액-평균단가)의 세율만큼 납부, 손실은 0(전략·보유 비교 모두 그 시점에 전부 매도한다고 가정해 미실현 이익에도 세율을 적용한 세후 청산가치로 비교. 매매내역의 세금은 실제 매도 시 낸 금액). 미실현 이익은 과세 안 함.</div></div>
 <div class="card"><h2>방어자산 추천 (현금 대신 보유할 ETF 비교)</h2>
 <div class="mut">현재 입력한 전략(종목·이평·비율·지연·세금)을 그대로 두고, 매도 후 대금을 <b>현금 대신 후보 ETF</b>로 사고(매수할 땐 후보 ETF를 팔아 자금 마련) 결과를 비교합니다. 후보 ETF를 사고팔 때도 <b>이익에만 세금</b>이 붙고, 모든 ETF는 <b>배당 재투자(수정종가) 총수익</b> 기준입니다. 스윕(이평·비율 탐색)은 현금 기준으로만 계산합니다. 결과 표 맨 위의 <b>합산</b> 행은 후보 여러 개를 동일 비중으로 함께 보유한 결과이고, 위 "현금 대신 보유할 ETF"에 <b>AUTO</b>를 쓰면 이 후보 전체를 합산해서 일반 실행합니다.</div>
-<div class="row"><label>후보(쉼표)</label><input id="altlist" type="text" value="SGOV,BIL,SHV,SHY,IEF,TLT,AGG,TIP,LQD,GLD,SCHD,XLP,USMV,DBC,UUP" style="width:100%"></div>
-<div class="row"><label>정렬 기준</label><select id="altsort"><option value="so">소르티노</option><option value="ca">칼마</option><option value="cagr">CAGR</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option><option value="tot">누적</option><option value="comp">종합(CAGR·MDD·소르티노 순위합)</option></select>
+<div class="row"><label>후보(쉼표)</label><input id="altlist" type="text" value="SGOV,BIL,SHV,SHY,IEI,IEF,TLT,BND,AGG,TIP,LQD,HYG,MUB,GLD,IAU,SLV,SCHD,VYM,XLP,XLU,USMV,SPLV,VNQ,DBC,UUP" style="width:100%"></div>
+<div class="row"><label>정렬 기준</label><select id="altsort"><option value="cagr">CAGR(수익률)</option><option value="so">소르티노</option><option value="ca">칼마</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option><option value="tot">누적</option><option value="comp">종합(CAGR·MDD·소르티노 순위합)</option></select>
 <label><input type="checkbox" id="altcommon"> 같은 기간으로 비교(후보 중 가장 늦은 시작일 기준)</label><button id="altgo" type="button">후보 비교 실행</button><span id="alterr" class="mut"></span></div>
 <progress id="altp" value="0" max="1" style="width:100%;display:none"></progress>
 <div class="tbl"><table id="altt"></table></div><div class="mut" id="altnote"></div></div>
@@ -62,12 +62,12 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div id="swsum"></div>
 <div id="swheat"></div><div class="mut" id="swhov"></div>
 <div class="tbl"><table id="swt"></table></div></div>
-<div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
+<div class="row"><button class="p" id="run">백테스트 실행</button><button id="recbtn" type="button" title="백테스트를 마친 뒤 누르면 여러 방어자산 ETF를 자동으로 바꿔가며 비교합니다">방어자산 ETF 추천</button><span id="err"></span></div>
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
 <div class="card"><h2>데이터 점검 · 진단</h2><div class="mut" id="chk">실행하면 시세 데이터 이상(0·결측·급등락·날짜 공백)을 자동으로 점검합니다.</div>
 <div class="row"><button id="dbgbtn" type="button">진단 정보 만들기</button><span class="mut">결과가 이상할 때 아래 내용을 복사해 알려주세요</span></div><textarea id="dbgout" readonly style="display:none;width:100%;height:220px;font:11px monospace;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px"></textarea></div>
-<div class="card"><h2>요약</h2><div class="tbl"><table id="sum"></table></div></div>
+<div class="card"><h2>요약</h2><div class="tbl"><table id="sum"></table></div><div class="row" style="margin-top:8px"><button id="recbtn2" type="button">방어자산 ETF 추천 (현금 대신 보유할 ETF 자동 비교)</button><span class="mut" id="recmsg"></span></div></div>
 <div class="card"><details><summary><b id="trsum">매수·매도 내역</b></summary><div class="tbl"><table id="trd2"></table></div></details></div>
 <div class="card"><h2>연도별 수익률</h2><div class="tbl"><table id="yr"></table></div></div>
 </main>
@@ -346,7 +346,7 @@ const txt=JSON.stringify({앱:'ma-backtest',시각:new Date().toISOString(),코�
 const t=$('dbgout');t.style.display='';t.value=txt;t.focus();t.select();try{navigator.clipboard&&navigator.clipboard.writeText(txt).catch(()=>{})}catch(e){}};
 
 // ---- 방어자산 추천: 현금 대신 후보 ETF를 보유했을 때 결과 비교 ----
-const ALT_NAME={SGOV:'초단기 국채(0-3M)',BIL:'초단기 국채(1-3M)',SHV:'단기 국채(≤1Y)',SHY:'단기 국채(1-3Y)',IEF:'중기 국채(7-10Y)',TLT:'장기 국채(20Y+)',AGG:'미국 종합채권',BND:'종합채권(뱅가드)',TIP:'물가연동채',LQD:'투자등급 회사채',GLD:'금',IAU:'금(아이셰어즈)',SCHD:'배당성장',VYM:'고배당',XLP:'필수소비재',XLU:'유틸리티',USMV:'최소변동성',SPLV:'저변동성',DBC:'원자재',UUP:'달러 인덱스'};
+const ALT_NAME={SGOV:'초단기 국채(0-3M)',BIL:'초단기 국채(1-3M)',SHV:'단기 국채(≤1Y)',SHY:'단기 국채(1-3Y)',IEF:'중기 국채(7-10Y)',TLT:'장기 국채(20Y+)',AGG:'미국 종합채권',BND:'종합채권(뱅가드)',IEI:'중기 국채(3-7Y)',HYG:'하이일드 회사채',MUB:'미국 지방채',SLV:'은',VNQ:'리츠',TIP:'물가연동채',LQD:'투자등급 회사채',GLD:'금',IAU:'금(아이셰어즈)',SCHD:'배당성장',VYM:'고배당',XLP:'필수소비재',XLU:'유틸리티',USMV:'최소변동성',SPLV:'저변동성',DBC:'원자재',UUP:'달러 인덱스'};
 function renderAlt(){const d=window._altData;if(!d)return;const key=$('altsort').value,pc2=v=>(v*100).toFixed(1)+'%',rows=d.rows.filter(r=>!r.base&&!r.basket),base=d.rows.find(r=>r.base),baskets=d.rows.filter(r=>r.basket);
 const rank=k=>{[...rows].sort((a,b)=>b.st[k]-a.st[k]).forEach((r,i)=>r['r_'+k]=i+1)};['cagr','mdd','so'].forEach(rank);rows.forEach(r=>r.comp=r.r_cagr+r.r_mdd+r.r_so);
 rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.st.so-a.st.so:(a,b)=>b.st[key]-a.st[key]);
@@ -375,6 +375,13 @@ for(const c of ok){el.textContent=`비교 중… ${++i}/${ok.length} ${c}`;$('al
 const sd=$('s').value,covering=ok.filter(c=>rows.some(r=>r.sym==c)&&(common||dday(sd,info[c].first)<=5));
 window._altData={rows,bad,common,covering,info};await addBaskets(common);el.textContent=`${rows.length-1}개 후보 비교 완료`;
 }catch(x){el.textContent=x.message}finally{$('altgo').disabled=false;$('altp').style.display='none'}}
+// 백테스트 결과를 기준으로, 후보 ETF를 자동으로 바꿔가며 비교 (한 번에)
+async function recommend(){const m=$('recmsg');m.textContent='';try{
+if(!window._last){m.textContent='먼저 백테스트를 실행합니다…';await run();if(!window._last)throw Error($('err').textContent||'백테스트 실행에 실패했습니다')}
+if(!$('altlist').value.trim())$('altlist').value='SGOV,BIL,SHV,SHY,IEI,IEF,TLT,BND,AGG,TIP,LQD,HYG,MUB,GLD,IAU,SLV,SCHD,VYM,XLP,XLU,USMV,SPLV,VNQ,DBC,UUP';
+m.textContent='후보 ETF를 자동으로 비교 중… (아래 "방어자산 추천" 표)';await altScan();
+$('altt').scrollIntoView({behavior:'smooth',block:'start'});m.textContent=$('alterr').textContent}catch(x){m.textContent=x.message}}
+$('recbtn').onclick=recommend;$('recbtn2').onclick=recommend;
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',async()=>{const d=window._altData;if(d){await addBaskets(d.common)}else renderAlt()});
 $('sw').onclick=sweep;
 ['sig','trd','cmp','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
