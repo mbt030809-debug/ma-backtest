@@ -68,6 +68,77 @@ function simulate(dates, px, w, o) {
   return { eq, eqL, paid, trades, list };
 }
 
+
+// ---- 방어자산(현금 대신 보유할 ETF) 버전 ----
+// 매도하면 그 대금으로 방어자산(Y)을 사고, 매수하면 방어자산(Y)을 팔아 X를 삼. 두 쪽 모두 이익에는 세율 적용(손실 0, 건별).
+// py: 방어자산 가격(배당 포함 수정종가). 매수 규칙의 r은 "방어자산 평가금액의 r%".
+function simulateEventsAlt(dates, px, py, buys, sells, o) {
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
+  let cash = 0, sh = 0, basis = 0, shy = 0, basy = 0, paid = 0, trades = 0;
+  const orders = {}, eq = [], eqL = [], w = [], list = [];
+  const a0 = 100 * o.init, y0 = 100 - a0;
+  if (a0 > 0) { sh = a0 * (1 - fee) / px[0]; basis = a0; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: sh, amt: a0, tax: 0, cash, sh }); }
+  if (y0 > 0) { shy = y0 * (1 - fee) / py[0]; basy = y0; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', rule: '시작(방어자산)', price: py[0], qty: shy, amt: y0, tax: 0, cash, sh: shy }); }
+  for (let i = 0; i < n; i++) {
+    if (i > 0) cash *= ig[i];
+    (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
+      if (od.s) { // X 매도 → 방어자산 매수
+        if (!(sh > 0)) return;
+        const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
+        basis -= cost; sh -= q; paid += t; trades++;
+        list.push({ i, si: od.si, side: 'S', asset: 'X', rule: od.label, price: px[i], qty: q, amt, gain: amt - cost, tax: t, cash, sh });
+        const net = amt - t, qy = net * (1 - fee) / py[i]; shy += qy; basy += net; trades++;
+        list.push({ i, si: od.si, side: 'B', asset: 'Y', rule: od.label + ' 대금', price: py[i], qty: qy, amt: net, tax: 0, cash, sh: shy });
+      } else { // 방어자산 매도 → X 매수
+        if (!(shy > 0) && !(cash > 0)) return;
+        let net = 0;
+        if (shy > 0) {
+          const qy = shy * od.r, amtY = qy * py[i] * (1 - fee), costY = basy * od.r, tY = Math.max(0, amtY - costY) * tax;
+          basy -= costY; shy -= qy; paid += tY; trades++; net += amtY - tY;
+          list.push({ i, si: od.si, side: 'S', asset: 'Y', rule: od.label + ' 자금', price: py[i], qty: qy, amt: amtY, gain: amtY - costY, tax: tY, cash, sh: shy });
+        }
+        const c = cash * od.r; cash -= c; net += c;
+        if (!(net > 0)) return;
+        const q = net * (1 - fee) / px[i]; sh += q; basis += net; trades++;
+        list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, price: px[i], qty: q, amt: net, tax: 0, cash, sh });
+      }
+    });
+    const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+    sells.forEach((r, k) => add(true, r, k, r.f[i]));
+    buys.forEach((r, k) => add(false, r, k, r.f[i]));
+    const vx = sh * px[i], vy = shy * py[i], v = cash + vx + vy; eq.push(v);
+    eqL.push(v - tax * Math.max(0, vx - basis) - tax * Math.max(0, vy - basy)); w.push(v ? vx / v : 0);
+  }
+  return { eq, eqL, paid, trades, w, list };
+}
+// 상태 유지 방식(목표 비중 w[j])의 방어자산 버전: X 비중 w, 나머지는 방어자산
+function simulateAlt(dates, px, py, w, o) {
+  const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
+  let X = w[0] * 100, Y = 100 - X, bX = X, bY = Y, C = 0, paid = 0, trades = 0;
+  const eq = [100], eqL = [100], list = [];
+  if (X > 0) list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: X / px[0], amt: X, tax: 0, cash: C, sh: X / px[0] });
+  if (Y > 0) list.push({ i: 0, si: 0, side: 'B', asset: 'Y', rule: '시작(방어자산)', price: py[0], qty: Y / py[0], amt: Y, tax: 0, cash: C, sh: Y / py[0] });
+  for (let j = 1; j < n; j++) {
+    const V = X + Y + C, tX = w[j] * V, si = Math.max(0, j - 1 - (o.delay || 0));
+    if (tX < X - 1e-9) { // X 일부 매도 → 방어자산 매수
+      const sold = X - tX, cost = bX * (sold / X), t = Math.max(0, sold - cost) * tax;
+      bX -= cost; X = tX; paid += t; trades++;
+      list.push({ i: j - 1, si, side: 'S', asset: 'X', rule: '매도 조건', price: px[j - 1], qty: sold / px[j - 1], amt: sold, gain: sold - cost, tax: t, cash: C, sh: X / px[j - 1] });
+      Y += sold - t; bY += sold - t; trades++;
+      list.push({ i: j - 1, si, side: 'B', asset: 'Y', rule: '매도 대금', price: py[j - 1], qty: (sold - t) / py[j - 1], amt: sold - t, tax: 0, cash: C, sh: Y / py[j - 1] });
+    } else if (tX > X + 1e-9) { // 방어자산 일부 매도 → X 매수
+      const need = Math.min(tX - X, Y + C); let fromY = Math.min(need, Y), fromC = need - fromY, net = fromC;
+      if (fromY > 0) { const frac = fromY / Y, costY = bY * frac, tY = Math.max(0, fromY - costY) * tax; bY -= costY; Y -= fromY; paid += tY; net += fromY - tY; trades++;
+        list.push({ i: j - 1, si, side: 'S', asset: 'Y', rule: '매수 자금', price: py[j - 1], qty: fromY / py[j - 1], amt: fromY, gain: fromY - costY, tax: tY, cash: C, sh: Y / py[j - 1] }); }
+      C -= fromC; X += net; bX += net; trades++;
+      list.push({ i: j - 1, si, side: 'B', asset: 'X', rule: '매수 조건', price: px[j - 1], qty: net / px[j - 1], amt: net, tax: 0, cash: C, sh: X / px[j - 1] });
+    }
+    X *= px[j] / px[j - 1]; Y *= py[j] / py[j - 1]; C *= 1 + cd;
+    eq.push(X + Y + C); eqL.push(X + Y + C - tax * Math.max(0, X - bX) - tax * Math.max(0, Y - bY));
+  }
+  return { eq, eqL, paid, trades, list };
+}
+
 const buyHold = px => px.map(v => v / px[0] * 100);
 
 function stats(e, dates) {
@@ -141,4 +212,4 @@ function simulateEvents(dates, px, buys, sells, o) {
   return { eq, eqL, paid, trades, w, list };
 }
 
-if (typeof module !== 'undefined') module.exports = { interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+if (typeof module !== 'undefined') module.exports = { simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
