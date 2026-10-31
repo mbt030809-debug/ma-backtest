@@ -52,7 +52,7 @@ const applied = (tg, init, delay) => tg.map((_, j) => j - 1 - delay >= 0 ? tg[j 
 function simulate(dates, px, w, o) {
   const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
   let S = w[0] * 100, C = 100 - S, B = S, paid = 0, trades = 0;
-  const eq = [100], list = [];
+  const eq = [100], eqL = [100], list = [];
   if (S > 0) list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: S / px[0], amt: S, tax: 0, cash: C, sh: S / px[0] });
   for (let j = 1; j < n; j++) {
     const V = S + C, tS = w[j] * V;
@@ -63,9 +63,9 @@ function simulate(dates, px, w, o) {
     }
     else if (tS > S + 1e-9) { const add = tS - S; B += add; S = tS; C = V - S; trades++; list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'B', rule: '매수 조건', price: px[j - 1], qty: add / px[j - 1], amt: add, tax: 0, cash: C, sh: S / px[j - 1] }); }
     S *= px[j] / px[j - 1]; C *= 1 + cd;
-    eq.push(S + C);
+    eq.push(S + C); eqL.push(S + C - tax * Math.max(0, S - B)); // eqL: 지금 청산한다고 가정한 세후 가치(미실현 이익에도 과세)
   }
-  return { eq, paid, trades, list };
+  return { eq, eqL, paid, trades, list };
 }
 
 const buyHold = px => px.map(v => v / px[0] * 100);
@@ -113,7 +113,7 @@ function statsLite(e, yrs) {
 // 현금이자는 달력일 기준 365일 복리, 세금은 매도 건별 평균단가 대비 이익에만(손실 0, 통산·공제 없음).
 function simulateEvents(dates, px, buys, sells, o) {
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
-  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0; const orders = {}, eq = [], w = [];
+  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0; const orders = {}, eq = [], eqL = [], w = [];
   const list = [], amt0 = cash * o.init;
   if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
   for (let i = 0; i < n; i++) {
@@ -133,9 +133,9 @@ function simulateEvents(dates, px, buys, sells, o) {
     const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
-    const v = cash + sh * px[i]; eq.push(v); w.push(v ? sh * px[i] / v : 0);
+    const v = cash + sh * px[i]; eq.push(v); eqL.push(v - tax * Math.max(0, sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
   }
-  return { eq, paid, trades, w, list };
+  return { eq, eqL, paid, trades, w, list };
 }
 
 if (typeof module !== 'undefined') module.exports = { interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
