@@ -42,6 +42,14 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>매도 차익 세율(%)</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
 <div class="row"><span class="mut" id="pxinfo"></span><button id="pxclr" type="button">시세 캐시 지우기</button></div>
 <div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금은 매도할 때마다 매도 수익(매도금액-평균단가)의 세율만큼 납부, 손실은 0(전략·보유 비교 모두 그 시점에 전부 매도한다고 가정해 미실현 이익에도 세율을 적용한 세후 청산가치로 비교. 매매내역의 세금은 실제 매도 시 낸 금액). 미실현 이익은 과세 안 함.</div></div>
+<div class="card"><h2>나스닥 저상관 ETF 찾기</h2>
+<div class="mut">후보 ETF 200개(채권·금·원자재·통화·대안·방어주식 등)의 수익률이 기준 지수(기본 ^NDX)와 얼마나 같이 움직이는지 계산해 <b>상관이 낮은 순</b>으로 보여줍니다. 배당 포함 수정종가 기준이며, 상장폐지·데이터 부족 종목은 자동으로 제외됩니다. 후보 전체 목록은 repo의 <code>etf_lowcorr_200_20261031.txt</code>에도 있습니다.</div>
+<div class="row"><label>기준</label><input id="lcref" type="text" value="^NDX" style="width:90px"><label>시작</label><input id="lcs" type="date"><label>종료</label><input id="lce" type="date"><label>단위</label><select id="lcfreq"><option value="d">일간 수익률</option><option value="w">주간(5거래일) 수익률</option></select></div>
+<div class="row"><label>후보(쉼표)</label><textarea id="lclist" rows="3" style="width:100%;font:12px monospace;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px"></textarea></div>
+<div class="row"><label><input type="checkbox" id="lcx" checked> 인버스·변동성 상품 제외</label><label>최소 겹친 일수</label><input id="lcmin" type="number" value="500" style="width:80px"><button id="lcgo" type="button">저상관 ETF 찾기</button><span id="lcerr" class="mut"></span></div>
+<progress id="lcp" value="0" max="1" style="width:100%;display:none"></progress>
+<div class="row"><label>상위</label><input id="lcn" type="number" min="1" value="20" style="width:70px"><label>개를</label><button id="lcsend" type="button">방어자산 후보로 보내기</button><span class="mut" id="lcsendmsg"></span></div>
+<div class="tbl"><table id="lct"></table></div><div class="mut" id="lcnote"></div></div>
 <div class="card"><h2>방어자산 추천 (현금 대신 보유할 ETF 비교)</h2>
 <div class="mut">현재 입력한 전략(종목·이평·비율·지연·세금)을 그대로 두고, 매도 후 대금을 <b>현금 대신 후보 ETF</b>로 사고(매수할 땐 후보 ETF를 팔아 자금 마련) 결과를 비교합니다. 후보 ETF를 사고팔 때도 <b>이익에만 세금</b>이 붙고, 모든 ETF는 <b>배당 재투자(수정종가) 총수익</b> 기준입니다. 스윕(이평·비율 탐색)은 현금 기준으로만 계산합니다. 결과 표 맨 위의 <b>합산</b> 행은 후보 여러 개를 동일 비중으로 함께 보유한 결과이고, 위 "현금 대신 보유할 ETF"에 <b>AUTO</b>를 쓰면 이 후보 전체를 합산해서 일반 실행합니다.</div>
 <div class="row"><label>후보(쉼표)</label><input id="altlist" type="text" value="SGOV,BIL,SHV,SHY,IEI,IEF,TLT,BND,AGG,TIP,LQD,HYG,MUB,GLD,IAU,SLV,SCHD,VYM,XLP,XLU,USMV,SPLV,VNQ,DBC,UUP" style="width:100%"></div>
@@ -89,7 +97,7 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altlist','altsort'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altlist','altsort','lcref','lcfreq','lcn','lcmin'];
 function save(){try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.altcommon=$('altcommon').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;if(o.altcommon!=null)$('altcommon').checked=o.altcommon;
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
@@ -382,6 +390,34 @@ if(!$('altlist').value.trim())$('altlist').value='SGOV,BIL,SHV,SHY,IEI,IEF,TLT,B
 m.textContent='후보 ETF를 자동으로 비교 중… (아래 "방어자산 추천" 표)';await altScan();
 $('altt').scrollIntoView({behavior:'smooth',block:'start'});m.textContent=$('alterr').textContent}catch(x){m.textContent=x.message}}
 $('recbtn').onclick=recommend;$('recbtn2').onclick=recommend;
+
+// ---- 나스닥 저상관 ETF 찾기 ----
+const LC=[["단기국채·현금성", "SGOV,BIL,SHV,SHY,VGSH,SCHO,SPTS,IEI,GBIL,TBIL,USFR,TFLO,FLOT,FLRN,ICSH,JPST,MINT,NEAR,GSY,FTSM"], ["중장기 국채", "IEF,TLT,VGIT,VGLT,SCHR,SCHQ,SPTI,SPTL,GOVT,EDV,ZROZ,TLH,IBTJ,IBTK"], ["물가연동채(TIPS)", "TIP,VTIP,SCHP,STIP,LTPZ,SPIP,TDTT,TIPX"], ["종합·모기지 채권", "AGG,BND,SCHZ,IUSB,BIV,BLV,FBND,GVI,SPAB,MBB,VMBS,GNMA,SPMB,JMBS,BSV,BNDW"], ["투자등급 회사채", "LQD,VCIT,VCSH,VCLT,IGSB,IGIB,SPIB,SPSB,USIG,SLQD,SCHI"], ["하이일드·대출채권", "HYG,JNK,USHY,SHYG,BKLN,SRLN,ANGL,FALN"], ["지방채", "MUB,VTEB,TFI,SUB,SHM,HYD,ITM,MUNI"], ["해외·신흥국 채권", "BNDX,IAGG,IGOV,BWX,EMB,VWOB,PCY,LEMB,EMLC,ISHG,BWZ,WIP,IBND"], ["금·귀금속", "GLD,IAU,GLDM,SGOL,BAR,AAAU,OUNZ,SLV,SIVR,PPLT,PALL"], ["원자재 종합", "DBC,PDBC,GSG,COMT,BCI,USCI,CMDY,FTGC,RJI,GCC,DJP,BCD"], ["에너지·농산물·금속", "USO,BNO,UNG,UGA,DBA,CORN,WEAT,SOYB,DBE,DBO,DBB,CPER,JJC,UNL"], ["통화", "UUP,UDN,FXE,FXY,FXF,FXA,FXC,FXB,CYB,USDU"], ["대안·헤지(추세추종·시장중립·위험분산)", "DBMF,KMLM,CTA,WTMF,FMF,QAI,MNA,MRGR,RPAR,BTAL,TAIL,CAOS,RLY,SWAN"], ["변동성·인버스(장기보유 주의)", "VIXM,VIXY,SH,PSQ,DOG"], ["리츠·실물자산", "VNQ,XLRE,VNQI,REET,RWX,WPS,IFGL,REM,MORT"], ["방어·배당 주식", "XLU,VPU,IDU,XLP,VDC,KXI,XLV,VHT,USMV,SPLV,SPHD,SCHD,VYM,DVY,NOBL,HDV"], ["해외 주식(비교적 낮은 상관 후보)", "EWJ,EWU,EWA,EWC,EWW,EWZ,EZA,INDA"], ["금광·귀금속 광산", "GDX,GDXJ,SIL"]];
+const LC_CAT=(()=>{const m={};LC.forEach(([c,t])=>t.split(',').forEach(x=>m[x]=c));return m})(),LC_ALL=LC.flatMap(([c,t])=>t.split(',')),LC_INV=new Set(LC.filter(([c])=>/인버스/.test(c)).flatMap(([c,t])=>t.split(',')));
+const liteMem=new Map();
+async function loadLite(sym,s,e){const k=sym+'|'+s+'|'+e;if(liteMem.has(k))return liteMem.get(k);const hit=pxRead(sym);if(hit&&hit.rf<=s&&hit.rt>=e)return hit.rows.filter(r=>r[0]>=s&&r[0]<=e);
+const r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${s}&end=${e}`);const j=await r.json();if(j.error)throw Error(j.error);const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;liteMem.set(k,j);return j}
+// 기준 지수와의 상관·베타·보유 성과 (공통 날짜 기준, freq: 'd' 일간 / 'w' 5거래일마다)
+function corrStats(refMap,rows,freq){const cd=rows.map(r=>r[0]).filter(d=>refMap.has(d));if(cd.length<30)return null;const px=new Map(rows);
+let ds=cd;if(freq=='w')ds=cd.filter((_,i)=>i%5==0);const a=[],b=[];for(let i=1;i<ds.length;i++){a.push(refMap.get(ds[i])/refMap.get(ds[i-1])-1);b.push(px.get(ds[i])/px.get(ds[i-1])-1)}
+const n=a.length,ma=a.reduce((x,y)=>x+y,0)/n,mb=b.reduce((x,y)=>x+y,0)/n;let sab=0,saa=0,sbb=0;for(let i=0;i<n;i++){sab+=(a[i]-ma)*(b[i]-mb);saa+=(a[i]-ma)**2;sbb+=(b[i]-mb)**2}
+const corr=sab/Math.sqrt(saa*sbb||1),beta=saa?sab/saa:0;const v=cd.map(d=>px.get(d)/px.get(cd[0])),yrs=dday(cd[0],cd.at(-1))/365.25;let pk=1,mdd=0;v.forEach(x=>{pk=Math.max(pk,x);mdd=Math.min(mdd,x/pk-1)});
+return{n:cd.length,corr,beta,cagr:Math.pow(v.at(-1),1/Math.max(yrs,1e-6))-1,mdd,first:cd[0]}}
+async function lowCorr(){const el=$('lcerr');el.textContent='';$('lcgo').disabled=true;try{
+const ref=$('lcref').value.trim().toUpperCase(),s=$('lcs').value,e=$('lce').value,freq=$('lcfreq').value,minN=Math.max(30,+$('lcmin').value||30);if(!ref||!s||!e||s>=e)throw Error('기준·기간을 확인하세요');
+let list=[...new Set($('lclist').value.split(/[\s,]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))];if($('lcx').checked)list=list.filter(x=>!LC_INV.has(x));if(!list.length)throw Error('후보가 없습니다');
+el.textContent='기준 지수 받는 중…';const refMap=new Map(await loadLite(ref,s,e));if(refMap.size<60)throw Error('기준 지수 데이터가 부족합니다');
+$('lcp').style.display='';$('lcp').max=list.length;$('lcp').value=0;const res=[],bad=[];let done=0,idx=0;
+const worker=async()=>{while(idx<list.length){const sym=list[idx++];try{const rows=await loadLite(sym,s,e);const st=rows.length?corrStats(refMap,rows,freq):null;if(!st)bad.push(sym+'(데이터 없음)');else if(st.n<minN)bad.push(`${sym}(겹침 ${st.n}일<${minN})`);else res.push({sym,...st})}catch(x){bad.push(sym+'(없음)')}$('lcp').value=++done;if(done%5==0)el.textContent=`계산 중… ${done}/${list.length}`}};
+await Promise.all(Array.from({length:6},worker));
+res.sort((x,y)=>x.corr-y.corr);window._lcRes=res;const pc2=v=>(v*100).toFixed(1)+'%';
+$('lct').innerHTML='<tr><th>순위</th><th>ETF</th><th>분류</th><th>데이터 시작</th><th>겹친 일</th><th>상관</th><th>베타</th><th>CAGR</th><th>MDD</th></tr>'+res.map((r,i)=>`<tr class="lcr" style="cursor:pointer" data-s="${r.sym}"><td>${i+1}</td><td>${r.sym}</td><td>${LC_CAT[r.sym]||'직접 입력'}</td><td>${r.first}</td><td>${r.n.toLocaleString()}</td><td class="${r.corr<0?'neg':''}"><b>${r.corr.toFixed(2)}</b></td><td>${r.beta.toFixed(2)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td></tr>`).join('');
+$('lct').querySelectorAll('.lcr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();run();scrollTo({top:0,behavior:'smooth'})});
+$('lcnote').innerHTML=`${ref} 대비 ${freq=='w'?'주간':'일간'} 수익률 상관(피어슨) ${s}~${e}. 상관 ${res.length?res[0].corr.toFixed(2):'-'} ~ ${res.length?res.at(-1).corr.toFixed(2):'-'} 범위, 계산 ${res.length}개${bad.length?` · 제외 ${bad.length}개: ${bad.slice(0,30).join(', ')}${bad.length>30?' …':''}`:''}.<br>※ 상관이 낮아도 수익이 좋다는 뜻은 아님(예: 금·원자재는 수익이 낮을 수 있음). 행을 누르면 그 ETF를 방어자산으로 일반 실행.`;
+el.textContent=`${res.length}개 계산 완료`}catch(x){el.textContent=x.message}finally{$('lcgo').disabled=false;$('lcp').style.display='none'}}
+$('lcgo').onclick=lowCorr;
+$('lcsend').onclick=()=>{const r=window._lcRes;if(!r||!r.length){$('lcsendmsg').textContent='먼저 저상관 ETF 찾기를 실행하세요';return}const n=Math.max(1,+$('lcn').value||20),top=r.slice(0,n).map(x=>x.sym);$('altlist').value=top.join(',');save();$('lcsendmsg').textContent=`상위 ${top.length}개를 방어자산 추천 후보로 보냈습니다 → 아래 "방어자산 추천"에서 비교`};
+{const t=new Date(),y=new Date(t);y.setFullYear(y.getFullYear()-10);if(!$('lcs').value)$('lcs').value=y.toISOString().slice(0,10);if(!$('lce').value)$('lce').value=t.toISOString().slice(0,10);if(!$('lclist').value.trim())$('lclist').value=LC_ALL.join(',')}
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',async()=>{const d=window._altData;if(d){await addBaskets(d.common)}else renderAlt()});
 $('sw').onclick=sweep;
 ['sig','trd','cmp','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
