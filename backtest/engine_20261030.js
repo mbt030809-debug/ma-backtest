@@ -57,7 +57,7 @@ function simulate(dates, px, w, o) {
     const V = S + C, tS = w[j] * V;
     if (tS < S - 1e-9) { // 매도: 실현이익(매도금액-평균단가 원가)에만 세율 적용, 손실이면 0 (통산·공제 없음)
       const sold = S - tS, cost = B * (sold / S), t = Math.max(0, sold - cost) * tax;
-      B -= cost; S = tS; C = V - S - t; paid += t; trades++;
+      B -= cost; S = tS; C = V - S - t; paid += t; trades++; if (o.log) o.log.push({ j, sold, cost, t, p: px[j - 1] });
     }
     else if (tS > S + 1e-9) { B += tS - S; S = tS; C = V - S; trades++; }
     S *= px[j] / px[j - 1]; C *= 1 + cd;
@@ -102,7 +102,7 @@ function simulateEvents(dates, px, buys, sells, o) {
       if (od.s) {
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = Math.max(0, amt - cost) * tax;
-        basis -= cost; sh -= q; cash += amt - t; paid += t; trades++;
+        basis -= cost; sh -= q; cash += amt - t; paid += t; trades++; if (o.log) o.log.push({ j: i, sold: amt, cost, t, p: px[i], q });
       } else {
         if (!(cash > 0)) return;
         const amt = cash * od.r; cash -= amt; sh += amt * (1 - fee) / px[i]; basis += amt; trades++;
