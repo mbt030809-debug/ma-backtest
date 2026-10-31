@@ -46,10 +46,10 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><b>비율</b><label>매수1%</label><input id="rb1" type="text" placeholder="현재값" style="width:90px"><label>매도1%</label><input id="rs1" type="text" placeholder="현재값" style="width:90px"><label>매수2%</label><input id="rb2" type="text" placeholder="현재값" style="width:90px"><label>매도2%</label><input id="rs2" type="text" placeholder="현재값" style="width:90px"></div>
 <div class="row"><button id="r10" type="button">비율 4개 10% 단위(0~100) 채우기</button><button id="r0" type="button">비율 고정(비우기)</button><span id="swest" class="mut"></span></div>
 <div class="mut">비율 스윕: 비우면 위 이평 행의 현재 비율 고정. 값 목록(예 50,100) 또는 범위(예 0-100/25)로 입력하면 그 값들을 모두 돌려봄. 조합 수 = 이평1×이평2×각 비율 개수의 곱(매수 비율이 둘 다 0%인 재진입 없는 조합은 제외).</div>
-<div class="row"><label>MDD 제한(%)</label><input id="mddlim" type="text" placeholder="예: -50 (없음)" style="width:110px"><span class="mut">입력한 값보다 더 크게 하락한 조합(예: -60%)은 순위·정리에서 제외</span></div>
 <div class="row"><label>정렬 기준</label><select id="sk"><option value="comp">종합(수익률·MDD·샤프 순위합)</option><option value="tot">수익률(누적)</option><option value="cagr">CAGR</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option></select><button id="sw">스윕 실행</button><button id="swx" style="display:none">취소</button><span id="swerr" class="mut"></span></div>
 <progress id="swp" value="0" max="1" style="width:100%;display:none"></progress><div class="mut" id="swinfo"></div>
 <div class="mut">현재 입력된 종목·기간·비율·지연·이자·세금·수수료를 그대로 쓰고 이평 1·2 기간만 바꿔가며 돌파/이탈 방식으로 계산. 행을 누르면 그 값으로 적용·실행. 과최적화 주의: 기간을 나눠 검증해 보세요.</div>
+<div class="row" id="swfilt" style="display:none"><label>MDD 제한(%)</label><input id="mddlim" type="text" placeholder="예: -50 (없음)" style="width:110px"><button id="mddgo" type="button">적용</button><span class="mut">결과를 다시 계산하지 않고, 입력값보다 더 크게 하락한 조합(예: -60%)을 정리·순위에서 뺌</span></div>
 <div id="swsum"></div>
 <div id="swheat"></div><div class="mut" id="swhov"></div>
 <div class="tbl"><table id="swt"></table></div></div>
@@ -78,7 +78,7 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2'];
 function save(){try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
@@ -151,16 +151,27 @@ ctx.trades.forEach(t=>{if(t.rule!='시작'&&e0[t.i]!=null)tri(t.i,t.side=='B')})
 
 const rsx=r=>`${+(r.b1*100).toFixed(1)}/${+(r.s1*100).toFixed(1)}/${+(r.b2*100).toFixed(1)}/${+(r.s2*100).toFixed(1)}`;
 function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.b1!=null){$('br1').value=+(r.b1*100).toFixed(2);$('sr1').value=+(r.s1*100).toFixed(2);$('br2').value=+(r.b2*100).toFixed(2);$('sr2').value=+(r.s2*100).toFixed(2)}$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})}
-const WK=`self.onmessage=e=>{const{fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o,total,bh,c1,c2,key,lim}=e.data;o.ig=interestFactors(dates,o.cashRate);const yrs=yearsOf(dates),cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
-let N=total,n1a=new Uint16Array(N),n2a=new Uint16Array(N),b1a=new Uint16Array(N),s1a=new Uint16Array(N),b2a=new Uint16Array(N),s2a=new Uint16Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N);const q=v=>Math.round(v*10000);let cnt=0;
-const t0=performance.now();let done=0,last=0,pd=0,pt=t0,sT=0,sM=0,sS=0,bC=0,bM=0,bS=0,bA=0;
-for(const n1 of L1)for(const n2 of L2)for(const b1 of B1)for(const s1 of S1)for(const b2 of B2)for(const s2 of S2){if(b1==0&&b2==0)continue;const sim=simulateEvents(dates,px,[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],o);
-const st=statsLite(sim.eqL,yrs);done++;if(lim!=null&&st.mdd<lim){const now=performance.now();if(now-last>120||done==total){last=now;const el=(now-t0)/1000,rate=done>pd&&now>pt?(done-pd)/((now-pt)/1000):done/el;pd=done;pt=now;self.postMessage({t:'p',done,total,el,eta:(total-done)/rate})}continue}const i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;sT+=st.tot;sM+=st.mdd;sS+=st.sh;
-if(bh){const a=st.cagr>bh.cagr,b=st.mdd>bh.mdd,c=st.sh>bh.sh;if(a)bC++;if(b)bM++;if(c)bS++;if(a&&b&&c)bA++}
-const now=performance.now();if(now-last>120||done==total){last=now;const el=(now-t0)/1000,rate=done>pd&&now>pt?(done-pd)/((now-pt)/1000):done/el;pd=done;pt=now;self.postMessage({t:'p',done,total,el,eta:(total-done)/rate})}}
-self.postMessage({t:'s'});
-if(cnt==0){self.postMessage({t:'d',rows:[],agg:{n:0,tried:total}});return}
-N=cnt;n1a=n1a.subarray(0,N);n2a=n2a.subarray(0,N);b1a=b1a.subarray(0,N);s1a=s1a.subarray(0,N);b2a=b2a.subarray(0,N);s2a=s2a.subarray(0,N);tr=tr.subarray(0,N);T=T.subarray(0,N);C=C.subarray(0,N);M=M.subarray(0,N);S=S.subarray(0,N);
+const WK=`self.onmessage=e=>{const{fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o,lo,hi,wid}=e.data;o.ig=interestFactors(dates,o.cashRate);const yrs=yearsOf(dates),cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
+const nS2=S2.length,nB2=B2.length,nS1=S1.length,nB1=B1.length,nL2=L2.length,dec=r=>{const s2=r%nS2;r=(r-s2)/nS2;const b2=r%nB2;r=(r-b2)/nB2;const s1=r%nS1;r=(r-s1)/nS1;const b1=r%nB1;r=(r-b1)/nB1;const i2=r%nL2;const i1=(r-i2)/nL2;return[i1,i2,b1,s1,b2,s2]};
+let N=0;for(let r=lo;r<hi;r++){const d=dec(r);if(!(B1[d[2]]==0&&B2[d[4]]==0))N++}
+const n1a=new Uint16Array(N),n2a=new Uint16Array(N),b1a=new Uint16Array(N),s1a=new Uint16Array(N),b2a=new Uint16Array(N),s2a=new Uint16Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N),q=v=>Math.round(v*10000);
+let cnt=0,last=0;
+for(let r=lo;r<hi;r++){const[i1,i2,ib1,is1,ib2,is2]=dec(r),b1=B1[ib1],b2=B2[ib2];if(b1==0&&b2==0)continue;const n1=L1[i1],n2=L2[i2],s1=S1[is1],s2=S2[is2];
+const sim=simulateEvents(dates,px,[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],o);
+const st=statsLite(sim.eqL,yrs),i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;
+const now=performance.now();if(now-last>150){last=now;self.postMessage({t:'p',wid,done:cnt,total:N})}}
+self.postMessage({t:'d',wid,cnt:N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S},[n1a.buffer,n2a.buffer,b1a.buffer,s1a.buffer,b2a.buffer,s2a.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer])}`;
+// 정리 워커: 전체 결과를 보관하고, MDD 제한·정렬 기준이 바뀔 때마다 다시 순위/요약을 계산 (재계산 없이)
+const AWSRC=`let D=null;
+self.onmessage=e=>{const m=e.data;
+if(m.t=='load'){let N=0;for(const p of m.parts)N+=p.cnt;const mk=(Ty)=>new Ty(N),n1a=mk(Uint16Array),n2a=mk(Uint16Array),b1a=mk(Uint16Array),s1a=mk(Uint16Array),b2a=mk(Uint16Array),s2a=mk(Uint16Array),tr=mk(Uint16Array),T=mk(Float64Array),C=mk(Float64Array),M=mk(Float64Array),S=mk(Float64Array);
+let o=0;for(const p of m.parts){n1a.set(p.n1a,o);n2a.set(p.n2a,o);b1a.set(p.b1a,o);s1a.set(p.s1a,o);b2a.set(p.b2a,o);s2a.set(p.s2a,o);tr.set(p.tr,o);T.set(p.T,o);C.set(p.C,o);M.set(p.M,o);S.set(p.S,o);o+=p.cnt}
+D={N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S};self.postMessage({t:'ready',N});return}
+if(!D)return;const{id,lim,key,bh,c1,c2}=m,tried=D.N;let V=0;const vi=new Uint32Array(tried);for(let i=0;i<tried;i++)if(lim==null||D.M[i]>=lim)vi[V++]=i;
+if(!V){self.postMessage({t:'res',id,rows:[],agg:{n:0,tried}});return}
+const all=V==tried,sub=a=>{if(all)return a;const r=new a.constructor(V);for(let p=0;p<V;p++)r[p]=a[vi[p]];return r};
+const n1a=sub(D.n1a),n2a=sub(D.n2a),b1a=sub(D.b1a),s1a=sub(D.s1a),b2a=sub(D.b2a),s2a=sub(D.s2a),tr=sub(D.tr),T=sub(D.T),C=sub(D.C),M=sub(D.M),S=sub(D.S),N=V;
+let sT=0,sM=0,sS=0,bC=0,bM=0,bS=0,bA=0;for(let i=0;i<N;i++){sT+=T[i];sM+=M[i];sS+=S[i];if(bh){const a=C[i]>bh.cagr,b=M[i]>bh.mdd,c=S[i]>bh.sh;if(a)bC++;if(b)bM++;if(c)bS++;if(a&&b&&c)bA++}}
 const idx=new Uint32Array(N);for(let i=0;i<N;i++)idx[i]=i;
 const rk=a=>{const o2=idx.slice().sort((x,y)=>a[y]-a[x]),r=new Uint32Array(N);for(let i=0;i<N;i++)r[o2[i]]=i+1;return r};
 const rT=rk(T),rM=rk(M),rS=rk(S),cp=new Uint32Array(N);for(let i=0;i<N;i++)cp[i]=rT[i]+rM[i]+rS[i];
@@ -170,8 +181,8 @@ const cell=new Map();for(let i=0;i<N;i++){const k=n1a[i]*65536+n2a[i],b=cell.get
 for(let i=0;i<N;i++)if(rT[i]<=20||rM[i]<=20||rS[i]<=20)sel.add(i);
 const bst=byC[0];let nbN=0,nbS=0;for(let i=0;i<N;i++){if(i!=bst&&Math.abs(n1a[i]-n1a[bst])<=c1&&Math.abs(n2a[i]-n2a[bst])<=c2&&b1a[i]==b1a[bst]&&s1a[i]==s1a[bst]&&b2a[i]==b2a[bst]&&s2a[i]==s2a[bst]){nbN++;nbS+=S[i]}}
 const rows=[...sel].map(i=>({n1:n1a[i],n2:n2a[i],b1:b1a[i]/10000,s1:s1a[i]/10000,b2:b2a[i]/10000,s2:s2a[i]/10000,tot:T[i],cagr:C[i],mdd:M[i],sh:S[i],trades:tr[i],r_tot:rT[i],r_mdd:rM[i],r_sh:rS[i],comp:cp[i]}));
-self.postMessage({t:'d',rows,agg:{n:N,tried:total,avgTot:sT/N,avgMdd:sM/N,avgSh:sS/N,beatCagr:bC,beatMdd:bM,beatSh:bS,beatAll:bA,nbN,nbSh:nbN?nbS/nbN:NaN}})}`;
-let swWorker=null,swEngine=null,swEl=0;
+self.postMessage({t:'res',id,rows,agg:{n:N,tried,avgTot:sT/N,avgMdd:sM/N,avgSh:sS/N,beatCagr:bC,beatMdd:bM,beatSh:bS,beatAll:bA,nbN,nbSh:nbN?nbS/nbN:NaN}})}`;
+let swWorkers=[],swAW=null,swEngine=null,swEl=0,swSeq=0,swMeta=null;
 const fmtT=x=>x<1?'1초 미만':x<60?Math.ceil(x)+'초':Math.floor(x/60)+'분 '+Math.ceil(x%60)+'초';
 const med=a=>{const b=[...a].sort((x,y)=>x-y);return b[Math.floor(b.length/2)]};
 function summarize(rows,st1,st2,bh,rv,agg){const pc2=v=>(v*100).toFixed(1)+'%',row=(lab,r)=>`<tr><td>${lab}</td><td>${r.n1}</td><td>${r.n2}</td>${rv?`<td>${rsx(r)}</td>`:''}<td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td></tr>`;
@@ -228,7 +239,7 @@ addEventListener('resize',()=>window._swrows&&drawHeat(window._swrows,window._sw
 function rankRows(rows,key){const rank=k=>{[...rows].sort((x,y)=>y[k]-x[k]).forEach((r,i)=>r['r_'+k]=i+1)};['tot','mdd','sh'].forEach(rank);rows.forEach(r=>r.comp=r.r_tot+r.r_mdd+r.r_sh);
 return rows.sort((a,b)=>key=='comp'?a.comp-b.comp||b.sh-a.sh:b[key]-a[key])}
 const keep=on=>{try{window.AndroidApp&&AndroidApp.keepAlive(on)}catch(e){}};
-function endSweep(){keep(false);$('sw').disabled=false;$('swx').style.display='none';$('swp').style.display='none';if(swWorker){swWorker.terminate();swWorker=null}}
+function endSweep(){keep(false);$('sw').disabled=false;$('swx').style.display='none';$('swp').style.display='none';swWorkers.forEach(w=>w.terminate());swWorkers=[]}
 const rg=(a,b,c)=>{a=+$(a).value;b=+$(b).value;c=+$(c).value;if(!(Number.isInteger(a)&&Number.isInteger(b)&&Number.isInteger(c)&&a>=2&&b>=a&&c>=1))throw Error('스윕 범위를 확인하세요 (정수, 시작≥2, 끝≥시작, 간격≥1)');const o=[];for(let v=a;v<=b;v+=c)o.push(v);return o};
 const pr=(id,cur)=>{const t=$(id).value.trim();if(!t)return[cur];const out=[];for(const tok of t.split(',').map(x=>x.trim()).filter(Boolean)){const m=tok.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);if(m){const a=+m[1],b=+m[2],c=+m[3];if(!(c>0&&b>=a))throw Error('비율 범위를 확인하세요: '+tok);for(let v=a;v<=b+1e-9;v+=c)out.push(v)}else{if(!(tok!==''&&isFinite(+tok)))throw Error('비율 값을 확인하세요: '+tok);out.push(+tok)}}
 if(!out.length||out.some(v=>v<0||v>100))throw Error('비율은 0~100 사이여야 합니다');return[...new Set(out.map(v=>Math.round(v*100)/100))].map(v=>v/100)};
@@ -239,12 +250,19 @@ const tot=(L1,L2,B1,S1,B2,S2)=>L1.length*L2.length*(B1.length*B2.length-(B1.incl
 function estSweep(){try{const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2'),n=tot(L1,L2,pr('rb1',cr('br1')/100),pr('rs1',cr('sr1')/100),pr('rb2',cr('br2')/100),pr('rs2',cr('sr2')/100));
 let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
 $('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
-async function sweep(){const el=$('swerr');el.textContent='';if(swWorker)return;$('sw').disabled=true;try{
+function fillRes(d,id){if(id!==swSeq)return;const meta=swMeta;meta.agg=d.agg;const rows=d.rows,key=$('sk').value;$('swfilt').style.display='';
+if(!d.agg.n){$('swsum').innerHTML='';$('swt').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';$('swerr').textContent='조건을 만족하는 조합이 없습니다. MDD 제한을 완화해 보세요.';$('swinfo').textContent=`${d.agg.tried.toLocaleString()}개 모두 MDD 제한(${(meta.lim*100).toFixed(0)}%)에 걸려 제외됨`;return}
+rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:(a,b)=>b[key]-a[key]);showSweep(rows,meta);
+$('swinfo').textContent=`완료${swEl?` (소요 ${fmtT(swEl)})`:''} — ${d.agg.tried.toLocaleString()}개 계산${meta.lim!=null?` · MDD ${(meta.lim*100).toFixed(0)}% 초과 하락 ${(d.agg.tried-d.agg.n).toLocaleString()}개 제외 → ${d.agg.n.toLocaleString()}개 대상`:''}`;
+try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows,meta}));if(swEl)localStorage.setItem('mabt_ms',String(Math.max(0.02,swEl*1000/d.agg.tried)))}catch(x){}}
+// MDD 제한·정렬 기준 변경: 이미 계산된 전체 결과를 다시 정리만 함 (재계산 없음)
+function refilter(){if(!swAW||!swMeta){$('swerr').textContent='저장된 이전 결과는 제한을 바꿀 수 없습니다. 스윕을 다시 실행하세요.';return}
+const ml=$('mddlim').value.trim(),lim=ml===''?null:(isFinite(+ml)&&+ml!==0?-Math.abs(+ml)/100:NaN);if(Number.isNaN(lim)){$('swerr').textContent='MDD 제한은 0이 아닌 숫자로 입력하세요 (예: -50)';return}
+swMeta.lim=lim;const id=++swSeq;$('swerr').textContent='정리 중…';swAW.postMessage({t:'an',id,lim,key:$('sk').value,bh:swMeta.bh,c1:swMeta.c1,c2:swMeta.c2})}
+async function sweep(){const el=$('swerr');el.textContent='';if(swWorkers.length)return;$('sw').disabled=true;try{
 const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
 if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');
-
 const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2');
-
 const B1=pr('rb1',cr('br1')/100),S1=pr('rs1',cr('sr1')/100),B2=pr('rb2',cr('br2')/100),S2=pr('rs2',cr('sr2')/100),total=tot(L1,L2,B1,S1,B2,S2);
 if(!total)throw Error('매수 비율이 모두 0%인 조합만 있어 계산할 조합이 없습니다');
 if(total>MAXC)throw Error(`조합이 너무 많습니다 (${total.toLocaleString()}개, 최대 ${MAXC.toLocaleString()})`);
@@ -253,26 +271,32 @@ el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e)
 const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d));
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
-const rt=id=>Math.min(100,Math.max(0,+$(id).value||0))/100,br=[rt('br1'),rt('br2')],sr=[rt('sr1'),rt('sr2')],key=$('sk').value;
 const bhE=buyHold(px).map(v=>v-Math.max(0,v-100)*o.tax),bh=stats(bhE,dates);
-const ml=$('mddlim').value.trim(),lim=ml===''?null:(isFinite(+ml)&&+ml!==0?-Math.abs(+ml)/100:NaN);if(Number.isNaN(lim))throw Error('MDD 제한은 0이 아닌 숫자로 입력하세요 (예: -50)');
-const meta={lim,rv:[B1,S1,B2,S2].some(a=>a.length>1),c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,taxed:o.tax>0}};
+const meta={lim:null,rv:[B1,S1,B2,S2].some(a=>a.length>1),c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
-// 백그라운드(워커) 실행: 화면 조작·다른 탭 이동 중에도 계산 계속
-keep(true);swWorker=new Worker(URL.createObjectURL(new Blob([swEngine+'\n'+WK],{type:'application/javascript'})));
-$('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=total;$('swinfo').textContent='';$('swt').innerHTML='';$('swsum').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';window._swrows=null;
-swWorker.onmessage=m=>{const d=m.data;if(d.t=='p'){swEl=d.el;$('swp').value=d.done;$('swinfo').textContent=`진행 ${d.done}/${d.total} (${(d.done/d.total*100).toFixed(0)}%) · 경과 ${fmtT(d.el)} · 남은 시간 약 ${fmtT(d.eta)} · 예상 총 ${fmtT(d.el+d.eta)} (백그라운드 실행 중, 다른 작업 가능)`;el.textContent='계산 중…'}
-else if(d.t=='s'){$('swinfo').textContent='순위 계산·정리 중…'}
-else if(!d.agg.n){$('swinfo').textContent=`완료 — ${d.agg.tried.toLocaleString()}개 조합 모두 MDD 제한(${(meta.lim*100).toFixed(0)}%)에 걸려 제외됨`;$('swerr').textContent='조건을 만족하는 조합이 없습니다. 제한을 완화해 보세요.';endSweep()}
-else{const rows=d.rows;rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:(a,b)=>b[key]-a[key]);meta.agg=d.agg;showSweep(rows,meta);$('swinfo').textContent=`완료 (소요 ${fmtT(swEl)}) — ${d.agg.tried.toLocaleString()}개 계산${meta.lim!=null?` · MDD ${(meta.lim*100).toFixed(0)}% 초과 하락 ${(d.agg.tried-d.agg.n).toLocaleString()}개 제외 → ${d.agg.n.toLocaleString()}개 대상`:''}`;try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows,meta}));localStorage.setItem('mabt_ms',String(Math.max(0.02,swEl*1000/d.agg.tried)))}catch(x){}endSweep()}};
-swWorker.onerror=x=>{el.textContent='스윕 오류: '+x.message;endSweep()};
-swWorker.postMessage({fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o,total,bh:meta.bh,c1:meta.c1,c2:meta.c2,key,lim:meta.lim});
+if(swAW){swAW.terminate();swAW=null}swMeta=meta;swSeq++;
+// 멀티 워커: 조합 번호 공간을 코어 수만큼 나눠 동시에 계산 (백그라운드 실행, 화면 조작 가능)
+const R=L1.length*L2.length*B1.length*S1.length*B2.length*S2.length,nW=window._nW||Math.max(1,Math.min(8,Math.ceil(total/3000),(navigator.hardwareConcurrency||4)-1||1));
+const url=URL.createObjectURL(new Blob([swEngine+'\n'+WK],{type:'application/javascript'}));
+keep(true);$('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=total;$('swinfo').textContent='';$('swfilt').style.display='none';$('swt').innerHTML='';$('swsum').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';window._swrows=null;
+const prog=Array(nW).fill(0),tots=Array(nW).fill(0),parts=Array(nW),t0=performance.now();let doneW=0,lastT=t0,lastD=0,rate=0,tLast=0;
+const show=()=>{const d=prog.reduce((a,b)=>a+b,0),tt=tots.reduce((a,b)=>a+b,0)||total,now=performance.now();if(now-lastT>400){const r2=(d-lastD)/((now-lastT)/1000);rate=rate?rate*0.5+r2*0.5:r2;lastT=now;lastD=d}
+const elp=(now-t0)/1000,r=rate||d/Math.max(elp,.001),eta=r>0?(tt-d)/r:0;swEl=elp;$('swp').max=tt;$('swp').value=d;$('swinfo').textContent=`진행 ${d.toLocaleString()}/${tt.toLocaleString()} (${(d/tt*100).toFixed(0)}%) · 경과 ${fmtT(elp)} · 남은 시간 약 ${fmtT(eta)} · 예상 총 ${fmtT(elp+eta)} · 워커 ${nW}개 병렬 (백그라운드 실행 중)`;el.textContent='계산 중…'};
+const finish=()=>{swEl=(performance.now()-t0)/1000;$('swinfo').textContent='순위 계산·정리 중…';
+const aw=new Worker(URL.createObjectURL(new Blob([AWSRC],{type:'application/javascript'})));swAW=aw;const id=swSeq;
+aw.onmessage=m=>{const d=m.data;if(d.t=='res'){fillRes(d,d.id)}else if(d.t=='ready'){aw.postMessage({t:'an',id,lim:null,key:$('sk').value,bh:meta.bh,c1:meta.c1,c2:meta.c2});$('mddlim').value=''}};
+aw.onerror=x=>{$('swerr').textContent='정리 오류: '+x.message};
+const tl=[];parts.forEach(p=>{for(const k of['n1a','n2a','b1a','s1a','b2a','s2a','tr','T','C','M','S'])tl.push(p[k].buffer)});aw.postMessage({t:'load',parts},tl);endSweep()};
+for(let k=0;k<nW;k++){const lo=Math.floor(R*k/nW),hi=Math.floor(R*(k+1)/nW),w=new Worker(url);swWorkers.push(w);
+w.onmessage=m=>{const d=m.data;if(d.t=='p'){prog[d.wid]=d.done;tots[d.wid]=d.total;if(performance.now()-tLast>150){tLast=performance.now();show()}}else{parts[d.wid]=d;prog[d.wid]=d.cnt;tots[d.wid]=d.cnt;w.terminate();if(++doneW==nW){show();finish()}}};
+w.onerror=x=>{el.textContent='스윕 오류: '+x.message;endSweep()};
+w.postMessage({fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o,lo,hi,wid:k})}
 }catch(x){el.textContent=x.message;endSweep()}}
 $('swx').onclick=()=>{endSweep();$('swerr').textContent='취소됨';$('swinfo').textContent=''};
 pxStat();
-$('sw').onclick=sweep;
+$('sw').onclick=sweep;$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
 $('r10').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
 ['a1','b1','c1','a2','b2','c2','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
-try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.meta&&r.meta.agg){showSweep(r.rows,r.meta);$('swinfo').textContent='이전 스윕 결과 (저장됨)'}}catch(x){}
+try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
 $('run').onclick=run;$('log').onchange=()=>window._last&&draw(...window._last);addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>
