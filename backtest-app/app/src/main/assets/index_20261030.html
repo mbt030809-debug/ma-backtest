@@ -47,7 +47,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><b>비율</b><label>매수1%</label><input id="rb1" type="text" placeholder="현재값" style="width:90px"><label>매도1%</label><input id="rs1" type="text" placeholder="현재값" style="width:90px"><label>매수2%</label><input id="rb2" type="text" placeholder="현재값" style="width:90px"><label>매도2%</label><input id="rs2" type="text" placeholder="현재값" style="width:90px"></div>
 <div class="row"><button id="r10" type="button">비율 4개 10% 단위(0~100) 채우기</button><button id="r0" type="button">비율 고정(비우기)</button><span id="swest" class="mut"></span></div>
 <div class="mut">비율 스윕: 비우면 위 이평 행의 현재 비율 고정. 값 목록(예 50,100) 또는 범위(예 0-100/25)로 입력하면 그 값들을 모두 돌려봄. 조합 수 = 이평1×이평2×각 비율 개수의 곱(매수 비율이 둘 다 0%인 재진입 없는 조합은 제외).</div>
-<div class="row"><label>정렬 기준</label><select id="sk"><option value="comp">종합(수익률·MDD·샤프 순위합)</option><option value="tot">수익률(누적)</option><option value="cagr">CAGR</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option></select><button id="sw">스윕 실행</button><button id="swx" style="display:none">취소</button><span id="swerr" class="mut"></span></div>
+<div class="row"><label>정렬 기준</label><select id="sk"><option value="comp">종합(수익률·MDD·샤프 순위합)</option><option value="tot">수익률(누적)</option><option value="cagr">CAGR</option><option value="mdd">MDD(낙폭 작은 순)</option><option value="sh">샤프</option><option value="so">소르티노(하락 변동만 벌점)</option><option value="ca">칼마(CAGR÷|MDD|)</option><option value="comp2">종합2(수익률·소르티노·칼마 순위합)</option></select><button id="sw">스윕 실행</button><button id="swx" style="display:none">취소</button><span id="swerr" class="mut"></span></div>
 <progress id="swp" value="0" max="1" style="width:100%;display:none"></progress><div class="mut" id="swinfo"></div>
 <div class="mut">현재 입력된 종목·기간·비율·지연·이자·세금·수수료를 그대로 쓰고 이평 1·2 기간만 바꿔가며 돌파/이탈 방식으로 계산. 행을 누르면 그 값으로 적용·실행. 과최적화 주의: 기간을 나눠 검증해 보세요.</div>
 <div class="row" id="swfilt" style="display:none"><label>MDD 제한(%)</label><input id="mddlim" type="text" placeholder="예: -50 (없음)" style="width:110px"><label><input type="checkbox" id="nohold"> 보유형(매도 0%/0%) 제외</label><button id="mddgo" type="button">적용</button><span class="mut">결과를 다시 계산하지 않고, 입력값보다 더 크게 하락한 조합(예: -60%)을 정리·순위에서 뺌</span></div>
@@ -136,7 +136,7 @@ const out=[{name:`전략(${sig} 신호→${trd})${sfx}`,e:sim.eqL},{name:`${trd}
 out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length]});draw(out,dates,ctx);
 $('lg').innerHTML=out.map(o=>`<span><i style="background:${o.c}"></i>${o.name}</span>`).join('')+'<span><i style="background:rgba(47,158,68,.5)"></i>배경 초록=보유(비중 10%+)</span><span><i style="background:rgba(224,49,49,.45)"></i>배경 빨강=현금</span><span>▲매수 ▼매도(전략선 위, 체결일)</span>';
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
-$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="5" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산${skipped.length?' · 비교 제외(기간 부족): '+skippedTxt.join(', '):''}</td></tr>`;
+$('sum').innerHTML='<tr><th>구분</th><th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th></tr>'+out.map(o=>`<tr><td>${o.name}</td><td class="${cl(o.st.tot)}">${pc(o.st.tot)}</td><td class="${cl(o.st.cagr)}">${pc(o.st.cagr)}</td><td class="neg">${pc(o.st.mdd)}</td><td>${o.st.sh.toFixed(2)}</td><td>${(o.st.so||0).toFixed(2)}</td><td>${(o.st.ca||0).toFixed(2)}</td></tr>`).join('')+`<tr><td colspan="7" class="mut">${dates[0]} ~ ${dates.at(-1)} · 평균 주식비중 ${(inv*100).toFixed(0)}% · 매매 ${sim.trades}회 · 납부세금 ${sim.paid.toFixed(1)}(시작=100 기준) · 샤프=무위험 0% 연환산${skipped.length?' · 비교 제외(기간 부족): '+skippedTxt.join(', '):''}</td></tr>`;
 const ys=Object.keys(out[0].st.yr);$('yr').innerHTML='<tr><th>연도</th>'+out.map(o=>`<th>${o.name}</th>`).join('')+'</tr>'+ys.map(y=>`<tr><td>${y}</td>${out.map(o=>`<td class="${cl(o.st.yr[y])}">${pc(o.st.yr[y])}</td>`).join('')}</tr>`).join('');
 const nf=v=>v.toLocaleString('ko-KR',{maximumFractionDigits:2});$('trsum').textContent=`매수·매도 내역 (${sim.list.length}건, 시작=100 기준 금액)`;
 $('trd2').innerHTML='<tr><th>신호일</th><th>체결일</th><th>구분</th><th>규칙</th><th>체결가</th><th>수량</th><th>금액</th><th>실현손익</th><th>세금</th><th>현금</th><th>보유수량</th></tr>'+sim.list.map(t=>`<tr><td>${dates[t.si]}</td><td>${dates[t.i]}</td><td class="${t.side=='B'?'pos':'neg'}">${t.side=='B'?'매수':'매도'}</td><td>${t.rule}</td><td>${nf(t.price)}</td><td>${t.qty.toFixed(4)}</td><td>${nf(t.amt)}</td><td class="${(t.gain||0)>=0?'pos':'neg'}">${t.gain==null?'':nf(t.gain)}</td><td>${t.tax>0.005?nf(t.tax):''}</td><td>${nf(t.cash)}</td><td>${t.sh.toFixed(4)}</td></tr>`).join('');
@@ -159,34 +159,34 @@ function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.b1!=null){$('b
 const WK=`self.onmessage=e=>{const{fpx,pos,px,dates,L1,L2,B1,S1,B2,S2,o,lo,hi,wid}=e.data;o.ig=interestFactors(dates,o.cashRate);const yrs=yearsOf(dates),cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
 const nS2=S2.length,nB2=B2.length,nS1=S1.length,nB1=B1.length,nL2=L2.length,dec=r=>{const s2=r%nS2;r=(r-s2)/nS2;const b2=r%nB2;r=(r-b2)/nB2;const s1=r%nS1;r=(r-s1)/nS1;const b1=r%nB1;r=(r-b1)/nB1;const i2=r%nL2;const i1=(r-i2)/nL2;return[i1,i2,b1,s1,b2,s2]};
 let N=0;for(let r=lo;r<hi;r++){const d=dec(r);if(!(B1[d[2]]==0&&B2[d[4]]==0))N++}
-const n1a=new Uint16Array(N),n2a=new Uint16Array(N),b1a=new Uint16Array(N),s1a=new Uint16Array(N),b2a=new Uint16Array(N),s2a=new Uint16Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N),q=v=>Math.round(v*10000);
+const n1a=new Uint16Array(N),n2a=new Uint16Array(N),b1a=new Uint16Array(N),s1a=new Uint16Array(N),b2a=new Uint16Array(N),s2a=new Uint16Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N),SO=new Float64Array(N),CA=new Float64Array(N),q=v=>Math.round(v*10000);
 let cnt=0,last=0;
 for(let r=lo;r<hi;r++){const[i1,i2,ib1,is1,ib2,is2]=dec(r),b1=B1[ib1],b2=B2[ib2];if(b1==0&&b2==0)continue;const n1=L1[i1],n2=L2[i2],s1=S1[is1],s2=S2[is2];
 const sim=simulateEvents(dates,px,[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],o);
-const st=statsLite(sim.eqL,yrs),i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;
+const st=statsLite(sim.eqL,yrs),i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;SO[i]=st.so;CA[i]=st.ca;
 const now=performance.now();if(now-last>150){last=now;self.postMessage({t:'p',wid,done:cnt,total:N})}}
-self.postMessage({t:'d',wid,cnt:N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S},[n1a.buffer,n2a.buffer,b1a.buffer,s1a.buffer,b2a.buffer,s2a.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer])}`;
+self.postMessage({t:'d',wid,cnt:N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S,SO,CA},[n1a.buffer,n2a.buffer,b1a.buffer,s1a.buffer,b2a.buffer,s2a.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer,SO.buffer,CA.buffer])}`;
 // 정리 워커: 전체 결과를 보관하고, MDD 제한·정렬 기준이 바뀔 때마다 다시 순위/요약을 계산 (재계산 없이)
 const AWSRC=`let D=null;
 self.onmessage=e=>{const m=e.data;
-if(m.t=='load'){let N=0;for(const p of m.parts)N+=p.cnt;const mk=(Ty)=>new Ty(N),n1a=mk(Uint16Array),n2a=mk(Uint16Array),b1a=mk(Uint16Array),s1a=mk(Uint16Array),b2a=mk(Uint16Array),s2a=mk(Uint16Array),tr=mk(Uint16Array),T=mk(Float64Array),C=mk(Float64Array),M=mk(Float64Array),S=mk(Float64Array);
-let o=0;for(const p of m.parts){n1a.set(p.n1a,o);n2a.set(p.n2a,o);b1a.set(p.b1a,o);s1a.set(p.s1a,o);b2a.set(p.b2a,o);s2a.set(p.s2a,o);tr.set(p.tr,o);T.set(p.T,o);C.set(p.C,o);M.set(p.M,o);S.set(p.S,o);o+=p.cnt}
-D={N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S};self.postMessage({t:'ready',N});return}
+if(m.t=='load'){let N=0;for(const p of m.parts)N+=p.cnt;const mk=(Ty)=>new Ty(N),n1a=mk(Uint16Array),n2a=mk(Uint16Array),b1a=mk(Uint16Array),s1a=mk(Uint16Array),b2a=mk(Uint16Array),s2a=mk(Uint16Array),tr=mk(Uint16Array),T=mk(Float64Array),C=mk(Float64Array),M=mk(Float64Array),S=mk(Float64Array),SO=mk(Float64Array),CA=mk(Float64Array);
+let o=0;for(const p of m.parts){n1a.set(p.n1a,o);n2a.set(p.n2a,o);b1a.set(p.b1a,o);s1a.set(p.s1a,o);b2a.set(p.b2a,o);s2a.set(p.s2a,o);tr.set(p.tr,o);T.set(p.T,o);C.set(p.C,o);M.set(p.M,o);S.set(p.S,o);SO.set(p.SO,o);CA.set(p.CA,o);o+=p.cnt}
+D={N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S,SO,CA};self.postMessage({t:'ready',N});return}
 if(!D)return;const{id,lim,key,bh,c1,c2,noHold}=m,tried=D.N;let V=0;const vi=new Uint32Array(tried);for(let i=0;i<tried;i++)if((lim==null||D.M[i]>=lim)&&!(noHold&&D.s1a[i]==0&&D.s2a[i]==0))vi[V++]=i;
 if(!V){self.postMessage({t:'res',id,rows:[],agg:{n:0,tried}});return}
 const all=V==tried,sub=a=>{if(all)return a;const r=new a.constructor(V);for(let p=0;p<V;p++)r[p]=a[vi[p]];return r};
-const n1a=sub(D.n1a),n2a=sub(D.n2a),b1a=sub(D.b1a),s1a=sub(D.s1a),b2a=sub(D.b2a),s2a=sub(D.s2a),tr=sub(D.tr),T=sub(D.T),C=sub(D.C),M=sub(D.M),S=sub(D.S),N=V;
-let sT=0,sM=0,sS=0,bC=0,bM=0,bS=0,bA=0;for(let i=0;i<N;i++){sT+=T[i];sM+=M[i];sS+=S[i];if(bh){const a=C[i]>bh.cagr,b=M[i]>bh.mdd,c=S[i]>bh.sh;if(a)bC++;if(b)bM++;if(c)bS++;if(a&&b&&c)bA++}}
+const n1a=sub(D.n1a),n2a=sub(D.n2a),b1a=sub(D.b1a),s1a=sub(D.s1a),b2a=sub(D.b2a),s2a=sub(D.s2a),tr=sub(D.tr),T=sub(D.T),C=sub(D.C),M=sub(D.M),S=sub(D.S),SO=sub(D.SO),CA=sub(D.CA),N=V;
+let sT=0,sM=0,sS=0,sSo=0,sCa=0,bC=0,bM=0,bS=0,bSo=0,bCa=0,bA=0;for(let i=0;i<N;i++){sT+=T[i];sM+=M[i];sS+=S[i];sSo+=SO[i];sCa+=CA[i];if(bh){const a=C[i]>bh.cagr,b=M[i]>bh.mdd,c=S[i]>bh.sh;if(a)bC++;if(b)bM++;if(c)bS++;if(SO[i]>bh.so)bSo++;if(CA[i]>bh.ca)bCa++;if(a&&b&&c)bA++}}
 const idx=new Uint32Array(N);for(let i=0;i<N;i++)idx[i]=i;
 const rk=a=>{const o2=idx.slice().sort((x,y)=>a[y]-a[x]),r=new Uint32Array(N);for(let i=0;i<N;i++)r[o2[i]]=i+1;return r};
-const rT=rk(T),rM=rk(M),rS=rk(S),cp=new Uint32Array(N);for(let i=0;i<N;i++)cp[i]=rT[i]+rM[i]+rS[i];
-const byC=idx.slice().sort((x,y)=>cp[x]-cp[y]||S[y]-S[x]),byK=key=='comp'?byC:idx.slice().sort((x,y)=>key=='tot'?T[y]-T[x]:key=='cagr'?C[y]-C[x]:key=='mdd'?M[y]-M[x]:S[y]-S[x]);
-const sel=new Set();for(let i=0;i<Math.min(N,2000);i++)sel.add(byK[i]);for(let i=0;i<Math.min(N,50);i++)sel.add(byC[i]);
+const rT=rk(T),rM=rk(M),rS=rk(S),rSo=rk(SO),rCa=rk(CA),cp=new Uint32Array(N),cp2=new Uint32Array(N);for(let i=0;i<N;i++){cp[i]=rT[i]+rM[i]+rS[i];cp2[i]=rT[i]+rSo[i]+rCa[i]}
+const byC=idx.slice().sort((x,y)=>cp[x]-cp[y]||S[y]-S[x]),byC2=key=='comp2'?idx.slice().sort((x,y)=>cp2[x]-cp2[y]||SO[y]-SO[x]):null,V2={tot:T,cagr:C,mdd:M,sh:S,so:SO,ca:CA},byK=key=='comp'?byC:key=='comp2'?byC2:idx.slice().sort((x,y)=>V2[key][y]-V2[key][x]);
+const sel=new Set();for(let i=0;i<Math.min(N,2000);i++)sel.add(byK[i]);for(let i=0;i<Math.min(N,50);i++)sel.add(byC[i]);if(byC2)for(let i=0;i<Math.min(N,50);i++)sel.add(byC2[i]);
 const cell=new Map();for(let i=0;i<N;i++){const k=n1a[i]*65536+n2a[i],b=cell.get(k);if(b===undefined||cp[i]<cp[b]||(cp[i]==cp[b]&&S[i]>S[b]))cell.set(k,i)}cell.forEach(v=>sel.add(v));
-for(let i=0;i<N;i++)if(rT[i]<=20||rM[i]<=20||rS[i]<=20)sel.add(i);
+for(let i=0;i<N;i++)if(rT[i]<=20||rM[i]<=20||rS[i]<=20||rSo[i]<=20||rCa[i]<=20)sel.add(i);
 const bst=byC[0];let tied=0;for(let i=0;i<N;i++)if(T[i]==T[bst]&&M[i]==M[bst]&&S[i]==S[bst])tied++;let nbN=0,nbS=0;for(let i=0;i<N;i++){if(i!=bst&&Math.abs(n1a[i]-n1a[bst])<=c1&&Math.abs(n2a[i]-n2a[bst])<=c2&&b1a[i]==b1a[bst]&&s1a[i]==s1a[bst]&&b2a[i]==b2a[bst]&&s2a[i]==s2a[bst]){nbN++;nbS+=S[i]}}
-const rows=[...sel].map(i=>({n1:n1a[i],n2:n2a[i],b1:b1a[i]/10000,s1:s1a[i]/10000,b2:b2a[i]/10000,s2:s2a[i]/10000,tot:T[i],cagr:C[i],mdd:M[i],sh:S[i],trades:tr[i],r_tot:rT[i],r_mdd:rM[i],r_sh:rS[i],comp:cp[i]}));
-self.postMessage({t:'res',id,rows,agg:{n:N,tried,tied,avgTot:sT/N,avgMdd:sM/N,avgSh:sS/N,beatCagr:bC,beatMdd:bM,beatSh:bS,beatAll:bA,nbN,nbSh:nbN?nbS/nbN:NaN}})}`;
+const rows=[...sel].map(i=>({n1:n1a[i],n2:n2a[i],b1:b1a[i]/10000,s1:s1a[i]/10000,b2:b2a[i]/10000,s2:s2a[i]/10000,tot:T[i],cagr:C[i],mdd:M[i],sh:S[i],so:SO[i],ca:CA[i],trades:tr[i],r_tot:rT[i],r_mdd:rM[i],r_sh:rS[i],comp:cp[i],comp2:cp2[i]}));
+self.postMessage({t:'res',id,rows,agg:{n:N,tried,tied,avgTot:sT/N,avgMdd:sM/N,avgSh:sS/N,avgSo:sSo/N,avgCa:sCa/N,beatCagr:bC,beatMdd:bM,beatSh:bS,beatSo:bSo,beatCa:bCa,beatAll:bA,nbN,nbSh:nbN?nbS/nbN:NaN}})}`;
 let swWorkers=[],swAW=null,swEngine=null,swEl=0,swSeq=0,swMeta=null;
 // 시세 데이터 점검: 0·결측·중복·큰 날짜 공백·급등락(레버리지 ETF 감안 ±40%)
 function dataCheck(name,rows){const w=[];let bad=0,dup=0;const gaps=[],jumps=[];
@@ -217,26 +217,26 @@ const rowsOf=m=>[...m.entries()].sort((a,b)=>a[0]<b[0]?-1:1);
 function mddInfo(e,dates){let pk=100,pi=0,worst=0,wp=0,wt=0;e.forEach((v,i)=>{if(v>pk){pk=v;pi=i}const d=v/pk-1;if(d<worst){worst=d;wp=pi;wt=i}});return{mdd:worst,peak:dates[wp],trough:dates[wt],peakVal:e[wp],troughVal:e[wt]}}
 const fmtT=x=>x<1?'1초 미만':x<60?Math.ceil(x)+'초':Math.floor(x/60)+'분 '+Math.ceil(x%60)+'초';
 const med=a=>{const b=[...a].sort((x,y)=>x-y);return b[Math.floor(b.length/2)]};
-function summarize(rows,st1,st2,bh,rv,agg){const pc2=v=>(v*100).toFixed(1)+'%',row=(lab,r)=>`<tr><td>${lab}</td><td>${r.n1}</td><td>${r.n2}</td>${rv?`<td>${rsx(r)}</td>`:''}<td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td></tr>`;
+function summarize(rows,st1,st2,bh,rv,agg){const pc2=v=>(v*100).toFixed(1)+'%',row=(lab,r)=>`<tr><td>${lab}</td><td>${r.n1}</td><td>${r.n2}</td>${rv?`<td>${rsx(r)}</td>`:''}<td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.so.toFixed(2)}</td><td>${r.ca.toFixed(2)}</td></tr>`;
 const by=k=>[...rows].sort((a,b)=>b[k]-a[k])[0],comp=[...rows].sort((a,b)=>a.comp-b.comp||b.sh-a.sh);
 const top=comp.slice(0,Math.max(3,Math.min(10,Math.ceil(agg.n*0.1)))),avg=(a,k)=>a.reduce((x,r)=>x+r[k],0)/a.length;
 const best=comp[0],nbs={length:agg.nbN};
 const nbSh=agg.nbSh,allSh=agg.avgSh,stable=agg.nbN&&nbSh>=best.sh*0.8;
 const cnt=(k)=>{const m={};top.forEach(r=>m[r[k]]=(m[r[k]]||0)+1);return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]};
 const c1=cnt('n1'),c2=cnt('n2'),rg=k=>`${Math.min(...top.map(r=>r[k]))}~${Math.max(...top.map(r=>r[k]))}`;
-return `<h2 style="margin-top:10px">상위 조합 정리</h2><div class="tbl"><table><tr><th>기준</th><th>이평1</th><th>이평2</th>${rv?'<th>비율(매수1/매도1/매수2/매도2 %)</th>':''}<th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th></tr>`+
-row('종합 1위',best)+row('수익률 1위',by('tot'))+row('CAGR 1위',by('cagr'))+row('MDD 최소',by('mdd'))+row('샤프 1위',by('sh'))+(bh?`<tr><td><b>${'단순보유'+(bh.taxed?'(세후)':'')}</b></td><td>-</td><td>-</td>${rv?'<td>-</td>':''}<td class="${cl(bh.tot)}">${pc2(bh.tot)}</td><td class="${cl(bh.cagr)}">${pc2(bh.cagr)}</td><td class="neg">${pc2(bh.mdd)}</td><td>${bh.sh.toFixed(2)}</td></tr>`:'')+`</table></div>
+return `<h2 style="margin-top:10px">상위 조합 정리</h2><div class="tbl"><table><tr><th>기준</th><th>이평1</th><th>이평2</th>${rv?'<th>비율(매수1/매도1/매수2/매도2 %)</th>':''}<th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th></tr>`+
+row('종합 1위',best)+row('수익률 1위',by('tot'))+row('CAGR 1위',by('cagr'))+row('MDD 최소',by('mdd'))+row('샤프 1위',by('sh'))+row('소르티노 1위',by('so'))+row('칼마 1위',by('ca'))+(bh?`<tr><td><b>${'단순보유'+(bh.taxed?'(세후)':'')}</b></td><td>-</td><td>-</td>${rv?'<td>-</td>':''}<td class="${cl(bh.tot)}">${pc2(bh.tot)}</td><td class="${cl(bh.cagr)}">${pc2(bh.cagr)}</td><td class="neg">${pc2(bh.mdd)}</td><td>${bh.sh.toFixed(2)}</td><td>${(bh.so||0).toFixed(2)}</td><td>${(bh.ca||0).toFixed(2)}</td></tr>`:'')+`</table></div>
 <div class="mut" style="margin:6px 0">· 종합 상위 ${top.length}개: 이평1 ${rg('n1')} (최다 ${c1[0]}일 ${c1[1]}회, 중앙값 ${med(top.map(r=>r.n1))}), 이평2 ${rg('n2')} (최다 ${c2[0]}일 ${c2[1]}회, 중앙값 ${med(top.map(r=>r.n2))})<br>
-· 상위 ${top.length}개 평균: 누적 ${pc2(avg(top,'tot'))}, MDD ${pc2(avg(top,'mdd'))}, 샤프 ${avg(top,'sh').toFixed(2)} / 전체 ${agg.n.toLocaleString()}개 평균: 누적 ${pc2(agg.avgTot)}, MDD ${pc2(agg.avgMdd)}, 샤프 ${allSh.toFixed(2)}<br>
-${bh?`· 단순보유 대비(전체 ${agg.n.toLocaleString()}개 중): CAGR 높은 조합 ${agg.beatCagr.toLocaleString()}개, MDD 얕은 조합 ${agg.beatMdd.toLocaleString()}개, 샤프 높은 조합 ${agg.beatSh.toLocaleString()}개, 세 지표 모두 우월 ${agg.beatAll.toLocaleString()}개<br>`:''}${agg.tied>1?`· 종합 1위와 수치가 완전히 같은 조합 ${agg.tied.toLocaleString()}개 (이평·비율이 달라도 결과가 같음: 매매가 거의 없는 보유형일 가능성 — 위 '보유형 제외'로 걸러낼 수 있음)<br>`:''}· 종합 1위(${best.n1}/${best.n2}) 주변(±1간격) 조합 ${nbs.length}개 평균 샤프 ${isNaN(nbSh)?'-':nbSh.toFixed(2)} → ${!nbs.length?'주변 조합 없음':stable?'주변도 비슷해 비교적 안정적':'주변이 크게 떨어져 우연일 가능성(과최적화 주의)'}</div>`}
+· 상위 ${top.length}개 평균: 누적 ${pc2(avg(top,'tot'))}, MDD ${pc2(avg(top,'mdd'))}, 샤프 ${avg(top,'sh').toFixed(2)} / 전체 ${agg.n.toLocaleString()}개 평균: 누적 ${pc2(agg.avgTot)}, MDD ${pc2(agg.avgMdd)}, 샤프 ${allSh.toFixed(2)}, 소르티노 ${(agg.avgSo||0).toFixed(2)}, 칼마 ${(agg.avgCa||0).toFixed(2)}<br>
+${bh?`· 단순보유 대비(전체 ${agg.n.toLocaleString()}개 중): CAGR 높은 조합 ${agg.beatCagr.toLocaleString()}개, MDD 얕은 조합 ${agg.beatMdd.toLocaleString()}개, 샤프 높은 조합 ${agg.beatSh.toLocaleString()}개, 소르티노 높은 조합 ${(agg.beatSo||0).toLocaleString()}개, 칼마 높은 조합 ${(agg.beatCa||0).toLocaleString()}개, 세 지표(CAGR·MDD·샤프) 모두 우월 ${agg.beatAll.toLocaleString()}개<br>`:''}${agg.tied>1?`· 종합 1위와 수치가 완전히 같은 조합 ${agg.tied.toLocaleString()}개 (이평·비율이 달라도 결과가 같음: 매매가 거의 없는 보유형일 가능성 — 위 '보유형 제외'로 걸러낼 수 있음)<br>`:''}· 종합 1위(${best.n1}/${best.n2}) 주변(±1간격) 조합 ${nbs.length}개 평균 샤프 ${isNaN(nbSh)?'-':nbSh.toFixed(2)} → ${!nbs.length?'주변 조합 없음':stable?'주변도 비슷해 비교적 안정적':'주변이 크게 떨어져 우연일 가능성(과최적화 주의)'}</div>`}
 function showSweep(rows,meta){const pc2=v=>(v*100).toFixed(1)+'%';const top=rows.slice(0,30);
 $('swsum').innerHTML=summarize(rows,meta.c1,meta.c2,meta.bh,meta.rv,meta.agg);drawHeat(rows,meta);
-$('swt').innerHTML='<tr><th>순위</th><th>이평1</th><th>이평2</th>'+(meta.rv?'<th>비율 %</th>':'')+'<th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>매매</th>'+(meta.bh?'<th>보유 대비</th>':'')+'</tr>'+top.map((r,i)=>`<tr class="swr" data-i="${i}" style="cursor:pointer"><td>${i+1}</td><td>${r.n1}</td><td>${r.n2}</td>${meta.rv?`<td>${rsx(r)}</td>`:''}<td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.trades}</td>${meta.bh?`<td>CAGR ${r.cagr>=meta.bh.cagr?'+':''}${((r.cagr-meta.bh.cagr)*100).toFixed(1)}%p · MDD ${r.mdd>=meta.bh.mdd?'+':''}${((r.mdd-meta.bh.mdd)*100).toFixed(1)}%p</td>`:''}</tr>`).join('');
+$('swt').innerHTML='<tr><th>순위</th><th>이평1</th><th>이평2</th>'+(meta.rv?'<th>비율 %</th>':'')+'<th>누적</th><th>CAGR</th><th>MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th><th>매매</th>'+(meta.bh?'<th>보유 대비</th>':'')+'</tr>'+top.map((r,i)=>`<tr class="swr" data-i="${i}" style="cursor:pointer"><td>${i+1}</td><td>${r.n1}</td><td>${r.n2}</td>${meta.rv?`<td>${rsx(r)}</td>`:''}<td class="${cl(r.tot)}">${pc2(r.tot)}</td><td class="${cl(r.cagr)}">${pc2(r.cagr)}</td><td class="neg">${pc2(r.mdd)}</td><td>${r.sh.toFixed(2)}</td><td>${r.so.toFixed(2)}</td><td>${r.ca.toFixed(2)}</td><td>${r.trades}</td>${meta.bh?`<td>CAGR ${r.cagr>=meta.bh.cagr?'+':''}${((r.cagr-meta.bh.cagr)*100).toFixed(1)}%p · MDD ${r.mdd>=meta.bh.mdd?'+':''}${((r.mdd-meta.bh.mdd)*100).toFixed(1)}%p</td>`:''}</tr>`).join('');
 $('swt').querySelectorAll('.swr').forEach(t=>t.onclick=()=>applyRow(top[+t.dataset.i]));
 $('swerr').textContent=`${meta.agg.n.toLocaleString()}개 조합${meta.lim!=null?`(MDD ${(meta.lim*100).toFixed(0)}% 이내)`:''}${meta.noHold?'(보유형 제외)':''} 중 상위 ${top.length}개 (행을 누르면 적용). 지연 ${meta.delay}일, ${meta.range}`}
 
 // ---- 스윕 히트맵 (x=이평2 장기선, y=이평1 단기선) ----
-const HM=[['cagr','CAGR (%)',v=>(v*100).toFixed(1),'blue'],['mdd','MDD (%)',v=>(v*100).toFixed(1),'red'],['sh','샤프',v=>v.toFixed(2),'blue']];
+const HM=[['cagr','CAGR (%)',v=>(v*100).toFixed(1),'blue'],['mdd','MDD (%)',v=>(v*100).toFixed(1),'red'],['sh','샤프',v=>v.toFixed(2),'blue'],['so','소르티노',v=>v.toFixed(2),'blue'],['ca','칼마',v=>v.toFixed(2),'blue']];
 const lerp=(a,b,t)=>a.map((x,i)=>Math.round(x+(b[i]-x)*t)),PAL={blue:[[238,244,251],[8,48,107]],red:[[255,245,240],[103,0,13]]};
 const rgb=(pal,t)=>{const c=lerp(PAL[pal][0],PAL[pal][1],Math.min(1,Math.max(0,t)));return `rgb(${c})`};
 let hmGeo=[];
@@ -284,7 +284,7 @@ let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
 $('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
 function fillRes(d,id){if(id!==swSeq)return;const meta=swMeta;meta.agg=d.agg;const rows=d.rows,key=$('sk').value;$('swfilt').style.display='';
 if(!d.agg.n){$('swsum').innerHTML='';$('swt').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';$('swerr').textContent='조건을 만족하는 조합이 없습니다. 제한을 완화해 보세요.';$('swinfo').textContent=`${d.agg.tried.toLocaleString()}개 모두 필터(MDD 제한·보유형 제외)에 걸려 제외됨`;return}
-rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:(a,b)=>b[key]-a[key]);showSweep(rows,meta);
+rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:key=='comp2'?(a,b)=>a.comp2-b.comp2||b.so-a.so:(a,b)=>b[key]-a[key]);showSweep(rows,meta);
 $('swinfo').textContent=`완료${swEl?` (소요 ${fmtT(swEl)})`:''} — ${d.agg.tried.toLocaleString()}개 계산${(meta.lim!=null||meta.noHold)?` · 제외 ${(d.agg.tried-d.agg.n).toLocaleString()}개(${[meta.lim!=null?`MDD ${(meta.lim*100).toFixed(0)}% 초과 하락`:'',meta.noHold?'보유형':''].filter(Boolean).join('·')}) → ${d.agg.n.toLocaleString()}개 대상`:''}`;
 try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows,meta}));if(swEl)localStorage.setItem('mabt_ms',String(Math.max(0.02,swEl*1000/d.agg.tried)))}catch(x){}}
 // MDD 제한·정렬 기준 변경: 이미 계산된 전체 결과를 다시 정리만 함 (재계산 없음)
@@ -304,7 +304,7 @@ showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[align
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d));
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
 const bhE=buyHold(px).map(v=>v-Math.max(0,v-100)*o.tax),bh=stats(bhE,dates);
-const meta={lim:null,rv:[B1,S1,B2,S2].some(a=>a.length>1),c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,taxed:o.tax>0}};
+const meta={lim:null,rv:[B1,S1,B2,S2].some(a=>a.length>1),c1:+$('c1').value,c2:+$('c2').value,sig,trd,delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,so:bh.so,ca:bh.ca,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
 if(swAW){swAW.terminate();swAW=null}swMeta=meta;swSeq++;
 // 멀티 워커: 조합 번호 공간을 코어 수만큼 나눠 동시에 계산 (백그라운드 실행, 화면 조작 가능)
@@ -318,7 +318,7 @@ const finish=()=>{swEl=(performance.now()-t0)/1000;$('swinfo').textContent='순�
 const aw=new Worker(URL.createObjectURL(new Blob([AWSRC],{type:'application/javascript'})));swAW=aw;const id=swSeq;
 aw.onmessage=m=>{const d=m.data;if(d.t=='res'){fillRes(d,d.id)}else if(d.t=='ready'){const f=readFilter()||{lim:null,noHold:false};meta.lim=f.lim;meta.noHold=f.noHold;aw.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:meta.bh,c1:meta.c1,c2:meta.c2})}};
 aw.onerror=x=>{$('swerr').textContent='정리 오류: '+x.message};
-const tl=[];parts.forEach(p=>{for(const k of['n1a','n2a','b1a','s1a','b2a','s2a','tr','T','C','M','S'])tl.push(p[k].buffer)});aw.postMessage({t:'load',parts},tl);endSweep()};
+const tl=[];parts.forEach(p=>{for(const k of['n1a','n2a','b1a','s1a','b2a','s2a','tr','T','C','M','S','SO','CA'])tl.push(p[k].buffer)});aw.postMessage({t:'load',parts},tl);endSweep()};
 for(let k=0;k<nW;k++){const lo=Math.floor(R*k/nW),hi=Math.floor(R*(k+1)/nW),w=new Worker(url);swWorkers.push(w);
 w.onmessage=m=>{const d=m.data;if(d.t=='p'){prog[d.wid]=d.done;tots[d.wid]=d.total;if(performance.now()-tLast>150){tLast=performance.now();show()}}else{parts[d.wid]=d;prog[d.wid]=d.cnt;tots[d.wid]=d.cnt;w.terminate();if(++doneW==nW){show();finish()}}};
 w.onerror=x=>{el.textContent='스윕 오류: '+x.message;endSweep()};
@@ -334,6 +334,6 @@ $('sw').onclick=sweep;
 ['sig','trd','cmp','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
 $('r10').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
 ['a1','b1','c1','a2','b2','c2','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
-try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
+try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.rows[0].so!==undefined&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
 $('run').onclick=run;$('log').onchange=()=>window._last&&draw(...window._last);addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>

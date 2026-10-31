@@ -75,9 +75,11 @@ function stats(e, dates) {
   const r = e.map((v, i) => i ? v / e[i - 1] - 1 : 0).slice(1);
   const m = r.reduce((a, b) => a + b, 0) / r.length, sd = Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / (r.length - 1));
   let pk = 100, mdd = 0; e.forEach(v => { pk = Math.max(pk, v); mdd = Math.min(mdd, v / pk - 1); });
+  const dd2 = r.reduce((a, b) => a + (b < 0 ? b * b : 0), 0) / r.length, so = dd2 ? m / Math.sqrt(dd2) * Math.sqrt(252) : 0; // 소르티노: 하락 편차(목표 0%)만 위험으로 봄
+  const cg = (e[n - 1] / 100) ** (1 / yrs) - 1, ca = cg / Math.max(Math.abs(mdd), 1e-6); // 칼마: CAGR / |MDD|
   const by = {}; dates.forEach((d, i) => by[d.slice(0, 4)] = i);
   const yr = {}; let pv = 100; Object.keys(by).forEach(y => { yr[y] = e[by[y]] / pv - 1; pv = e[by[y]]; });
-  return { tot: e[n - 1] / 100 - 1, cagr: (e[n - 1] / 100) ** (1 / yrs) - 1, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0, yr };
+  return { tot: e[n - 1] / 100 - 1, cagr: cg, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0, so, ca, yr };
 }
 
 // ---- 돌파/이탈 이벤트 방식 (이평선 백테스터 아티팩트와 동일 규칙) ----
@@ -100,12 +102,13 @@ function interestFactors(dates, rate) {
 const yearsOf = dates => (new Date(dates[dates.length - 1]) - new Date(dates[0])) / 31557600000;
 // 연도별 수익률 없이 핵심 지표만 빠르게 계산 (stats와 같은 값)
 function statsLite(e, yrs) {
-  const n = e.length; let sum = 0, pk = 100, mdd = 0;
+  const n = e.length; let sum = 0, pk = 100, mdd = 0, dn = 0;
   for (let i = 1; i < n; i++) { sum += e[i] / e[i - 1] - 1; }
   const m = sum / (n - 1); let ss = 0;
-  for (let i = 1; i < n; i++) { const d = e[i] / e[i - 1] - 1 - m; ss += d * d; if (e[i] > pk) pk = e[i]; const dd = e[i] / pk - 1; if (dd < mdd) mdd = dd; }
+  for (let i = 1; i < n; i++) { const r0 = e[i] / e[i - 1] - 1; if (r0 < 0) dn += r0 * r0; const d = r0 - m; ss += d * d; if (e[i] > pk) pk = e[i]; const dd = e[i] / pk - 1; if (dd < mdd) mdd = dd; }
   const sd = Math.sqrt(ss / (n - 2)); // 표본표준편차: 수익률 개수(n-1)에서 1을 뺌 (stats와 동일)
-  return { tot: e[n - 1] / 100 - 1, cagr: (e[n - 1] / 100) ** (1 / yrs) - 1, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0 };
+  const cg = (e[n - 1] / 100) ** (1 / yrs) - 1, dd2 = dn / (n - 1);
+  return { tot: e[n - 1] / 100 - 1, cagr: cg, mdd, sh: sd ? m / sd * Math.sqrt(252) : 0, so: dd2 ? m / Math.sqrt(dd2) * Math.sqrt(252) : 0, ca: cg / Math.max(Math.abs(mdd), 1e-6) };
 }
 
 // buys: [{r:현금 비율, f:bool[](dates 정렬)}], sells: [{r:보유 비율, f}]. o: {delay>=1, init, cashRate, tax, fee}
