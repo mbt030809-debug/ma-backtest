@@ -76,8 +76,8 @@ function simulate(dates, px, w, o) {
   if (S > 0) list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: S / px[0], amt: S, tax: 0, cash: C, sh: S / px[0] });
   for (let j = 1; j < n; j++) {
     const due = tx.step(j);
-    if (due > 0) { let rem = due, c = Math.min(C, rem); C -= c; rem -= c; let tk = c; if (rem > 0 && S > 0) { const f = Math.min(1, rem / S), v = S * f; ssum += v; B *= 1 - f; S -= v; tk += v } paid += tk;
-      list.push({ i: j - 1, si: j - 1, side: 'T', rule: '세금 정산(전년도 순이익)', price: px[j - 1], qty: 0, amt: tk, tax: tk, cash: C, sh: S / px[j - 1] }); }
+    if (due > 0) { let rem = due, c = Math.min(C, rem); C -= c; rem -= c; let tk = c; if (rem > 0 && S > 0) { const f = Math.min(1, rem / S), v = S * f, cost = B * f; tx.rec(v - cost); ssum += v; B -= cost; S -= v; tk += v; trades++; list.push({ i: j - 1, si: j - 1, side: 'S', rule: '세금 납부용 매도', price: px[j - 1], qty: v / px[j - 1], amt: v, gain: v - cost, tax: 0, cash: C, sh: S / px[j - 1] }) } paid += tk;
+      list.push({ i: j - 1, si: j - 1, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[j - 1], qty: 0, amt: tk, tax: tk, cash: C, sh: S / px[j - 1] }); }
     const V = S + C, tS = w[j] * V;
     if (tS < S - 1e-9) { // 매도: 실현손익은 연도별로 합산해 다음 해 5/1에 정산(세금은 여기서 내지 않음)
       const sold = S - tS, cost = B * (sold / S);
@@ -110,8 +110,12 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
     const due = tx.step(i);
     if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c;
       if (rem > 0) { let V = sh * px[i]; for (let k = 0; k < K; k++) V += shy[k] * ys[k][i];
-        if (V > 0) { const f = Math.min(1, rem / V); sX += sh * px[i] * f; basis *= 1 - f; sh *= 1 - f; for (let k = 0; k < K; k++) { sY[k] += shy[k] * ys[k][i] * f; basy[k] *= 1 - f; shy[k] *= 1 - f } tk += V * f } }
-      paid += tk; list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
+        if (V > 0) { const f = Math.min(1, rem / (V * (1 - fee)));
+          if (sh > 0) { const q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f; tx.rec(amt - cost); basis -= cost; sh -= q; sX += amt; tk += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
+            list.push({ i, si: i, side: 'S', asset: 'X', rule: '세금 납부용 매도', price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh }) }
+          for (let k = 0; k < K; k++) if (shy[k] > 0) { const q = shy[k] * f, amt = q * ys[k][i] * (1 - fee), cost = basy[k] * f; tx.rec(amt - cost); basy[k] -= cost; shy[k] -= q; sY[k] += amt; tk += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
+            list.push({ i, si: i, side: 'S', asset: 'Y', yi: k, rule: '세금 납부용 매도', price: ys[k][i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh: shy[k] }) } } }
+      paid += tk; list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.s) { // X 매도 → 방어자산(들) 매수
         if (!(sh > 0)) return;
@@ -153,8 +157,9 @@ function simulateAlt(dates, px, py, w, o) {
   for (let j = 1; j < n; j++) {
     const due = tx.step(j);
     if (due > 0) { let rem = due, c = Math.min(C, rem); C -= c; rem -= c; let tk = c; const V0 = X + Y.reduce((a, b) => a + b, 0);
-      if (rem > 0 && V0 > 0) { const f = Math.min(1, rem / V0); sXs += X * f; bX *= 1 - f; X *= 1 - f; for (let k = 0; k < K; k++) { sYs[k] += Y[k] * f; bY[k] *= 1 - f; Y[k] *= 1 - f } tk += V0 * f }
-      paid += tk; list.push({ i: j - 1, si: j - 1, side: 'T', rule: '세금 정산(전년도 순이익)', price: px[j - 1], qty: 0, amt: tk, tax: tk, cash: C, sh: X / px[j - 1] }); }
+      if (rem > 0 && V0 > 0) { const f = Math.min(1, rem / V0); if (X > 0) { const v = X * f, cost = bX * f; tx.rec(v - cost); sXs += v; bX -= cost; X -= v; tk += v; trades++; list.push({ i: j - 1, si: j - 1, side: 'S', asset: 'X', rule: '세금 납부용 매도', price: px[j - 1], qty: v / px[j - 1], amt: v, gain: v - cost, tax: 0, cash: C, sh: X / px[j - 1] }) }
+        for (let k = 0; k < K; k++) if (Y[k] > 0) { const v = Y[k] * f, cost = bY[k] * f; tx.rec(v - cost); sYs[k] += v; bY[k] -= cost; Y[k] -= v; tk += v; trades++; list.push({ i: j - 1, si: j - 1, side: 'S', asset: 'Y', yi: k, rule: '세금 납부용 매도', price: ys[k][j - 1], qty: v / ys[k][j - 1], amt: v, gain: v - cost, tax: 0, cash: C, sh: Y[k] / ys[k][j - 1] }) } }
+      paid += tk; list.push({ i: j - 1, si: j - 1, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[j - 1], qty: 0, amt: tk, tax: tk, cash: C, sh: X / px[j - 1] }); }
     const sy = Y.reduce((a, b) => a + b, 0), V = X + sy + C, tX = w[j] * V, si = Math.max(0, j - 1 - (o.delay || 0));
     if (tX < X - 1e-9) { // X 일부 매도 → 방어자산(들) 매수
       const sold = X - tX, cost = bX * (sold / X), t = 0;
@@ -184,7 +189,8 @@ function yearlyPnl(dates, sim) {
   for (const y of years) {
     let last = i0; while (last + 1 < n && dates[last + 1].slice(0, 4) === y) last++;
     const pre = sim.eq[last] + sim.pd[last], gross = pre - startPre, tax = sim.taxY[y] || 0, net = gross - tax;
-    rows.push({ y, gross, tax, net, ret: startNet > 0 ? net / startNet : 0, endL: startNet + net });
+    let real = 0; for (const t of sim.list) if (t.side === 'S' && t.gain != null && dates[t.i].slice(0, 4) === y) real += t.gain;
+    rows.push({ y, gross, real, tax, net, ret: startNet > 0 ? net / startNet : 0, endL: startNet + net });
     startPre = pre; startNet += net; i0 = last + 1; if (i0 >= n) break;
   }
   return rows;
@@ -245,8 +251,8 @@ function simulateEvents(dates, px, buys, sells, o) {
   for (let i = 0; i < n; i++) {
     if (i > 0) { const c0 = cash; cash *= ig[i]; intr += cash - c0; }
     const due = tx.step(i);
-    if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c; const V = sh * px[i]; if (rem > 0 && V > 0) { const f = Math.min(1, rem / V); ssum += V * f; basis *= 1 - f; sh *= 1 - f; tk += V * f } paid += tk;
-      list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
+    if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c; const V = sh * px[i]; if (rem > 0 && V > 0) { const f = Math.min(1, rem / (V * (1 - fee))), q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f; tx.rec(amt - cost); basis -= cost; sh -= q; ssum += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++; tk += amt; list.push({ i, si: i, side: 'S', rule: '세금 납부용 매도', price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh }) } paid += tk;
+      list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.s) {
         if (!(sh > 0)) return;
