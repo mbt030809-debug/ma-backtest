@@ -41,7 +41,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>수수료(%, 돌파 방식)</label><input id="fee" type="number" step="0.01" min="0" value="0">
 <label>양도세율(%) · 연 1회 정산</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
 <div class="row"><span class="mut" id="pxinfo"></span><button id="pxclr" type="button">시세 캐시 지우기</button></div>
-<details><summary class="mut">옵션 설명</summary><div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금: 달력연도(1/1~12/31)마다 주식·ETF 매도 손익(이익+손실)을 합산해 순이익에 세율을 곱하고, <b>다음 해 5/1(이후 첫 거래일)</b>에 납부(현금·보유 자산에서 비례해 차감). 그 해 매도가 없으면 세금 없음, 순손실이면 0(이월·환급 없음). 현금 이자는 과세 제외, 방어 ETF 매도 손익은 포함. 마지막 날은 보유분을 전부 즉시 매도한 것으로 보고 올해 순손익+미실현 이익에 바로 과세(전략·단순보유 모두 이 세후 청산가치로 비교). 아직 안 낸 세금도 차감.</div></div></details>
+<details><summary class="mut">옵션 설명</summary><div class="mut">신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금: 달력연도(1/1~12/31)마다 주식·ETF 매도 손익(이익+손실)을 합산해 순이익에 세율을 곱하고, <b>다음 해 5/1(이후 첫 거래일)</b>에 납부(현금·보유 자산에서 비례해 차감). 그 해 매도가 없으면 세금 없음, 순손실이면 0(이월·환급 없음). 현금 이자는 과세 제외, 방어 ETF 매도 손익은 포함. 차트·통계의 자산은 실제 현금흐름 기준이라 5/1에 세금만큼 계단으로 줄어듦. 마지막 날만 보유분을 전부 즉시 매도한 것으로 보고 올해 순손익+미실현 이익에 바로 과세하고 아직 안 낸 세금도 차감(전략·단순보유 모두 같은 방식, 단순보유는 마지막 날에만 과세).</div></div></details>
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="mut" id="altbadge"></div>
 <div class="mut" id="chkbadge"></div>
@@ -172,12 +172,12 @@ sim=alt?simulateEventsAlt(dates,P(trd),altSyms.map(P),bB,sS,oo):simulateEvents(d
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
 const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets(buy,sell,init),init,delay);
 sim=alt?simulateAlt(dates,P(trd),altSyms.map(P),w,{cashRate,taxRate,delay}):simulate(dates,P(trd),w,{cashRate,taxRate});}
-if(silent){const st=stats(sim.eqL,dates),ath0=e=>e.map(v=>v-Math.max(0,v-100)*taxRate),bhA=altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():(altSyms.length?buyHold(P(altSyms[0])):null);
-return{st,pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length,dates,e:sim.eqL,bhTrd:ath0(buyHold(P(trd))),bhSig:sig!=trd?ath0(buyHold(P(sig))):null,bhAlt:bhA?ath0(bhA):null,sigN:sig,trdN:trd}}
+if(silent){const st=stats(sim.eqP,dates),ath0=e=>e.map((v,i)=>i==e.length-1?v-Math.max(0,v-100)*taxRate:v),bhA=altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():(altSyms.length?buyHold(P(altSyms[0])):null);
+return{st,pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length,dates,e:sim.eqP,bhTrd:ath0(buyHold(P(trd))),bhSig:sig!=trd?ath0(buyHold(P(sig))):null,bhAlt:bhA?ath0(bhA):null,sigN:sig,trdN:trd}}
 const ctx={trades:sim.list,w};
 // 보유 비교는 그 시점에 팔았다고 가정한 세후 가치(수익의 세율만큼 차감, 손실은 그대로)
-const ath=e=>e.map(v=>v-Math.max(0,v-100)*taxRate),sfx=taxRate>0?' (세후)':'';
-const out=[{name:`전략(${sig} 신호→${trd}${alt?' · 방어 '+alt:''})${sfx}`,e:sim.eqL},{name:`${trd} 보유${sfx}`,e:ath(buyHold(P(trd)))},...(alt?[{name:`${altSyms.length>1?'방어 바구니('+alt+')':alt} 보유${sfx}`,e:ath(altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():buyHold(P(altSyms[0])))}]:[]),...[...new Set([sig,...cmp])].filter(x=>x!=trd&&!altSyms.includes(x)).map(x=>({name:`${x} 보유${sfx}`,e:ath(buyHold(P(x)))}))];
+const ath=e=>e.map((v,i)=>i==e.length-1?v-Math.max(0,v-100)*taxRate:v),sfx=taxRate>0?' (세후)':'';
+const out=[{name:`전략(${sig} 신호→${trd}${alt?' · 방어 '+alt:''})${sfx}`,e:sim.eqP},{name:`${trd} 보유${sfx}`,e:ath(buyHold(P(trd)))},...(alt?[{name:`${altSyms.length>1?'방어 바구니('+alt+')':alt} 보유${sfx}`,e:ath(altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():buyHold(P(altSyms[0])))}]:[]),...[...new Set([sig,...cmp])].filter(x=>x!=trd&&!altSyms.includes(x)).map(x=>({name:`${x} 보유${sfx}`,e:ath(buyHold(P(x)))}))];
 $('resSec').style.display='';$('defSec').style.display='';out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length];o.hidden=!!HID[o.name]});draw(out,dates,ctx);
 buildLegend('lg',out,'<span><i style="background:rgba(47,158,68,.5)"></i>배경 초록=보유(비중 10%+)</span><span><i style="background:rgba(224,49,49,.45)"></i>배경 빨강='+(alt?alt+'(방어자산)':'현금')+'</span><span>▲매수 ▼매도(전략선 위, 체결일)</span>',()=>draw(out,dates,ctx));
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
@@ -212,7 +212,7 @@ const n1a=new Uint16Array(N),n2a=new Uint16Array(N),b1a=new Uint16Array(N),s1a=n
 let cnt=0,last=0;
 for(let r=lo;r<hi;r++){const[i1,i2,ib1,is1,ib2,is2]=dec(r),b1=B1[ib1],b2=B2[ib2];if(b1==0&&b2==0)continue;const n1=L1[i1],n2=L2[i2],s1=S1[is1],s2=S2[is2];
 const bb=[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],ss=[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],sim=py?simulateEventsAlt(dates,px,py,bb,ss,o):simulateEvents(dates,px,bb,ss,o);
-const st=statsLite(sim.eqL,yrs),i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;SO[i]=st.so;CA[i]=st.ca;
+const st=statsLite(sim.eqP,yrs),i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;SO[i]=st.so;CA[i]=st.ca;
 const now=performance.now();if(now-last>150){last=now;self.postMessage({t:'p',wid,done:cnt,total:N})}}
 self.postMessage({t:'d',wid,cnt:N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S,SO,CA},[n1a.buffer,n2a.buffer,b1a.buffer,s1a.buffer,b2a.buffer,s2a.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer,SO.buffer,CA.buffer])}`;
 // 정리 워커: 전체 결과를 보관하고, MDD 제한·정렬 기준이 바뀔 때마다 다시 순위/요약을 계산 (재계산 없이)
@@ -363,7 +363,7 @@ el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e)
 showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[alignCheck(ms,mt,sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(mt)[0][0])]);
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d)),py=altS.length?mA.map(m=>dates.map(d=>m.get(d))):null;
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
-const bhE=buyHold(px).map(v=>v-Math.max(0,v-100)*o.tax),bh=stats(bhE,dates);
+const bhE=buyHold(px).map((v,i,a)=>i==a.length-1?v-Math.max(0,v-100)*o.tax:v),bh=stats(bhE,dates);
 const meta={lim:null,rv:[B1,S1,B2,S2].some(a=>a.length>1),c1:+$('c1').value,c2:+$('c2').value,sig,trd,alt:altS.join('+'),delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,so:bh.so,ca:bh.ca,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
 if(swAW){swAW.terminate();swAW=null}swMeta=meta;swSeq++;
@@ -466,7 +466,7 @@ return{one(c){const n0=dates0.length,keep=[],py=[];let j=0;for(let i=0;i<n0;i++)
 if(keep.length<3)return{error:'겹치는 데이터가 부족합니다'};const dates=keep.map(i=>dates0[i]),px=keep.map(i=>px0[i]);let sim;
 if(cross){const oo={delay,init,cashRate,tax:taxRate,fee,ig:new Array(keep.length).fill(1)};sim=simulateEventsAlt(dates,px,py,bF.map(x=>({r:x.r,n:x.n,f:keep.map(i=>x.f[i])})),sF.map(x=>({r:x.r,n:x.n,f:keep.map(i=>x.f[i])})),oo)}
 else{const sub=r=>r&&{v:keep.map(i=>r.v[i]),ok:keep.map(i=>r.ok[i])};const w=applied(targets(sub(buy),sub(sell),init),init,delay);sim=simulateAlt(dates,px,py,w,{cashRate,taxRate,delay})}
-return{st:statsLite(sim.eqL,yearsOf(dates)),pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length}}}}
+return{st:statsLite(sim.eqP,yearsOf(dates)),pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length}}}}
 let altCancel=false;
 async function altScan(){const el={set textContent(v){$('alterr').textContent=v;$('recmsg').textContent=v},get textContent(){return $('alterr').textContent}};el.textContent='';altCancel=false;$('altgo').disabled=true;$('recbtn').disabled=true;$('altx').style.display='';try{
 const typed=$('altlist').value.trim(),N=Math.max(1,Math.min(2000,+$('altn').value||1000)),ref=($('altref').value.trim()||'^NDX').toUpperCase();checkSyms([ref]);

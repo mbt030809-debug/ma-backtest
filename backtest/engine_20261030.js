@@ -88,7 +88,7 @@ function simulate(dates, px, w, o) {
     S *= px[j] / px[j - 1]; intr += C * cd; C *= 1 + cd;
     pd.push(paid); eq.push(S + C); eqL.push(S + C - tx.pending() - tx.liq(S - B)); // eqL: 지금 전부 청산한다고 가정한 세후 가치(미납 세금 + 올해 순이익·미실현 이익에 즉시 과세)
   }
-  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, list, pnl: { x: ssum - bsum + S, y: [], int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, list, pnl: { x: ssum - bsum + S, y: [], int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 
@@ -143,7 +143,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }
     const v = cash + vx + vy; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(vx - basis + ut)); w.push(v ? vx / v : 0);
   }
-  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 // 상태 유지 방식(목표 비중 w[j])의 방어자산 버전: X 비중 w, 나머지는 방어자산(들)
 function simulateAlt(dates, px, py, w, o) {
@@ -178,11 +178,13 @@ function simulateAlt(dates, px, py, w, o) {
     let ut = 0, sY = 0; for (let k = 0; k < K; k++) { sY += Y[k]; ut += Y[k] - bY[k]; }
     pd.push(paid); eq.push(X + sY + C); eqL.push(X + sY + C - tx.pending() - tx.liq(X - bX + ut));
   }
-  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, list, pnl: { x: sXs - bXs + X, y: Y.map((v, k) => sYs[k] - bYs[k] + v), int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, list, pnl: { x: sXs - bXs + X, y: Y.map((v, k) => sYs[k] - bYs[k] + v), int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 // 연도별 손익(시작 자산=100 기준 금액): 세전 수익 = (자산 + 누적 납부세금)의 연간 증가, 세금 = 그 연도 귀속 세금(다음 해 5/1 납부분 + 마지막 해는 즉시 청산 세금),
 // 순수익 = 세전 수익 − 세금. 순수익 합 = 최종 세후 청산가치 − 100.
+// 실제 현금흐름 기준 자산: 세금 납부일(5/1)에 계단으로 줄고, 마지막 날만 전량 즉시 청산 세금을 반영(차트·통계용)
+function eqPay(eq, eqL) { const a = eq.slice(); a[a.length - 1] = eqL[a.length - 1]; return a; }
 function yearlyPnl(dates, sim) {
   const rows = [], n = dates.length; let i0 = 0, startPre = 100, startNet = 100;
   const years = []; for (let i = 0; i < n; i++) { const y = dates[i].slice(0, 4); if (!years.length || years[years.length - 1] !== y) years.push(y); }
@@ -270,7 +272,7 @@ function simulateEvents(dates, px, buys, sells, o) {
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const v = cash + sh * px[i]; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
   }
-  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 if (typeof module !== 'undefined') module.exports = { yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
