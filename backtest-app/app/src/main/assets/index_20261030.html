@@ -46,7 +46,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="mut" id="altbadge"></div>
 <div class="mut" id="chkbadge"></div>
 <div id="resSec" style="display:none">
-<div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div class="lg" id="lg"></div>
+<div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div id="zb1"></div><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
 <div class="card"><h2>요약</h2><div class="tbl"><table id="sum"></table></div>
 <h2 style="margin-top:10px">수익 합산 (시작 자산=100 기준)</h2><div class="tbl"><table id="pnl"></table></div><div class="mut" id="pnlnote"></div></div>
@@ -72,7 +72,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 
 </details>
 <div id="altbetter"></div>
-<canvas id="altcv" style="height:320px;display:none"></canvas><div class="lg" id="altlg"></div>
+<canvas id="altcv" style="height:320px;display:none"></canvas><div id="zb2"></div><div class="lg" id="altlg"></div>
 <div class="tbl"><table id="altcmp"></table></div>
 <details><summary><b>연도별 비교</b></summary><div class="tbl"><table id="altyr"></table></div></details>
 <details><summary><b>전체 후보 표 (현금보다 낮은 것 포함)</b></summary><div class="tbl"><table id="altt"></table></div></details><div class="mut" id="altnote"></div></div>
@@ -191,17 +191,35 @@ const nf=v=>v.toLocaleString('ko-KR',{maximumFractionDigits:2});$('trsum').textC
 $('trd2').innerHTML='<tr><th>신호일</th><th>체결일</th><th>구분</th><th>자산</th><th>규칙</th><th>체결가</th><th>수량</th><th>금액</th><th>실현손익</th><th>세금</th><th>현금</th><th>보유수량</th></tr>'+sim.list.map(t=>t.side=='T'?`<tr style="background:rgba(224,49,49,.08)"><td></td><td>${dates[t.i]}</td><td class="neg">세금</td><td></td><td>${t.rule}</td><td></td><td></td><td>${nf(t.amt)}</td><td></td><td>${nf(t.tax)}</td><td>${nf(t.cash)}</td><td></td></tr>`:`<tr><td>${dates[t.si]}</td><td>${dates[t.i]}</td><td class="${t.side=='B'?'pos':'neg'}">${t.side=='B'?'매수':'매도'}</td><td>${t.asset=='Y'?(altSyms[t.yi||0]||alt):trd}</td><td>${t.rule}</td><td>${nf(t.price)}</td><td>${t.qty.toFixed(4)}</td><td>${nf(t.amt)}</td><td class="${(t.gain||0)>=0?'pos':'neg'}">${t.gain==null?'':nf(t.gain)}</td><td>${t.tax>0.005?nf(t.tax):''}</td><td>${nf(t.cash)}</td><td>${t.sh.toFixed(4)}</td></tr>`).join('');
 window._dbgRun={settings:null,sim:{trades:sim.trades,paid:sim.paid,n:sim.list.length,first:sim.list.slice(0,25).map(t=>({신호일:dates[t.si],체결일:dates[t.i],구분:t.side,규칙:t.rule,가격:+t.price.toFixed(3),금액:+t.amt.toFixed(2),손익:t.gain==null?null:+t.gain.toFixed(2),세금:+t.tax.toFixed(2)}))},mdd:{strategy:mddInfo(out[0].e,dates),buyhold:mddInfo(out[1].e,dates)},range:[dates[0],dates.at(-1)],days:dates.length,out:out.map(o=>({name:o.name,tot:o.st.tot,cagr:o.st.cagr,mdd:o.st.mdd,sh:o.st.sh}))};
 window._last=[out,dates,ctx];$('resSec').style.display='';$('defSec').style.display=''}catch(x){if(silent)return{error:x.message};$('err').textContent=x.message}}
+// ---- 차트 줌·이동: 휠/버튼/핀치로 확대·축소, 드래그로 이동, 더블클릭 초기화 ----
+const VIEW={};
+function vw(id,n){let v=VIEW[id];if(!v||v.n!=n)v=VIEW[id]={n,a:0,b:Math.max(1,n-1)};return v}
+function axisLabels(g,dates,X,V,L,W,R,H){const span=V.b-V.a,mon=span<600;let ly='',lx=-1e9;dates.forEach((d,i)=>{const k=mon?d.slice(0,7):d.slice(0,4);if(k!=ly){ly=k;const x=X(i);if(x>=L-1&&x<=W-R-24&&x-lx>(mon?44:30)){g.fillText(mon?d.slice(2,7):k,x,H-6);lx=x}}})}
+function attachZoom(id,redraw){const c=$(id);if(!c||c._z)return;c._z=1;c.style.touchAction='pan-y';c.style.cursor='grab';const L=50,R=8;
+const clamp=v=>{const n=v.n,mn=Math.min(20,n-1);let s=v.b-v.a;if(s<mn){const m=(v.a+v.b)/2;v.a=m-mn/2;v.b=m+mn/2;s=mn}if(s>=n-1){v.a=0;v.b=n-1;return}if(v.a<0){v.b-=v.a;v.a=0}if(v.b>n-1){v.a-=v.b-(n-1);v.b=n-1}if(v.a<0)v.a=0};
+const frac=x=>Math.min(1,Math.max(0,(x-L)/Math.max(1,c.clientWidth-L-R)));
+const zoom=(fx,k)=>{const v=VIEW[id];if(!v)return;const p=v.a+(v.b-v.a)*fx;v.a=p-(p-v.a)*k;v.b=p+(v.b-p)*k;clamp(v);redraw()};
+c._zoom=zoom;c._reset=()=>{const v=VIEW[id];if(v){v.a=0;v.b=v.n-1;redraw()}};
+c.addEventListener('wheel',e=>{if(!VIEW[id])return;e.preventDefault();const r=c.getBoundingClientRect();zoom(frac(e.clientX-r.left),e.deltaY<0?0.8:1.25)},{passive:false});
+const pts=new Map();let pd=0;
+c.addEventListener('pointerdown',e=>{pts.set(e.pointerId,e.clientX);try{c.setPointerCapture(e.pointerId)}catch(x){}if(pts.size==2){const[x1,x2]=[...pts.values()];pd=Math.abs(x1-x2)}c.style.cursor='grabbing'});
+c.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const v=VIEW[id];if(!v)return;const px=pts.get(e.pointerId);pts.set(e.pointerId,e.clientX);
+ if(pts.size==2){const[x1,x2]=[...pts.values()],d=Math.abs(x1-x2);if(pd>0&&d>0){const r=c.getBoundingClientRect();zoom(frac((x1+x2)/2-r.left),pd/d)}pd=d;return}
+ const per=(v.b-v.a)/Math.max(1,c.clientWidth-L-R),dx=(e.clientX-px)*per;v.a-=dx;v.b-=dx;clamp(v);redraw()});
+const up=e=>{pts.delete(e.pointerId);pd=0;c.style.cursor='grab'};c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);
+c.addEventListener('dblclick',()=>c._reset())}
+function zbar(id){return`<div class="row" style="margin-top:4px"><button type="button" onclick="$('${id}')._zoom(.5,.6)">＋ 확대</button><button type="button" onclick="$('${id}')._zoom(.5,1.6)">－ 축소</button><button type="button" onclick="$('${id}')._reset()">⟲ 전체</button><span class="mut">드래그 이동 · 휠/핀치 확대 · 더블클릭 전체</span></div>`}
 function draw(out,dates,ctx){const c=$('cv'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
-const lg=$('log').checked,f=v=>lg?Math.log(v):v,vis=out.filter(o=>!o.hidden),all=(vis.length?vis:out).flatMap(o=>o.e).filter(v=>v>0).map(f),lo=Math.min(...all),hi=Math.max(...all),L=50,B=22,T=8,R=8,n=dates.length;
-const X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');
+const lg=$('log').checked,f=v=>lg?Math.log(v):v,vis=out.filter(o=>!o.hidden),all=(vis.length?vis:out).flatMap(o=>o.e).filter(v=>v>0).map(f),L=50,B=22,T=8,R=8,n=dates.length,V=vw('cv',n),i0=Math.max(0,Math.floor(V.a)),i1=Math.min(n-1,Math.ceil(V.b)),all2=(vis.length?vis:out).flatMap(o=>o.e.slice(i0,i1+1)).filter(v=>v>0).map(f),lo=Math.min(...all2),hi=Math.max(...all2);
+const X=i=>L+(i-V.a)/((V.b-V.a)||1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');
 // 배경: 보유 구간=초록, 현금 구간=빨강 (그날 수익률에 적용된 주식비중 기준)
-if(ctx&&!out[0].hidden){let i=0;while(i<n){const h=ctx.w[i]>0.1;let j=i;while(j+1<n&&(ctx.w[j+1]>0.1)==h)j++;g.fillStyle=h?'rgba(47,158,68,.13)':'rgba(224,49,49,.11)';g.fillRect(X(i),T,X(Math.min(j+1,n-1))-X(i),H-T-B);i=j+1}g.fillStyle=st.color}
+g.save();g.beginPath();g.rect(L,T,W-L-R,H-T-B);g.clip();if(ctx&&!out[0].hidden){let i=0;while(i<n){const h=ctx.w[i]>0.1;let j=i;while(j+1<n&&(ctx.w[j+1]>0.1)==h)j++;g.fillStyle=h?'rgba(47,158,68,.13)':'rgba(224,49,49,.11)';g.fillRect(X(i),T,X(Math.min(j+1,n-1))-X(i),H-T-B);i=j+1}g.fillStyle=st.color}g.restore();
 for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((lg?Math.exp(v):v).toFixed(0),4,y+4)}
-let ly='';dates.forEach((d,i)=>{if(d.slice(0,4)!=ly){ly=d.slice(0,4);g.fillText(ly,X(i),H-6)}});
-out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});
+axisLabels(g,dates,X,V,L,W,R,H);
+g.save();g.beginPath();g.rect(L,T,W-L-R,H-T-B);g.clip();out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});
 // 매수/매도 마커: 전략 선 위 체결일에 표시
 if(ctx&&!out[0].hidden){const e0=out[0].e,tri=(i,buy)=>{const px=X(i),py=Y(e0[i]),z=6,d=buy?1:-1;g.fillStyle=buy?'#2f9e44':'#e03131';g.strokeStyle='#fff';g.lineWidth=1;g.beginPath();g.moveTo(px,py-d*3);g.lineTo(px-z,py-d*(3-z*1.5));g.lineTo(px+z,py-d*(3-z*1.5));g.closePath();g.fill();g.stroke()};
-ctx.trades.forEach(t=>{if(t.side!='T'&&t.rule!='시작'&&t.asset!='Y'&&e0[t.i]!=null)tri(t.i,t.side=='B')})}}
+ctx.trades.forEach(t=>{if(t.side!='T'&&t.rule!='시작'&&t.asset!='Y'&&e0[t.i]!=null)tri(t.i,t.side=='B')})}g.restore()}
 
 const rsx=r=>`${+(r.b1*100).toFixed(1)}/${+(r.s1*100).toFixed(1)}/${+(r.b2*100).toFixed(1)}/${+(r.s2*100).toFixed(1)}`;
 function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.b1!=null){$('br1').value=+(r.b1*100).toFixed(2);$('sr1').value=+(r.s1*100).toFixed(2);$('br2').value=+(r.b2*100).toFixed(2);$('sr2').value=+(r.s2*100).toFixed(2)}$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})}
@@ -405,11 +423,11 @@ $('altnote').innerHTML=top?`${d.byCorr?`후보 풀 ${d.total}개 → 기간 전�
 
 // ---- 현금보다 나은 방어자산 목록 + 차트 + 비교표 ----
 function lineChart(id,out,dates){const c=$(id),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight||320;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
-const lg=$('log').checked,f=v=>lg?Math.log(v):v,vis0=out.filter(o=>!o.hidden),all=(vis0.length?vis0:out).flatMap(o=>o.e).filter(v=>v>0).map(f),lo=Math.min(...all),hi=Math.max(...all),L=50,B=22,T=8,R=8,n=dates.length;
-const X=i=>L+i/(n-1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');g.textAlign='left';
+const lg=$('log').checked,f=v=>lg?Math.log(v):v,vis0=out.filter(o=>!o.hidden),all=(vis0.length?vis0:out).flatMap(o=>o.e).filter(v=>v>0).map(f),L=50,B=22,T=8,R=8,n=dates.length,V=vw(id,n),i0=Math.max(0,Math.floor(V.a)),i1=Math.min(n-1,Math.ceil(V.b)),all2=(vis0.length?vis0:out).flatMap(o=>o.e.slice(i0,i1+1)).filter(v=>v>0).map(f),lo=Math.min(...all2),hi=Math.max(...all2);
+const X=i=>L+(i-V.a)/((V.b-V.a)||1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');g.textAlign='left';
 for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g.moveTo(L,y);g.lineTo(W-R,y);g.stroke();g.fillText((lg?Math.exp(v):v).toFixed(0),4,y+4)}
-let ly='';dates.forEach((d,i)=>{if(d.slice(0,4)!=ly){ly=d.slice(0,4);g.fillText(ly,X(i),H-6)}});
-out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=o.w||1.6;g.setLineDash(o.dash?[5,4]:[]);g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});g.setLineDash([])}
+axisLabels(g,dates,X,V,L,W,R,H);
+g.save();g.beginPath();g.rect(L,T,W-L-R,H-T-B);g.clip();out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=o.w||1.6;g.setLineDash(o.dash?[5,4]:[]);g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});g.setLineDash([]);g.restore()}
 // 시리즈를 백테스트 날짜(기준 전략의 날짜)에 맞춰 정렬 — 누락일은 직전 값으로 채움
 function alignSeries(series){const cd=series[0].dates;return{dates:cd,out:series.map(x=>{const m=new Map(x.dates.map((d,i)=>[d,x.e[i]])),v0=x.e.find(v=>v!=null)??100;let last=v0;const e=cd.map(d=>{let v=m.get(d);if(v==null)v=last;last=v;return v});return{...x,e}})}}
 let altTok=0;
@@ -536,5 +554,6 @@ const altFp=()=>{const o={};IDS.forEach(i=>{if(!['alt','altsort','altk2'].includ
 function saveAlt(){try{const d=window._altData;if(!d)return;const rows=d.rows.map(r=>{if(r.base)return{base:true,sym:r.sym,name:r.name};const o={...r};delete o.e;delete o.dates;delete o.bhAlt;return o});idbPut('__altlast',{t:Date.now()+30*864e5,fp:altFp(),sort:$('altsort').value,data:{...d,rows}})}catch(x){}}
 async function restoreAlt(){try{const s=await idbGet('__altlast');if(!s||s.fp!==altFp())return;await run();if(!window._last)return;const base=await run({silent:true,alt:''});if(base.error)return;const d=s.data;d.rows=d.rows.map(r=>r.base?{sym:r.sym,name:r.name,base:true,...base}:r);window._altData=d;window._altRows=d.rows.filter(r=>!r.base).map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));if(s.sort)$('altsort').value=s.sort;renderAlt();$('recmsg').textContent='이전 방어 ETF 찾기 결과를 복원했습니다'}catch(x){}}
 setTimeout(restoreAlt,0);
-$('run').onclick=run;$('log').onchange=()=>{window._last&&draw(...window._last);const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)};addEventListener('resize',()=>window._last&&draw(...window._last));
+$('zb1').innerHTML=zbar('cv');$('zb2').innerHTML=zbar('altcv');attachZoom('cv',()=>window._last&&draw(...window._last));attachZoom('altcv',()=>{const c=window._altChart;c&&$('altcv').style.display!='none'&&lineChart('altcv',c.out,c.dates)});
+$('run').onclick=()=>{delete VIEW.cv;return run()};$('log').onchange=()=>{window._last&&draw(...window._last);const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)};addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>
