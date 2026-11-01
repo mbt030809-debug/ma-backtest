@@ -556,7 +556,8 @@ if(ic&&ic.d&&ic.rf&&ic.rt){let c={d:ic.d,p:ic.p},rf=ic.rf,rt=ic.rt,pt=ic.pt,t=ic
  if(s<rf){try{const r=await fetchRaw(sym,s,shiftDay(rf,10)),m=mergeCompact(c,r.cp);if(m){c=m;rf=s;pt=r.pt||pt;changed=true}else ok=false}catch(x){ok=false}}
  if(ok&&rt<upto&&Date.now()-t>12*36e5){try{const r=await fetchRaw(sym,shiftDay(rt,-10),e),m=mergeCompact(c,r.cp);if(m){c=m;rt=upto;pt=r.pt||pt;t=Date.now();changed=true}else ok=false}catch(x){/* 네트워크 오류면 보관된 값 그대로 사용 */}}
  if(ok){if(pt)pxKind[sym]=pt;if(changed){FC.inc++;idbPut(sym,{t:t,rf,rt,pt,d:c.d,p:c.p})}else FC.hit++;return sliceCompact({d:c.d,p:c.p},s,e)}}
-const r=await fetchRaw(sym,s,e);FC.full++;idbPut(sym,{t:Date.now(),rf:s,rt:upto,pt:r.pt,d:r.cp.d,p:r.cp.p});return r.cp}
+const S0=s<'1980-01-01'?s:'1980-01-01'; // 처음 받을 때는 상장일(데이터 시작)부터 전부 받아 저장 → 이후 시작일을 바꿔도 다시 받지 않음
+const r=await fetchRaw(sym,S0,e);FC.full++;idbPut(sym,{t:Date.now(),rf:S0,rt:upto,pt:r.pt,d:r.cp.d,p:r.cp.p});return sliceCompact(r.cp,s,e)}
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',renderAlt);
 $('sw').onclick=sweep;
 ['sig','trd','cmp','alt','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
