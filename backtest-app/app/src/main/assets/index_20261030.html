@@ -165,19 +165,19 @@ if(!silent)showChk([...[...new Set([sig,trd,...cmp,...altSyms])].map(x=>dataChec
 // 비교 종목은 전략 기간과 무관: 전략 구간(신호+매매 종목)에 데이터가 없는 날이 있으면 비교에서 제외(전략 기간이 줄어드는 것을 방지)
 const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d))),skippedTxt=skipped.map(x=>`${x}(데이터 ${rowsOf(data[x])[0]?.[0]||'없음'}~)`);cmp.splice(0,cmp.length,...cmp.filter(x=>!skipped.includes(x)));
 const fidx=new Map(full.map((d,i)=>[d,i])),P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>fidx.get(d));
-let sim,w;
+let sim,w,cashSim=null;
 if(cross){const fl={};const ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];
 const bB=rules.b.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'up')[i])})),sS=rules.s.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'dn')[i])})),oo={delay,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100};
-sim=alt?simulateEventsAlt(dates,P(trd),altSyms.map(P),bB,sS,oo):simulateEvents(dates,P(trd),bB,sS,oo);w=sim.w}
+sim=alt?simulateEventsAlt(dates,P(trd),altSyms.map(P),bB,sS,oo):simulateEvents(dates,P(trd),bB,sS,oo);w=sim.w;if(alt&&!silent)cashSim=simulateEvents(dates,P(trd),bB,sS,oo)}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
 const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets(buy,sell,init),init,delay);
-sim=alt?simulateAlt(dates,P(trd),altSyms.map(P),w,{cashRate,taxRate,delay}):simulate(dates,P(trd),w,{cashRate,taxRate});}
+sim=alt?simulateAlt(dates,P(trd),altSyms.map(P),w,{cashRate,taxRate,delay}):simulate(dates,P(trd),w,{cashRate,taxRate});if(alt&&!silent)cashSim=simulate(dates,P(trd),w,{cashRate,taxRate})}
 if(silent){const st=stats(sim.eqP,dates),ath0=e=>e.map((v,i)=>i==e.length-1?v-Math.max(0,v-100)*taxRate:v),bhA=altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():(altSyms.length?buyHold(P(altSyms[0])):null);
 return{st,pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length,dates,e:sim.eqP,bhTrd:ath0(buyHold(P(trd))),bhSig:sig!=trd?ath0(buyHold(P(sig))):null,bhAlt:bhA?ath0(bhA):null,sigN:sig,trdN:trd}}
 const ctx={trades:sim.list,w};
 // 보유 비교는 그 시점에 팔았다고 가정한 세후 가치(수익의 세율만큼 차감, 손실은 그대로)
 const ath=e=>e.map((v,i)=>i==e.length-1?v-Math.max(0,v-100)*taxRate:v),sfx=taxRate>0?' (세후)':'';
-const out=[{name:`전략(${sig} 신호→${trd}${alt?' · 방어 '+alt:''})${sfx}`,e:sim.eqP},{name:`${trd} 보유${sfx}`,e:ath(buyHold(P(trd)))},...(alt?[{name:`${altSyms.length>1?'방어 바구니('+alt+')':alt} 보유${sfx}`,e:ath(altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():buyHold(P(altSyms[0])))}]:[]),...[...new Set([sig,...cmp])].filter(x=>x!=trd&&!altSyms.includes(x)).map(x=>({name:`${x} 보유${sfx}`,e:ath(buyHold(P(x)))}))];
+const out=[{name:`전략(${sig} 신호→${trd}${alt?' · 방어 '+alt:''})${sfx}`,e:sim.eqP},...(cashSim?[{name:`전략(${sig} 신호→${trd} · 현금)${sfx}`,e:cashSim.eqP}]:[]),{name:`${trd} 보유${sfx}`,e:ath(buyHold(P(trd)))},...(alt?[{name:`${altSyms.length>1?'방어 바구니('+alt+')':alt} 보유${sfx}`,e:ath(altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(P(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():buyHold(P(altSyms[0])))}]:[]),...[...new Set([sig,...cmp])].filter(x=>x!=trd&&!altSyms.includes(x)).map(x=>({name:`${x} 보유${sfx}`,e:ath(buyHold(P(x)))}))];
 $('resSec').style.display='';$('defSec').style.display='';out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length];o.hidden=!!HID[o.name]});draw(out,dates,ctx);
 buildLegend('lg',out,'<span><i style="background:rgba(47,158,68,.5)"></i>배경 초록=보유(비중 10%+)</span><span><i style="background:rgba(224,49,49,.45)"></i>배경 빨강='+(alt?alt+'(방어자산)':'현금')+'</span><span>▲매수 ▼매도(전략선 위, 체결일)</span>',()=>draw(out,dates,ctx));
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
