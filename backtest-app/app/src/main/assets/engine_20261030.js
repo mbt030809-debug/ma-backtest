@@ -54,14 +54,16 @@ const applied = (tg, init, delay) => tg.map((_, j) => j - 1 - delay >= 0 ? tg[j 
 // 순이익이 양수면 rate를 곱해 다음 해 5/1(이후 첫 거래일)에 납부. 매도가 없던 해는 세금 없음. 손실은 이월·환급 없음.
 // 마지막 날은 보유분을 전부 즉시 매도한 것으로 보고, 올해 순손익 + 미실현 손익에 즉시 과세.
 function makeTaxer(dates, rate) {
-  let yr = null, net = 0; const liab = [];
+  let yr = null, net = 0, lu = 0; const liab = [], by = {};
   return {
+    // 귀속연도별 세금: 지난해들은 확정액, 마지막 해는 전량 즉시 청산 가정 세금
+    yearTax() { const o = { ...by }; if (yr !== null) o[yr] = rate * Math.max(0, net + lu); return o; },
     step(i) { const y = dates[i].slice(0, 4);
-      if (yr === null) yr = y; else if (y !== yr) { liab.push({ due: (+yr + 1) + '-05-01', amt: Math.max(0, net) * rate }); net = 0; yr = y; }
+      if (yr === null) yr = y; else if (y !== yr) { const am = Math.max(0, net) * rate; by[yr] = am; liab.push({ due: (+yr + 1) + '-05-01', amt: am }); net = 0; yr = y; }
       let due = 0; while (liab.length && liab[0].due <= dates[i]) due += liab.shift().amt; return due; },
     rec(g) { net += g; },
     pending() { let t = 0; for (const l of liab) t += l.amt; return t; },
-    liq(unreal) { return rate * Math.max(0, net + unreal); }
+    liq(unreal) { lu = unreal; return rate * Math.max(0, net + unreal); }
   };
 }
 
@@ -69,7 +71,7 @@ function simulate(dates, px, w, o) {
   const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
   const tx = makeTaxer(dates, tax);
   let S = w[0] * 100, C = 100 - S, B = S, paid = 0, trades = 0, bsum = S, ssum = 0, intr = 0;
-  const eq = [100], eqL = [100], list = [];
+  const eq = [100], eqL = [100], list = [], pd = [0];
   tx.step(0);
   if (S > 0) list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: S / px[0], amt: S, tax: 0, cash: C, sh: S / px[0] });
   for (let j = 1; j < n; j++) {
@@ -84,9 +86,9 @@ function simulate(dates, px, w, o) {
     }
     else if (tS > S + 1e-9) { const add = tS - S; B += add; bsum += add; S = tS; C = V - S; trades++; list.push({ i: j - 1, si: Math.max(0, j - 1 - (o.delay || 0)), side: 'B', rule: '매수 조건', price: px[j - 1], qty: add / px[j - 1], amt: add, tax: 0, cash: C, sh: S / px[j - 1] }); }
     S *= px[j] / px[j - 1]; intr += C * cd; C *= 1 + cd;
-    eq.push(S + C); eqL.push(S + C - tx.pending() - tx.liq(S - B)); // eqL: 지금 전부 청산한다고 가정한 세후 가치(미납 세금 + 올해 순이익·미실현 이익에 즉시 과세)
+    pd.push(paid); eq.push(S + C); eqL.push(S + C - tx.pending() - tx.liq(S - B)); // eqL: 지금 전부 청산한다고 가정한 세후 가치(미납 세금 + 올해 순이익·미실현 이익에 즉시 과세)
   }
-  return { eq, eqL, paid, trades, list, pnl: { x: ssum - bsum + S, y: [], int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, list, pnl: { x: ssum - bsum + S, y: [], int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
 
@@ -99,7 +101,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
   const tx = makeTaxer(dates, tax);
   let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0;
-  const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], w = [], list = [];
+  const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], pd = [], w = [], list = [];
   const a0 = 100 * o.init, y0 = 100 - a0;
   if (a0 > 0) { sh = a0 * (1 - fee) / px[0]; basis = a0; bX += a0; fees += a0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: sh, amt: a0, tax: 0, cash, sh }); }
   if (y0 > 0) for (let k = 0; k < K; k++) { const a = y0 / K; shy[k] = a * (1 - fee) / ys[k][0]; basy[k] = a; bY[k] += a; fees += a * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: shy[k], amt: a, tax: 0, cash, sh: shy[k] }); }
@@ -135,9 +137,9 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }
-    const v = cash + vx + vy; eq.push(v); eqL.push(v - tx.pending() - tx.liq(vx - basis + ut)); w.push(v ? vx / v : 0);
+    const v = cash + vx + vy; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(vx - basis + ut)); w.push(v ? vx / v : 0);
   }
-  return { eq, eqL, paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 // 상태 유지 방식(목표 비중 w[j])의 방어자산 버전: X 비중 w, 나머지는 방어자산(들)
 function simulateAlt(dates, px, py, w, o) {
@@ -145,7 +147,7 @@ function simulateAlt(dates, px, py, w, o) {
   const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
   const tx = makeTaxer(dates, tax);
   let X = w[0] * 100, bX = X, C = 0, paid = 0, trades = 0, bXs = X, sXs = 0, intr = 0; tx.step(0);
-  const Y = Array(K).fill((100 - X) / K), bY = Y.slice(), bYs = Y.slice(), sYs = Array(K).fill(0), eq = [100], eqL = [100], list = [];
+  const Y = Array(K).fill((100 - X) / K), bY = Y.slice(), bYs = Y.slice(), sYs = Array(K).fill(0), eq = [100], eqL = [100], list = [], pd = [0];
   if (X > 0) list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: X / px[0], amt: X, tax: 0, cash: C, sh: X / px[0] });
   if (100 - X > 0) for (let k = 0; k < K; k++) list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: Y[k] / ys[k][0], amt: Y[k], tax: 0, cash: C, sh: Y[k] / ys[k][0] });
   for (let j = 1; j < n; j++) {
@@ -169,9 +171,23 @@ function simulateAlt(dates, px, py, w, o) {
     }
     X *= px[j] / px[j - 1]; for (let k = 0; k < K; k++) Y[k] *= ys[k][j] / ys[k][j - 1]; intr += C * cd; C *= 1 + cd;
     let ut = 0, sY = 0; for (let k = 0; k < K; k++) { sY += Y[k]; ut += Y[k] - bY[k]; }
-    eq.push(X + sY + C); eqL.push(X + sY + C - tx.pending() - tx.liq(X - bX + ut));
+    pd.push(paid); eq.push(X + sY + C); eqL.push(X + sY + C - tx.pending() - tx.liq(X - bX + ut));
   }
-  return { eq, eqL, paid, trades, list, pnl: { x: sXs - bXs + X, y: Y.map((v, k) => sYs[k] - bYs[k] + v), int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, list, pnl: { x: sXs - bXs + X, y: Y.map((v, k) => sYs[k] - bYs[k] + v), int: intr, tax: paid, fee: 0, unreal: eq[n - 1] - eqL[n - 1] } };
+}
+
+// 연도별 손익(시작 자산=100 기준 금액): 세전 수익 = (자산 + 누적 납부세금)의 연간 증가, 세금 = 그 연도 귀속 세금(다음 해 5/1 납부분 + 마지막 해는 즉시 청산 세금),
+// 순수익 = 세전 수익 − 세금. 순수익 합 = 최종 세후 청산가치 − 100.
+function yearlyPnl(dates, sim) {
+  const rows = [], n = dates.length; let i0 = 0, startPre = 100, startNet = 100;
+  const years = []; for (let i = 0; i < n; i++) { const y = dates[i].slice(0, 4); if (!years.length || years[years.length - 1] !== y) years.push(y); }
+  for (const y of years) {
+    let last = i0; while (last + 1 < n && dates[last + 1].slice(0, 4) === y) last++;
+    const pre = sim.eq[last] + sim.pd[last], gross = pre - startPre, tax = sim.taxY[y] || 0, net = gross - tax;
+    rows.push({ y, gross, tax, net, ret: startNet > 0 ? net / startNet : 0, endL: startNet + net });
+    startPre = pre; startNet += net; i0 = last + 1; if (i0 >= n) break;
+  }
+  return rows;
 }
 
 const buyHold = px => px.map(v => v / px[0] * 100);
@@ -223,7 +239,7 @@ function statsLite(e, yrs) {
 function simulateEvents(dates, px, buys, sells, o) {
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
   const tx = makeTaxer(dates, tax);
-  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0, fees = 0; const orders = {}, eq = [], eqL = [], w = [];
+  let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0, fees = 0; const orders = {}, eq = [], eqL = [], pd = [], w = [];
   const list = [], amt0 = cash * o.init;
   if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; bsum += amt0; fees += amt0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
   for (let i = 0; i < n; i++) {
@@ -246,9 +262,9 @@ function simulateEvents(dates, px, buys, sells, o) {
     const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
-    const v = cash + sh * px[i]; eq.push(v); eqL.push(v - tx.pending() - tx.liq(sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
+    const v = cash + sh * px[i]; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
   }
-  return { eq, eqL, paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
+  return { eq, eqL, pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
-if (typeof module !== 'undefined') module.exports = { simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+if (typeof module !== 'undefined') module.exports = { yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
