@@ -486,7 +486,7 @@ if(cross){const oo={delay,init,cashRate,tax:taxRate,fee,ig:new Array(keep.length
 else{const sub=r=>r&&{v:keep.map(i=>r.v[i]),ok:keep.map(i=>r.ok[i])};const w=applied(targets(sub(buy),sub(sell),init),init,delay);sim=simulateAlt(dates,px,py,w,{cashRate,taxRate,delay})}
 return{st:statsLite(sim.eqP,yearsOf(dates)),pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length}}}}
 let altCancel=false;
-async function altScan(){const el={set textContent(v){$('alterr').textContent=v;$('recmsg').textContent=v},get textContent(){return $('alterr').textContent}};el.textContent='';altCancel=false;$('altgo').disabled=true;$('recbtn').disabled=true;$('altx').style.display='';try{
+async function altScan(){const el={set textContent(v){$('alterr').textContent=v;$('recmsg').textContent=v},get textContent(){return $('alterr').textContent}};el.textContent='';altCancel=false;FC.hit=FC.inc=FC.full=0;$('altgo').disabled=true;$('recbtn').disabled=true;$('altx').style.display='';try{
 const typed=$('altlist').value.trim(),N=Math.max(1,Math.min(2000,+$('altn').value||1000)),ref=($('altref').value.trim()||'^NDX').toUpperCase();checkSyms([ref]);
 const trdSym=$('trd').value.trim().toUpperCase();
 let cands=typed?[...new Set(typed.split(/[\s,]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))]:(await getUniverse());
@@ -517,7 +517,7 @@ const rows=[{sym:'현금',name:'(기존 전략 그대로: 매도 대금은 현�
 for(const c of usable){if(altCancel)break;if(++i%25==0){el.textContent=`${usable.length}개 ETF 비교 중… ${i}/${usable.length} · ${eta(i,usable.length,t1)}`;$('altp').value=i;await sleepMs(0)}
 const r=scan.one(liteCover.get(c));if(r.error){bad.push(`${c}(${r.error.slice(0,40)})`);continue}
 rows.push({sym:c,name:ALT_NAME[c]||LC_CAT[c]||'',corr:corr[c],...r})}
-window._altData={rows,bad,late,ended,corrOut,pins,total:cands.length,usable:usable.length,ref,byCorr:!typed,noCorr,pool:ok.length,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));saveAlt();renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'}`;
+window._altData={rows,bad,late,ended,corrOut,pins,total:cands.length,usable:usable.length,ref,byCorr:!typed,noCorr,pool:ok.length,partial:altCancel};window._altRows=rows.map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));saveAlt();renderAlt();el.textContent=`${rows.length-1}개 ETF 비교 ${altCancel?'중단(여기까지 결과)':'완료'} · 시세: 저장된 것 ${FC.hit}개 · 새 구간만 추가 ${FC.inc}개 · 처음부터 받음 ${FC.full}개`;
 }catch(x){el.textContent=x.message}finally{$('altgo').disabled=false;$('recbtn').disabled=false;$('altp').style.display='none';$('altx').style.display='none'}}
 // 백테스트 결과를 기준으로, 후보 ETF를 자동으로 바꿔가며 비교 (한 번에)
 async function recommend(){const m=$('recmsg');m.textContent='';try{
@@ -536,13 +536,27 @@ let idbP=null;const idb=()=>idbP||(idbP=new Promise(res=>{try{const r=indexedDB.
 const idbGet=async k=>{const db=await idb();if(!db)return null;return new Promise(res=>{try{const q=db.transaction('px').objectStore('px').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(x){res(null)}})};
 const idbPut=async(k,v)=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').put(v,k)}catch(x){}};
 const idbClear=async()=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').clear()}catch(x){}};
-const idbClean=async()=>{const db=await idb();if(!db)return;try{const st=db.transaction('px','readwrite').objectStore('px'),q=st.openCursor();q.onsuccess=()=>{const c=q.result;if(c){if(!c.value||Date.now()-c.value.t>PXTTL)c.delete();c.continue()}}}catch(x){}};
+const idbClean=async()=>{const db=await idb();if(!db)return;try{const st=db.transaction('px','readwrite').objectStore('px'),q=st.openCursor();q.onsuccess=()=>{const c=q.result;if(c){if(!c.value||Date.now()-c.value.t>180*864e5)c.delete();c.continue()}}}catch(x){}};
 function sliceCompact(c,s,e){const a=s2i(s),b=s2i(e);let i0=0,i1=c.d.length;while(i0<i1&&c.d[i0]<a)i0++;while(i1>i0&&c.d[i1-1]>b)i1--;return{d:c.d.subarray(i0,i1),p:c.p.subarray(i0,i1)}}
-async function fetchCompact(sym,s,e){const hit=pxRead(sym);if(hit&&hit.rf<=s&&hit.rt>=e)return compactRows(hit.rows.filter(r=>r[0]>=s&&r[0]<=e));
-const ic=await idbGet(sym);if(ic&&Date.now()-ic.t<PXTTL&&ic.rf<=s&&ic.rt>=e){if(ic.pt)pxKind[sym]=ic.pt;return sliceCompact(ic,s,e)}
-for(let t=0;t<4;t++){let r,j;try{r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${s}&end=${e}`);j=await r.json()}catch(x){await sleepMs(600*2**t);continue}
+// ---- 시세 증분 캐시 ----
+// 종목별 시세를 IndexedDB에 계속 보관하고, 다시 받을 때는 "새로 생긴 구간(마지막 날짜 이후, 더 이른 시작일이 필요하면 앞 구간)"만 받아 이어 붙임.
+// 배당 반영 수정종가는 배당이 생기면 과거 값이 비율로 바뀌므로, 겹치는 날짜의 비율로 기존 값을 보정해 이어 붙임(비율이 비정상이면 전체 재다운로드).
+const FC={hit:0,inc:0,full:0};
+const shiftDay=(t,k)=>{const d=new Date(t+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+k);return d.toISOString().slice(0,10)};
+async function fetchRaw(sym,s,e){for(let t=0;t<4;t++){let r,j;try{r=await fetch(`/api/prices?symbol=${encodeURIComponent(sym)}&start=${s}&end=${e}`);j=await r.json()}catch(x){await sleepMs(600*2**t);continue}
 if(j&&j.error){if(/429|Too Many|rate|timed out|timeout|503|502/i.test(String(j.error))&&t<3){await sleepMs(900*2**t);continue}throw Error(j.error)}
-const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;const cp=compactRows(j);idbPut(sym,{t:Date.now(),rf:s,rt:e,pt,d:cp.d,p:cp.p});return cp}throw Error('요청 실패')}
+const pt=r.headers.get('X-Price-Type')||'';if(pt)pxKind[sym]=pt;return{cp:compactRows(j),pt}}throw Error('요청 실패')}
+function mergeCompact(oc,nc){if(!nc.d.length)return oc;const om=new Map();for(let i=0;i<oc.d.length;i++)om.set(oc.d[i],oc.p[i]);let f=null;for(let i=0;i<nc.d.length;i++){const o=om.get(nc.d[i]);if(o>0&&nc.p[i]>0){f=nc.p[i]/o;break}}
+if(f==null||!(f>0.2&&f<5))return null;const mp=new Map();for(let i=0;i<oc.d.length;i++)mp.set(oc.d[i],oc.p[i]*f);for(let i=0;i<nc.d.length;i++)mp.set(nc.d[i],nc.p[i]);
+const ds=[...mp.keys()].sort((a,b)=>a-b),d=Uint32Array.from(ds),p=Float64Array.from(ds,k=>mp.get(k));return{d,p}}
+async function fetchCompact(sym,s,e){const today=new Date().toISOString().slice(0,10),upto=e<today?e:today;
+const hit=pxRead(sym);if(hit&&hit.rf<=s&&hit.rt>=e){FC.hit++;return compactRows(hit.rows.filter(r=>r[0]>=s&&r[0]<=e))}
+const ic=await idbGet(sym);
+if(ic&&ic.d&&ic.rf&&ic.rt){let c={d:ic.d,p:ic.p},rf=ic.rf,rt=ic.rt,pt=ic.pt,t=ic.t,changed=false,ok=true;
+ if(s<rf){try{const r=await fetchRaw(sym,s,shiftDay(rf,10)),m=mergeCompact(c,r.cp);if(m){c=m;rf=s;pt=r.pt||pt;changed=true}else ok=false}catch(x){ok=false}}
+ if(ok&&rt<upto&&Date.now()-t>12*36e5){try{const r=await fetchRaw(sym,shiftDay(rt,-10),e),m=mergeCompact(c,r.cp);if(m){c=m;rt=upto;pt=r.pt||pt;t=Date.now();changed=true}else ok=false}catch(x){/* 네트워크 오류면 보관된 값 그대로 사용 */}}
+ if(ok){if(pt)pxKind[sym]=pt;if(changed){FC.inc++;idbPut(sym,{t:t,rf,rt,pt,d:c.d,p:c.p})}else FC.hit++;return sliceCompact({d:c.d,p:c.p},s,e)}}
+const r=await fetchRaw(sym,s,e);FC.full++;idbPut(sym,{t:Date.now(),rf:s,rt:upto,pt:r.pt,d:r.cp.d,p:r.cp.p});return r.cp}
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',renderAlt);
 $('sw').onclick=sweep;
 ['sig','trd','cmp','alt','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
