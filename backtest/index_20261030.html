@@ -240,7 +240,7 @@ if(m.t=='load'){let N=0;for(const p of m.parts)N+=p.cnt;const mk=(Ty)=>new Ty(N)
 let o=0;for(const p of m.parts){n1a.set(p.n1a,o);n2a.set(p.n2a,o);b1a.set(p.b1a,o);s1a.set(p.s1a,o);b2a.set(p.b2a,o);s2a.set(p.s2a,o);tr.set(p.tr,o);T.set(p.T,o);C.set(p.C,o);M.set(p.M,o);S.set(p.S,o);SO.set(p.SO,o);CA.set(p.CA,o);o+=p.cnt}
 D={N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S,SO,CA};self.postMessage({t:'ready',N});return}
 if(!D)return;const{id,lim,key,bh,c1,c2,noHold}=m,tried=D.N;let V=0;const vi=new Uint32Array(tried);for(let i=0;i<tried;i++)if((lim==null||D.M[i]>=lim)&&!(noHold&&D.s1a[i]==0&&D.s2a[i]==0))vi[V++]=i;
-if(!V){self.postMessage({t:'res',id,rows:[],agg:{n:0,tried}});return}
+if(!V){let bm=-Infinity;for(let i=0;i<tried;i++)if(!(noHold&&D.s1a[i]==0&&D.s2a[i]==0)&&D.M[i]>bm)bm=D.M[i];self.postMessage({t:'res',id,rows:[],agg:{n:0,tried,bestMdd:isFinite(bm)?bm:null}});return}
 const all=V==tried,sub=a=>{if(all)return a;const r=new a.constructor(V);for(let p=0;p<V;p++)r[p]=a[vi[p]];return r};
 const n1a=sub(D.n1a),n2a=sub(D.n2a),b1a=sub(D.b1a),s1a=sub(D.s1a),b2a=sub(D.b2a),s2a=sub(D.s2a),tr=sub(D.tr),T=sub(D.T),C=sub(D.C),M=sub(D.M),S=sub(D.S),SO=sub(D.SO),CA=sub(D.CA),N=V;
 let sT=0,sM=0,sS=0,sSo=0,sCa=0,bC=0,bM=0,bS=0,bSo=0,bCa=0,bA=0;for(let i=0;i<N;i++){sT+=T[i];sM+=M[i];sS+=S[i];sSo+=SO[i];sCa+=CA[i];if(bh){const a=C[i]>bh.cagr,b=M[i]>bh.mdd,c=S[i]>bh.sh;if(a)bC++;if(b)bM++;if(c)bS++;if(SO[i]>bh.so)bSo++;if(CA[i]>bh.ca)bCa++;if(a&&b&&c)bA++}}
@@ -361,14 +361,14 @@ function estSweep(){try{const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2'),n=tot(
 let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
 $('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
 function fillRes(d,id){if(id!==swSeq)return;const meta=swMeta;meta.agg=d.agg;const rows=d.rows,key=$('sk').value;$('swfilt').style.display='';
-if(!d.agg.n){$('swsum').innerHTML='';$('swt').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';$('swerr').textContent='조건을 만족하는 조합이 없습니다. 제한을 완화해 보세요.';$('swinfo').textContent=`${d.agg.tried.toLocaleString()}개 모두 필터(MDD 제한·보유형 제외)에 걸려 제외됨`;return}
+if(!d.agg.n){/* 결과를 지우지 않고 이전 표시를 유지, 가능한 최소 MDD를 알려줌 */if(meta.prev){meta.lim=meta.prev.lim;meta.noHold=meta.prev.noHold}$('swerr').textContent=`조건을 만족하는 조합이 없어 이전 결과를 그대로 둡니다.${d.agg.bestMdd!=null?` 이 스윕에서 가능한 가장 작은 MDD는 ${(d.agg.bestMdd*100).toFixed(1)}% 입니다 — 제한을 예: -${Math.ceil(Math.abs(d.agg.bestMdd*100))+1} 이하로 완화하세요.`:' 보유형 제외를 끄거나 제한을 완화해 보세요.'}`;return}
 rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:key=='comp2'?(a,b)=>a.comp2-b.comp2||b.so-a.so:(a,b)=>b[key]-a[key]);showSweep(rows,meta);
 $('swinfo').textContent=`완료${swEl?` (소요 ${fmtT(swEl)})`:''} — ${d.agg.tried.toLocaleString()}개 계산${(meta.lim!=null||meta.noHold)?` · 제외 ${(d.agg.tried-d.agg.n).toLocaleString()}개(${[meta.lim!=null?`MDD ${(meta.lim*100).toFixed(0)}% 초과 하락`:'',meta.noHold?'보유형':''].filter(Boolean).join('·')}) → ${d.agg.n.toLocaleString()}개 대상`:''}`;
 try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows,meta}));if(swEl)localStorage.setItem('mabt_ms',String(Math.max(0.02,swEl*1000/d.agg.tried)))}catch(x){}}
 // MDD 제한·정렬 기준 변경: 이미 계산된 전체 결과를 다시 정리만 함 (재계산 없음)
 function readFilter(){const ml=$('mddlim').value.trim(),lim=ml===''?null:(isFinite(+ml)&&+ml!==0?-Math.abs(+ml)/100:NaN);if(Number.isNaN(lim)){$('swerr').textContent='MDD 제한은 0이 아닌 숫자로 입력하세요 (예: -50)';return null}return{lim,noHold:$('nohold').checked}}
 function refilter(){if(!swAW||!swMeta){$('swerr').textContent='저장된 이전 결과는 제한을 바꿀 수 없습니다. 스윕을 다시 실행하세요.';return}
-const f=readFilter();if(!f)return;swMeta.lim=f.lim;swMeta.noHold=f.noHold;save();const id=++swSeq;$('swerr').textContent='정리 중…';swAW.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:swMeta.bh,c1:swMeta.c1,c2:swMeta.c2})}
+const f=readFilter();if(!f)return;swMeta.prev={lim:swMeta.lim,noHold:swMeta.noHold};swMeta.lim=f.lim;swMeta.noHold=f.noHold;save();const id=++swSeq;$('swerr').textContent='정리 중…';swAW.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:swMeta.bh,c1:swMeta.c1,c2:swMeta.c2})}
 async function sweep(){const el=$('swerr');el.textContent='';if(swWorkers.length)return;$('sw').disabled=true;try{
 const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
 if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');const altS=[...new Set($('alt').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))].filter(x=>x!=trd);if(altS.includes('AUTO'))throw Error('스윕에서는 방어 ETF에 AUTO를 쓸 수 없습니다 (티커를 직접 입력하세요)');checkSyms([sig,trd,...altS]);if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');{const tp=+$('tax').value||0,fp=+$('fee').value||0;if(!(tp>=0&&tp<=100))throw Error('세율은 0~100% 사이여야 합니다');if(!(fp>=0&&fp<=20))throw Error('수수료는 0~20% 사이여야 합니다')}
