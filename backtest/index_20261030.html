@@ -89,7 +89,7 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row" id="swfilt" style="display:none"><label>MDD 제한(%)</label><input id="mddlim" type="text" placeholder="예: -50 (없음)" style="width:110px"><label><input type="checkbox" id="nohold"> 보유형(매도 0%/0%) 제외</label><button id="mddgo" type="button">적용</button><span class="mut">결과를 다시 계산하지 않고, 입력값보다 더 크게 하락한 조합(예: -60%)을 정리·순위에서 뺌</span></div>
 <div id="swsum"></div>
 <div id="swheat"></div><div class="mut" id="swhov"></div>
-<div class="tbl"><table id="swt"></table></div><div id="swmore" class="row"></div></div>
+<div id="swwarn" style="color:#c92a2a;font-weight:600;margin:6px 0"></div><div class="tbl"><table id="swt"></table></div><div id="swmore" class="row"></div></div>
 <div class="card"><h2>데이터 점검 · 진단</h2><div class="mut" id="chk">실행하면 시세 데이터 이상(0·결측·급등락·날짜 공백)을 자동으로 점검합니다.</div>
 <div class="row"><button id="dbgbtn" type="button">진단 정보 만들기</button><span class="mut">결과가 이상할 때 아래 내용을 복사해 알려주세요</span></div><textarea id="dbgout" readonly style="display:none;width:100%;height:220px;font:11px monospace;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px"></textarea></div>
 </details>
@@ -365,15 +365,18 @@ const tot=(L1,L2,B1,S1,B2,S2)=>L1.length*L2.length*(B1.length*B2.length-(B1.incl
 function estSweep(){try{const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2'),n=tot(L1,L2,pr('rb1',cr('br1')/100),pr('rs1',cr('sr1')/100),pr('rb2',cr('br2')/100),pr('rs2',cr('sr2')/100));
 let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
 $('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
+let swFirst=false;
 function fillRes(d,id){if(id!==swSeq)return;const meta=swMeta;meta.agg=d.agg;const rows=d.rows,key=$('sk').value;$('swfilt').style.display='';
-if(!d.agg.n){/* 결과를 지우지 않고 이전 표시를 유지, 가능한 최소 MDD를 알려줌 */if(meta.prev){meta.lim=meta.prev.lim;meta.noHold=meta.prev.noHold}$('swerr').textContent=`조건을 만족하는 조합이 없어 이전 결과를 그대로 둡니다.${d.agg.bestMdd!=null?` 이 스윕에서 가능한 가장 작은 MDD는 ${(d.agg.bestMdd*100).toFixed(1)}% 입니다 — 제한을 예: -${Math.ceil(Math.abs(d.agg.bestMdd*100))+1} 이하로 완화하세요.`:' 보유형 제외를 끄거나 제한을 완화해 보세요.'}`;return}
-rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:key=='comp2'?(a,b)=>a.comp2-b.comp2||b.so-a.so:(a,b)=>b[key]-a[key]);showSweep(rows,meta);
+if(!d.agg.n){/* 결과를 지우지 않고 이전 표시를 유지, 가능한 최소 MDD를 알려줌. 화면에 표시할 결과가 아직 없으면 제한 없이 자동 표시 */
+const empty=($('swt').rows.length||0)<=1;if(empty&&meta.lim!=null&&swAW){const lm=meta.lim;meta.lim=null;$('swwarn').textContent=`⚠ MDD 제한 ${(lm*100).toFixed(0)}%를 만족하는 조합이 없어 제한 없이 표시합니다.${d.agg.bestMdd!=null?` 가능한 최소 MDD는 ${(d.agg.bestMdd*100).toFixed(1)}%.`:''}`;swAW.postMessage({t:'an',id:swSeq,lim:null,noHold:meta.noHold,key:$('sk').value,bh:meta.bh,c1:meta.c1,c2:meta.c2});return}
+$('swwarn').textContent='';if(meta.prev){meta.lim=meta.prev.lim;meta.noHold=meta.prev.noHold}$('swerr').textContent=`조건을 만족하는 조합이 없어 이전 결과를 그대로 둡니다.${d.agg.bestMdd!=null?` 이 스윕에서 가능한 가장 작은 MDD는 ${(d.agg.bestMdd*100).toFixed(1)}% 입니다 — 제한을 예: -${Math.ceil(Math.abs(d.agg.bestMdd*100))+1} 이하로 완화하세요.`:' 보유형 제외를 끄거나 제한을 완화해 보세요.'}`;return}
+rows.sort(key=='comp'?(a,b)=>a.comp-b.comp||b.sh-a.sh:key=='comp2'?(a,b)=>a.comp2-b.comp2||b.so-a.so:(a,b)=>b[key]-a[key]);showSweep(rows,meta);if(swFirst){swFirst=false;setTimeout(()=>{try{($('swfilt').scrollIntoView?$('swfilt'):$('swt')).scrollIntoView({behavior:'smooth',block:'start'})}catch(x){}},100)}
 $('swinfo').textContent=`완료${swEl?` (소요 ${fmtT(swEl)})`:''} — ${d.agg.tried.toLocaleString()}개 계산${(meta.lim!=null||meta.noHold)?` · 제외 ${(d.agg.tried-d.agg.n).toLocaleString()}개(${[meta.lim!=null?`MDD ${(meta.lim*100).toFixed(0)}% 초과 하락`:'',meta.noHold?'보유형':''].filter(Boolean).join('·')}) → ${d.agg.n.toLocaleString()}개 대상`:''}`;
 try{localStorage.setItem('mabt_sweep_v1',JSON.stringify({rows,meta}));if(swEl)localStorage.setItem('mabt_ms',String(Math.max(0.02,swEl*1000/d.agg.tried)))}catch(x){}}
 // MDD 제한·정렬 기준 변경: 이미 계산된 전체 결과를 다시 정리만 함 (재계산 없음)
 function readFilter(){const ml=$('mddlim').value.trim(),lim=ml===''?null:(isFinite(+ml)&&+ml!==0?-Math.abs(+ml)/100:NaN);if(Number.isNaN(lim)){$('swerr').textContent='MDD 제한은 0이 아닌 숫자로 입력하세요 (예: -50)';return null}return{lim,noHold:$('nohold').checked}}
 function refilter(){if(!swAW||!swMeta){$('swerr').textContent='저장된 이전 결과는 제한을 바꿀 수 없습니다. 스윕을 다시 실행하세요.';return}
-const f=readFilter();if(!f)return;swMeta.prev={lim:swMeta.lim,noHold:swMeta.noHold};swMeta.lim=f.lim;swMeta.noHold=f.noHold;save();const id=++swSeq;$('swerr').textContent='정리 중…';swAW.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:swMeta.bh,c1:swMeta.c1,c2:swMeta.c2})}
+$('swwarn').textContent='';const f=readFilter();if(!f)return;swMeta.prev={lim:swMeta.lim,noHold:swMeta.noHold};swMeta.lim=f.lim;swMeta.noHold=f.noHold;save();const id=++swSeq;$('swerr').textContent='정리 중…';swAW.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:swMeta.bh,c1:swMeta.c1,c2:swMeta.c2})}
 async function sweep(){const el=$('swerr');el.textContent='';if(swWorkers.length)return;$('sw').disabled=true;try{
 const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
 if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');const altS=[...new Set($('alt').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))].filter(x=>x!=trd);if(altS.includes('AUTO'))throw Error('스윕에서는 방어 ETF에 AUTO를 쓸 수 없습니다 (티커를 직접 입력하세요)');checkSyms([sig,trd,...altS]);if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');{const tp=+$('tax').value||0,fp=+$('fee').value||0;if(!(tp>=0&&tp<=100))throw Error('세율은 0~100% 사이여야 합니다');if(!(fp>=0&&fp<=20))throw Error('수수료는 0~20% 사이여야 합니다')}
@@ -393,13 +396,13 @@ if(swAW){swAW.terminate();swAW=null}swMeta=meta;swSeq++;
 // 멀티 워커: 조합 번호 공간을 코어 수만큼 나눠 동시에 계산 (백그라운드 실행, 화면 조작 가능)
 const R=L1.length*L2.length*B1.length*S1.length*B2.length*S2.length,nW=window._nW||Math.max(1,Math.min(8,Math.ceil(total/3000),(navigator.hardwareConcurrency||4)-1||1));
 const url=URL.createObjectURL(new Blob([swEngine+'\n'+WK],{type:'application/javascript'}));
-keep(true);$('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=total;$('swinfo').textContent='';$('swfilt').style.display='none';$('swt').innerHTML='';$('swsum').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';window._swrows=null;
+keep(true);$('swx').style.display='';$('swp').style.display='';$('swp').value=0;$('swp').max=total;$('swinfo').textContent='';$('swfilt').style.display='none';$('swt').innerHTML='';$('swsum').innerHTML='';$('swheat').innerHTML='';$('swhov').textContent='';$('swwarn').textContent='';window._swrows=null;
 const prog=Array(nW).fill(0),tots=Array(nW).fill(0),parts=Array(nW),t0=performance.now();let doneW=0,lastT=t0,lastD=0,rate=0,tLast=0;
 const show=()=>{const d=prog.reduce((a,b)=>a+b,0),tt=tots.reduce((a,b)=>a+b,0)||total,now=performance.now();if(now-lastT>400){const r2=(d-lastD)/((now-lastT)/1000);rate=rate?rate*0.5+r2*0.5:r2;lastT=now;lastD=d}
 const elp=(now-t0)/1000,r=rate||d/Math.max(elp,.001),eta=r>0?(tt-d)/r:0;swEl=elp;$('swp').max=tt;$('swp').value=d;$('swinfo').textContent=`진행 ${d.toLocaleString()}/${tt.toLocaleString()} (${(d/tt*100).toFixed(0)}%) · 경과 ${fmtT(elp)} · 남은 시간 약 ${fmtT(eta)} · 예상 총 ${fmtT(elp+eta)} · 워커 ${nW}개 병렬 (백그라운드 실행 중)`;el.textContent='계산 중…'};
 const finish=()=>{swEl=(performance.now()-t0)/1000;$('swinfo').textContent='순위 계산·정리 중…';
 const aw=new Worker(URL.createObjectURL(new Blob([AWSRC],{type:'application/javascript'})));swAW=aw;const id=swSeq;
-aw.onmessage=m=>{const d=m.data;if(d.t=='page'){swWait=false;if(d.pid==swPid){swPage=d.rows;if(window._swrows&&swMeta)showSweep(window._swrows,swMeta)}}else if(d.t=='res'){swPage=null;swWait=false;fillRes(d,d.id)}else if(d.t=='ready'){const f=readFilter()||{lim:null,noHold:false};meta.lim=f.lim;meta.noHold=f.noHold;aw.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:meta.bh,c1:meta.c1,c2:meta.c2})}};
+aw.onmessage=m=>{const d=m.data;if(d.t=='page'){swWait=false;if(d.pid==swPid){swPage=d.rows;if(window._swrows&&swMeta)showSweep(window._swrows,swMeta)}}else if(d.t=='res'){swPage=null;swWait=false;fillRes(d,d.id)}else if(d.t=='ready'){swFirst=true;const f=readFilter()||{lim:null,noHold:false};meta.lim=f.lim;meta.noHold=f.noHold;aw.postMessage({t:'an',id,lim:f.lim,noHold:f.noHold,key:$('sk').value,bh:meta.bh,c1:meta.c1,c2:meta.c2})}};
 aw.onerror=x=>{$('swerr').textContent='정리 오류: '+x.message};
 const tl=[];parts.forEach(p=>{for(const k of['n1a','n2a','b1a','s1a','b2a','s2a','tr','T','C','M','S','SO','CA'])tl.push(p[k].buffer)});aw.postMessage({t:'load',parts},tl);endSweep()};
 for(let k=0;k<nW;k++){const lo=Math.floor(R*k/nW),hi=Math.floor(R*(k+1)/nW),w=new Worker(url);swWorkers.push(w);
