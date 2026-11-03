@@ -9,14 +9,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
 
 /** WebView에 index.html을 띄우고, /api/prices 요청을 가로채 Yahoo Finance에서 직접 가져온다. */
 class MainActivity : Activity() {
@@ -35,6 +28,22 @@ class MainActivity : Activity() {
                 val i = Intent(this@MainActivity, KeepAliveService::class.java)
                 try { if (on) startForegroundService(i) else stopService(i) } catch (e: Exception) { }
             }
+            /** 매일 종가 신호 알림 설정(JSON). 켜져 있으면 다음 평일 미국장 마감 후로 예약. */
+            @JavascriptInterface
+            fun setAlert(json: String): String = try {
+                val o = JSONObject(json)
+                val p = getSharedPreferences(AlertJob.PREF, android.content.Context.MODE_PRIVATE)
+                val same = p.getString("cfg", null) == json && p.getLong("next", 0) > System.currentTimeMillis()
+                p.edit().putString("cfg", json).apply()
+                if (o.optBoolean("on")) {
+                    if (!same) AlertScheduler.schedule(this@MainActivity, AlertScheduler.nextTrigger(System.currentTimeMillis()))
+                    val t = java.time.Instant.ofEpochMilli(p.getLong("next", 0)).atZone(AlertJob.ET)
+                    "알림 켜짐 — 다음: 미국 동부 ${t.toLocalDate()} 16:20 (한국시간 ${t.withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul")).toLocalDateTime().toString().replace('T', ' ')})"
+                } else { AlertScheduler.cancel(this@MainActivity); "알림 꺼짐" }
+            } catch (e: Exception) { "오류: ${e.message}" }
+
+            @JavascriptInterface
+            fun testAlert() { Thread { try { AlertJob.run(this@MainActivity, true) } catch (e: Exception) { } }.start() }
         }, "AndroidApp")
         if (android.os.Build.VERSION.SDK_INT >= 33)
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -47,7 +56,7 @@ class MainActivity : Activity() {
                     val (code, body, kind) = try {
                         require(sym.isNotEmpty()) { "종목이 비었습니다" }
                         require(SYMBOL_OK.matches(sym)) { "종목 코드가 올바르지 않습니다" }
-                        val (b, k) = prices(sym, u.getQueryParameter("start")!!, u.getQueryParameter("end")!!)
+                        val (b, k) = Yahoo.prices(sym, u.getQueryParameter("start")!!, u.getQueryParameter("end")!!)
                         Triple(200, b, k)
                     } catch (e: Exception) {
                         Triple(502, JSONObject().put("error", "$sym: ${e.message}").toString(), "")
@@ -72,37 +81,6 @@ class MainActivity : Activity() {
     private fun json(code: Int, body: String, kind: String = "") =
         WebResourceResponse("application/json", "utf-8", code, if (code == 200) "OK" else "Error",
             mapOf("Access-Control-Allow-Origin" to "*", "X-Price-Type" to kind), body.byteInputStream())
-
-    /** 반환: (JSON 시세, 종류) — 종류 adj=배당 재투자 반영 수정종가(총수익), close=가격만 */
-    private fun prices(symbol: String, start: String, end: String): Pair<String, String> {
-        val p1 = LocalDate.parse(start).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
-        val p2 = LocalDate.parse(end).plusDays(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
-        val url = "https://query1.finance.yahoo.com/v8/finance/chart/${URLEncoder.encode(symbol, "utf-8")}" +
-            "?period1=$p1&period2=$p2&interval=1d&events=div%2Csplits"
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.setRequestProperty("User-Agent", "Mozilla/5.0")
-        c.connectTimeout = 20000; c.readTimeout = 20000
-        val chart = try {
-            if (c.responseCode != 200) error("Yahoo 응답 ${c.responseCode}")
-            JSONObject(c.inputStream.bufferedReader().use { it.readText() }).getJSONObject("chart")
-        } finally { c.disconnect() }
-        val result = chart.optJSONArray("result")
-        if (result == null || result.length() == 0)
-            error(chart.optJSONObject("error")?.optString("description") ?: "데이터 없음")
-        val res = result.getJSONObject(0)
-        val ts = res.optJSONArray("timestamp") ?: error("해당 기간 데이터 없음")
-        val ind = res.getJSONObject("indicators")
-        val adjArr = ind.optJSONArray("adjclose")?.getJSONObject(0)?.getJSONArray("adjclose")
-        val adj = adjArr ?: ind.getJSONArray("quote").getJSONObject(0).getJSONArray("close")
-        val kind = if (adjArr != null) "adj" else "close"
-        val out = JSONArray()
-        for (i in 0 until ts.length()) {
-            if (adj.isNull(i)) continue
-            val d = Instant.ofEpochSecond(ts.getLong(i)).atOffset(ZoneOffset.UTC).toLocalDate().toString()
-            out.put(JSONArray().put(d).put(adj.getDouble(i)))
-        }
-        return out.toString() to kind
-    }
 
     companion object {
         const val HOST = "app.local"

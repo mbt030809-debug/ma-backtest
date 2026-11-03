@@ -45,6 +45,9 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="mut" id="altbadge"></div>
 <div class="mut" id="chkbadge"></div>
+<div class="card" id="alSec"><details><summary><b>📣 매일 종가 신호 알림 (앱 전용)</b> <span class="mut" id="alSt"></span></summary>
+<div class="mut">미국장 마감 20분 뒤(동부 16:20, 한국 새벽)에 종가 기준 이평선 돌파/이탈 신호를 계산해 알림을 보냅니다. 위 입력(신호·매매 종목, 이평 1·2, 매수/매도 %, 지연)을 그대로 사용하며 돌파/이탈 방식에서만 동작합니다. 휴장일은 자동으로 건너뜁니다. 알림 시각은 시스템 절전 때문에 몇 분 늦을 수 있습니다.</div>
+<div class="row"><label><input type="checkbox" id="alOn"> 매일 알림 켜기</label><label><input type="checkbox" id="alAll"> 신호 없는 날도 알림</label><button type="button" id="alTest">테스트 알림</button></div></details></div>
 <div id="resSec" style="display:none">
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div id="zb1"></div><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
@@ -114,7 +117,7 @@ document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
 const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk2'];
 function altBadge(){const v=($('alt').value||'').trim().toUpperCase(),el=$('altbadge');if(!el)return;if(!v){el.innerHTML='';return}el.innerHTML=`🛡 방어자산 <b>${v.replace(/[^A-Z0-9.^=,\-+]/g,'')}</b> 적용 중 (매도 대금을 현금 대신 보유) <button id="altclr" type="button">해제(현금)</button> <button id="altcmp" type="button">현금과 비교</button>`;$('altclr').onclick=()=>{$('alt').value='';altBadge();save();run()};$('altcmp').onclick=()=>{$('altlist').value=v.replace(/[^A-Z0-9.^=,\-+]/g,'').replace(/\+/g,',');save();recommend();setTimeout(()=>$('defSec').scrollIntoView({behavior:'smooth'}),300)}}
-function save(){altBadge();try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+function save(){altBadge();try{alPush()}catch(x){}try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
 showMode();return true}catch(e){return false}}
@@ -578,5 +581,16 @@ function saveAlt(){try{const d=window._altData;if(!d)return;const rows=d.rows.ma
 async function restoreAlt(){try{const s=await idbGet('__altlast');if(!s||s.fp!==altFp())return;await run();if(!window._last)return;const base=await run({silent:true,alt:''});if(base.error)return;const d=s.data;d.rows=d.rows.map(r=>r.base?{sym:r.sym,name:r.name,base:true,...base}:r);window._altData=d;window._altRows=d.rows.filter(r=>!r.base).map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));if(s.sort)$('altsort').value=s.sort;renderAlt();$('recmsg').textContent='이전 방어 ETF 찾기 결과를 복원했습니다'}catch(x){}}
 setTimeout(restoreAlt,0);
 $('zb1').innerHTML=zbar('cv');$('zb2').innerHTML=zbar('altcv');attachZoom('cv',()=>window._last&&draw(...window._last));attachZoom('altcv',()=>{const c=window._altChart;c&&$('altcv').style.display!='none'&&lineChart('altcv',c.out,c.dates)});
+// ---- 매일 종가 신호 알림 (안드로이드 앱의 AndroidApp 브리지 사용) ----
+function alCfg(){const g=(a,b,c)=>({n:Math.floor(+$(a).value||0),b:Math.round(Math.min(100,Math.max(0,+$(b).value||0))),s:Math.round(Math.min(100,Math.max(0,+$(c).value||0)))});return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),rules:[g('mn1','br1','sr1'),g('mn2','br2','sr2')]}}
+function alPush(){const st=$('alSt');if(!st)return;if(typeof AndroidApp==='undefined'||!AndroidApp.setAlert){st.textContent='· 앱(APK)에서만 동작';return}
+try{localStorage.setItem('mabt_alert',JSON.stringify({on:$('alOn').checked,all:$('alAll').checked}))}catch(x){}
+if($('mode').value!='cross'){st.textContent=$('alOn').checked?'· 돌파/이탈 방식에서만 동작':'';return}
+const c=alCfg();if(c.on){if(!SYM_OK.test(c.sig)||!SYM_OK.test(c.trd)||c.rules.some(r=>r.n<2)){st.textContent='· 종목 코드·이평 일수를 확인하세요';return}}
+st.textContent='· '+AndroidApp.setAlert(JSON.stringify(c))}
+try{const a=JSON.parse(localStorage.getItem('mabt_alert')||'null');if(a){$('alOn').checked=!!a.on;$('alAll').checked=!!a.all}}catch(x){}
+$('alOn').onchange=$('alAll').onchange=()=>{alPush()};
+$('alTest').onclick=()=>{if(typeof AndroidApp==='undefined'||!AndroidApp.testAlert){$('alSt').textContent='· 앱(APK)에서만 동작';return}if($('mode').value!='cross'){$('alSt').textContent='· 돌파/이탈 방식에서만 동작';return}const c=alCfg(),on=c.on;c.on=on;AndroidApp.setAlert(JSON.stringify(c));AndroidApp.testAlert();$('alSt').textContent='· 테스트 알림을 요청했습니다 (몇 초 걸림)'};
+alPush();
 $('run').onclick=()=>{delete VIEW.cv;return run()};$('log').onchange=()=>{window._last&&draw(...window._last);const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)};addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>
