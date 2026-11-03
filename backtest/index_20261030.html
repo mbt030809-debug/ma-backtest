@@ -47,7 +47,8 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <div class="mut" id="chkbadge"></div>
 <div class="card" id="alSec"><details><summary><b>📣 매일 종가 신호 알림 (앱 전용)</b> <span class="mut" id="alSt"></span></summary>
 <div class="mut">미국장 마감 20분 뒤(동부 16:20, 한국 새벽)에 종가 기준 이평선 돌파/이탈 신호를 계산해 알림을 보냅니다. 위 입력(신호·매매 종목, 이평 1·2, 매수/매도 %, 지연)을 그대로 사용하며 돌파/이탈 방식에서만 동작합니다. 휴장일은 자동으로 건너뜁니다. 알림 시각은 시스템 절전 때문에 몇 분 늦을 수 있습니다.</div>
-<div class="row"><label><input type="checkbox" id="alOn"> 매일 알림 켜기</label><label><input type="checkbox" id="alAll"> 신호 없는 날도 알림</label><button type="button" id="alTest">테스트 알림</button></div></details></div>
+<div class="row"><label><input type="checkbox" id="alOn"> 매일 알림 켜기</label><label><input type="checkbox" id="alAll"> 신호 없는 날도 알림</label><button type="button" id="alTest">테스트 알림</button></div>
+<div class="row"><button type="button" id="appUp">앱 업데이트 확인</button><span class="mut" id="appVer"></span></div></details></div>
 <div id="resSec" style="display:none">
 <div class="card"><h2>수익률 차트 (시작=100)</h2><canvas id="cv"></canvas><div id="zb1"></div><div class="lg" id="lg"></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="log" checked> 로그 스케일</label></div></div>
@@ -591,6 +592,8 @@ st.textContent='· '+AndroidApp.setAlert(JSON.stringify(c))}
 try{const a=JSON.parse(localStorage.getItem('mabt_alert')||'null');if(a){$('alOn').checked=!!a.on;$('alAll').checked=!!a.all}}catch(x){}
 $('alOn').onchange=$('alAll').onchange=()=>{alPush()};
 $('alTest').onclick=()=>{if(typeof AndroidApp==='undefined'||!AndroidApp.testAlert){$('alSt').textContent='· 앱(APK)에서만 동작';return}if($('mode').value!='cross'){$('alSt').textContent='· 돌파/이탈 방식에서만 동작';return}const c=alCfg(),on=c.on;c.on=on;AndroidApp.setAlert(JSON.stringify(c));AndroidApp.testAlert();$('alSt').textContent='· 테스트 알림을 요청했습니다 (몇 초 걸림)'};
+$('appUp').onclick=()=>{if(typeof AndroidApp==='undefined'||!AndroidApp.checkUpdate){$('appVer').textContent='앱(APK)에서만 동작';return}AndroidApp.checkUpdate()};
+try{if(typeof AndroidApp!=='undefined'&&AndroidApp.appVersion)$('appVer').textContent='현재 '+AndroidApp.appVersion()+' · 앱을 켤 때마다 자동 확인'}catch(x){}
 alPush();
 $('run').onclick=()=>{delete VIEW.cv;return run()};$('log').onchange=()=>{window._last&&draw(...window._last);const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)};addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>

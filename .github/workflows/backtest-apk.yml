@@ -1,8 +1,11 @@
 name: backtest-apk
 on:
   push:
+    branches: ['**']
     paths: ['backtest-app/**', '.github/workflows/backtest-apk.yml']
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,3 +24,12 @@ jobs:
         with:
           name: BacktestApp-apk
           path: backtest-app/app/build/outputs/apk/debug/app-debug.apk
+      # 앱의 '실행 시 업데이트 확인'이 읽는 공개 릴리스(latest): 빌드 번호와 APK를 매번 갱신
+      - uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/claude/backtest-app'
+        with:
+          tag_name: latest
+          name: build ${{ github.run_number }}
+          body: build=${{ github.run_number }}
+          files: backtest-app/app/build/outputs/apk/debug/app-debug.apk
+          target_commitish: ${{ github.sha }}

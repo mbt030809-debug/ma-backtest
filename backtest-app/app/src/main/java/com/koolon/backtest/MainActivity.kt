@@ -43,6 +43,12 @@ class MainActivity : Activity() {
             } catch (e: Exception) { "오류: ${e.message}" }
 
             @JavascriptInterface
+            fun checkUpdate() { runOnUiThread { Updater.check(this@MainActivity, true) } }
+
+            @JavascriptInterface
+            fun appVersion(): String = try { "build ${Updater.current(this@MainActivity)}" } catch (e: Exception) { "" }
+
+            @JavascriptInterface
             fun testAlert() { Thread { try { AlertJob.run(this@MainActivity, true) } catch (e: Exception) { } }.start() }
         }, "AndroidApp")
         if (android.os.Build.VERSION.SDK_INT >= 33)
@@ -73,6 +79,7 @@ class MainActivity : Activity() {
         }
         setContentView(web)
         web.loadUrl("https://$HOST/")
+        Updater.check(this, false) // 실행할 때마다 새 버전 확인
     }
 
     @Deprecated("Deprecated in Java")
