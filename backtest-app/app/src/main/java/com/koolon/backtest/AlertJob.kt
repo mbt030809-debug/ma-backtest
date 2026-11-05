@@ -40,7 +40,7 @@ object AlertJob {
         if (!test && !c.optBoolean("on")) return R.DONE
         try {
             val sig = c.getString("sig"); val trd = c.getString("trd"); val alt = c.optString("alt", "")
-            val delay = max(1, c.optInt("delay", 1)); val always = c.optBoolean("always", false) || test
+            val delay = max(1, c.optInt("delay", 1)); val delayS = c.optInt("delaySell", 0).let { if (it > 0) it else delay }; val always = c.optBoolean("always", false) || test
             val rules = c.getJSONArray("rules")
             var maxN = 2
             for (i in 0 until rules.length()) maxN = max(maxN, rules.getJSONObject(i).getInt("n"))
@@ -76,7 +76,7 @@ object AlertJob {
                 sell -> "📉 $trd 매도 신호"
                 else -> "$trd 신호 없음"
             }
-            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 신호 후 ${delay}거래일 뒤 종가(보유·현금 상태에 따라 적용)")
+            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 신호 후 ${if (delayS != delay) "매수 ${delay}·매도 ${delayS}" else "$delay"}거래일 뒤 종가(보유·현금 상태에 따라 적용)")
             if (sell && alt.isNotEmpty()) foot.append("\n매도 대금은 $alt 매수")
             if (test) foot.append("\n(테스트 알림 — 장중이면 현재가 기준)")
             postNote(ctx, title, lines.joinToString("\n") + "\n" + foot)

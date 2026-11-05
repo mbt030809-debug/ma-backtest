@@ -98,7 +98,7 @@ function simulate(dates, px, w, o) {
 // 매수 규칙의 r은 "방어자산 평가금액의 r%".
 function simulateEventsAlt(dates, px, py, buys, sells, o) {
   const ys = Array.isArray(py[0]) ? py : [py], K = ys.length;
-  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
   let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0;
   const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], pd = [], w = [], list = [];
@@ -137,7 +137,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
         list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, price: px[i], qty: q, amt: net, tax: 0, cash, sh });
       }
     });
-    const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+    const add = (s, r, k, hit) => { const d = s ? dS : dB; if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }
@@ -245,7 +245,7 @@ function statsLite(e, yrs) {
 // 시작일 종가에 init 비율 매수. 신호일 i의 주문은 i+delay 거래일 종가 체결, 같은 날은 매도 먼저(규칙 순서).
 // 현금이자는 달력일 기준 365일 복리, 세금은 매도 건별 평균단가 대비 이익에만(손실 0, 통산·공제 없음).
 function simulateEvents(dates, px, buys, sells, o) {
-  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0);
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
   let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0, fees = 0; const orders = {}, eq = [], eqL = [], pd = [], w = [];
   const list = [], amt0 = cash * o.init;
@@ -267,7 +267,7 @@ function simulateEvents(dates, px, buys, sells, o) {
         list.push({ i, si: od.si, side: 'B', rule: od.label, price: px[i], qty: q, amt, tax: 0, cash, sh });
       }
     });
-    const add = (s, r, k, hit) => { if (r.r > 0 && hit && i + delay < n) (orders[i + delay] = orders[i + delay] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+    const add = (s, r, k, hit) => { const d = s ? dS : dB; if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const v = cash + sh * px[i]; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
