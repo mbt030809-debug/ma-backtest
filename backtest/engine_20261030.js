@@ -117,6 +117,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
             list.push({ i, si: i, side: 'S', asset: 'Y', yi: k, rule: '세금 납부용 매도', price: ys[k][i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh: shy[k] }) } } }
       paid += tk; list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
+      if (od.dead) return; // 반대 신호로 취소된 주문
       if (od.s) { // X 매도 → 방어자산(들) 매수
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = 0;
@@ -137,7 +138,10 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
         list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, price: px[i], qty: q, amt: net, tax: 0, cash, sh });
       }
     });
-    const add = (s, r, k, hit) => { const d = s ? dS : dB; if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+    const add = (s, r, k, hit) => { const d = s ? dS : dB;
+      // 매수·매도 지연이 다르면 먼저 낸 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있으므로, 같은 이평선의 반대 방향 신호가 나오면 대기 중인 반대 주문을 취소
+      if (hit && dB !== dS) for (let q = i + 1; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => { if (od.k === k && od.s !== s) od.dead = true; });
+      if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }
@@ -256,6 +260,7 @@ function simulateEvents(dates, px, buys, sells, o) {
     if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c; const V = sh * px[i]; if (rem > 0 && V > 0) { const f = Math.min(1, rem / (V * (1 - fee))), q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f; tx.rec(amt - cost); basis -= cost; sh -= q; ssum += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++; tk += amt; list.push({ i, si: i, side: 'S', rule: '세금 납부용 매도', price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh }) } paid += tk;
       list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
+      if (od.dead) return; // 반대 신호로 취소된 주문
       if (od.s) {
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = 0;
@@ -267,7 +272,10 @@ function simulateEvents(dates, px, buys, sells, o) {
         list.push({ i, si: od.si, side: 'B', rule: od.label, price: px[i], qty: q, amt, tax: 0, cash, sh });
       }
     });
-    const add = (s, r, k, hit) => { const d = s ? dS : dB; if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+    const add = (s, r, k, hit) => { const d = s ? dS : dB;
+      // 매수·매도 지연이 다르면 먼저 낸 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있으므로, 같은 이평선의 반대 방향 신호가 나오면 대기 중인 반대 주문을 취소
+      if (hit && dB !== dS) for (let q = i + 1; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => { if (od.k === k && od.s !== s) od.dead = true; });
+      if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const v = cash + sh * px[i]; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
