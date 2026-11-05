@@ -225,7 +225,9 @@ axisLabels(g,dates,X,V,L,W,R,H);
 g.save();g.beginPath();g.rect(L,T,W-L-R,H-T-B);g.clip();out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});
 // 매수/매도 마커: 전략 선 위 체결일에 표시
 if(ctx&&!out[0].hidden){const e0=out[0].e,tri=(i,buy)=>{const px=X(i),py=Y(e0[i]),z=6,d=buy?1:-1;g.fillStyle=buy?'#2f9e44':'#e03131';g.strokeStyle='#fff';g.lineWidth=1;g.beginPath();g.moveTo(px,py-d*3);g.lineTo(px-z,py-d*(3-z*1.5));g.lineTo(px+z,py-d*(3-z*1.5));g.closePath();g.fill();g.stroke()};
-ctx.trades.forEach(t=>{if(t.side!='T'&&t.rule!='시작'&&t.asset!='Y'&&e0[t.i]!=null)tri(t.i,t.side=='B')})}g.restore()}
+ctx.trades.forEach(t=>{if(t.side!='T'&&t.rule!='시작'&&t.asset!='Y'&&e0[t.i]!=null&&!/세금/.test(t.rule||''))tri(t.i,t.side=='B')});
+// 5/1 세금 납부용 매도는 신호 매도가 아니므로 작은 회색 점으로만 표시
+ctx.trades.forEach(t=>{if(t.side=='S'&&/세금/.test(t.rule||'')&&t.asset!='Y'&&e0[t.i]!=null){g.fillStyle='#868e96';g.beginPath();g.arc(X(t.i),Y(e0[t.i]),3,0,6.3);g.fill()}})}g.restore()}
 
 const rsx=r=>`${+(r.b1*100).toFixed(1)}/${+(r.s1*100).toFixed(1)}/${+(r.b2*100).toFixed(1)}/${+(r.s2*100).toFixed(1)}`;
 function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.b1!=null){$('br1').value=+(r.b1*100).toFixed(2);$('sr1').value=+(r.s1*100).toFixed(2);$('br2').value=+(r.b2*100).toFixed(2);$('sr2').value=+(r.s2*100).toFixed(2)}$('mode').value='cross';showMode();save();run();scrollTo({top:0,behavior:'smooth'})}
