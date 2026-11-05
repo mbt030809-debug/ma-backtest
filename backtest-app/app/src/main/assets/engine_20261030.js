@@ -139,9 +139,18 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
       }
     });
     const add = (s, r, k, hit) => { const d = s ? dS : dB;
-      // 매수·매도 지연이 다르면 먼저 낸 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있으므로, 같은 이평선의 반대 방향 신호가 나오면 대기 중인 반대 주문을 취소
-      if (hit && dB !== dS) for (let q = i + 1; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => { if (od.k === k && od.s !== s) od.dead = true; });
-      if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+      // 매수·매도 지연이 다르면 먼저 낸 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있어 정리한다.
+      //  - 같은 이평선의 반대 신호 → 대기 중인 반대 주문 취소
+      //  - 다른 이평선끼리 충돌 → 장기선이 우세: 장기선의 실제 주문(비율>0)은 단기선의 반대 대기 주문을 취소하고,
+      //    장기선의 반대 대기 주문이 남아 있으면 단기선의 새 주문은 내지 않음(보류)
+      let sup = false;
+      if (hit && dB !== dS) for (let q = i + 1; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => {
+        if (od.dead || od.s === s) return;
+        if (od.k === k) od.dead = true;
+        else if (r.r > 0 && od.n < r.n) od.dead = true;
+        else if (r.r > 0 && od.n > r.n) sup = true;
+      });
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }
@@ -273,9 +282,15 @@ function simulateEvents(dates, px, buys, sells, o) {
       }
     });
     const add = (s, r, k, hit) => { const d = s ? dS : dB;
-      // 매수·매도 지연이 다르면 먼저 낸 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있으므로, 같은 이평선의 반대 방향 신호가 나오면 대기 중인 반대 주문을 취소
-      if (hit && dB !== dS) for (let q = i + 1; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => { if (od.k === k && od.s !== s) od.dead = true; });
-      if (r.r > 0 && hit && i + d < n) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+      // 매수·매도 지연이 다르면 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있어 정리한다(위 함수와 같은 규칙: 같은 이평선 반대 신호는 취소, 다른 이평선은 장기선 우세).
+      let sup = false;
+      if (hit && dB !== dS) for (let q = i + 1; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => {
+        if (od.dead || od.s === s) return;
+        if (od.k === k) od.dead = true;
+        else if (r.r > 0 && od.n < r.n) od.dead = true;
+        else if (r.r > 0 && od.n > r.n) sup = true;
+      });
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
     sells.forEach((r, k) => add(true, r, k, r.f[i]));
     buys.forEach((r, k) => add(false, r, k, r.f[i]));
     const v = cash + sh * px[i]; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(sh * px[i] - basis)); w.push(v ? sh * px[i] / v : 0);
