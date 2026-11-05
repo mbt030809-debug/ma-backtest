@@ -165,7 +165,7 @@ if(altSyms.length==1&&altSyms[0]=='AUTO'){const list=[...new Set(($('altlist').v
 altSyms=[...new Set(altSyms)].filter(x=>x!=trd);const alt=altSyms.join('+');
 checkSyms([sig,trd,...cmp,...altSyms]);const tp=+$('tax').value||0,fp=+$('fee').value||0;if(!(tp>=0&&tp<=100))throw Error('세율은 0~100% 사이여야 합니다');if(!(fp>=0&&fp<=20))throw Error('수수료는 0~20% 사이여야 합니다');
 const syms=[...new Set([sig,trd,...cmp,...altSyms])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,x==sig?xs:s,e))));
-const full=[...data[sig].keys()].sort(),dates=full.filter(d=>d>=s&&data[trd].has(d)&&altSyms.every(a=>data[a].has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다'+(alt?` (${altSyms.map(a=>a+' 데이터 '+(rowsOf(data[a])[0]?.[0]||'없음')+'~').join(', ')})`:''));
+const full=[...data[sig].keys()].sort(),s2=readyStart(full,maxN,s);if(s2==null)throw Error(`${sig} 데이터(${full.length}일)가 이동평균 기간(${maxN}일)보다 짧아 신호를 만들 수 없습니다`);const dates=full.filter(d=>d>=s2&&data[trd].has(d)&&altSyms.every(a=>data[a].has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다'+(alt?` (${altSyms.map(a=>a+' 데이터 '+(rowsOf(data[a])[0]?.[0]||'없음')+'~').join(', ')})`:''));
 if(!silent)showChk([...[...new Set([sig,trd,...cmp,...altSyms])].map(x=>dataCheck(x+(kindTxt(x)?` [${kindTxt(x)}]`:''),rowsOf(data[x]))),...(sig!=trd?[alignCheck(data[sig],data[trd],sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(data[trd])[0][0])]);
 // 비교 종목은 전략 기간과 무관: 전략 구간(신호+매매 종목)에 데이터가 없는 날이 있으면 비교에서 제외(전략 기간이 줄어드는 것을 방지)
 const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d))),skippedTxt=skipped.map(x=>`${x}(데이터 ${rowsOf(data[x])[0]?.[0]||'없음'}~)`);cmp.splice(0,cmp.length,...cmp.filter(x=>!skipped.includes(x)));
@@ -283,9 +283,11 @@ el.querySelectorAll('.lgi').forEach(t=>t.onclick=()=>{const o=out[+t.dataset.i];
 const SYM_OK=/^[A-Z0-9.^=\-]{1,15}$/,checkSyms=a=>{for(const x of a)if(!SYM_OK.test(x))throw Error('종목 코드가 올바르지 않습니다: '+String(x).slice(0,20))};
 const dday=(a,b)=>(new Date(b)-new Date(a))/864e5;
 // 백테스트 구간 점검: 매매 종목 상장일·신호 종목 이평 계산 가능일을 따져서 실제 시작 구간을 알려줌
+// 이평 워밍업: 신호 종목에 n일선을 계산할 데이터(n일치)가 쌓인 날부터 백테스트 시작 (예: 2012 상장·360일선 → 2013년부터)
+const readyStart=(full,maxN,s)=>{if(!(maxN>1))return s;if(full.length<maxN)return null;const r=full[maxN-1];return r>s?r:s};
 function periodCheck(sig,trd,s,dates,full,maxN,trdFirst){const w=[],eff=dates[0];
 if(dday(s,trdFirst)>5)w.push(`${trd} 데이터가 ${trdFirst}부터라 시작일(${s})이 ${eff}로 조정됨`);
-const ready=full[Math.min(maxN,full.length)-1];if(maxN>1&&ready>eff)w.push(`${sig}의 ${maxN}일선은 ${ready}부터 계산 가능 → 그 전에는 신호 없음(초기 주식비율 유지)`);
+const ready=full[Math.min(maxN,full.length)-1];if(maxN>1&&ready>s)w.push(`${sig} 데이터가 ${full[0]}부터라 ${maxN}일선은 ${ready}부터 계산 가능 → 시작일(${s})이 ${eff}로 조정됨`);
 return{name:'백테스트 구간',n:dates.length,from:eff,to:dates.at(-1),warn:w,info:`${sig} 데이터 ${full[0]}~ · ${trd} 데이터 ${trdFirst}~`}}
 // 종목 입력 시 데이터 시작일(상장일) 표시
 let availTimer=null;
@@ -390,7 +392,7 @@ const B1=pr('rb1',cr('br1')/100),S1=pr('rs1',cr('sr1')/100),B2=pr('rb2',cr('br2'
 if(!total)throw Error('매수 비율이 모두 0%인 조합만 있어 계산할 조합이 없습니다');
 if(total>MAXC)throw Error(`조합이 너무 많습니다 (${total.toLocaleString()}개, 최대 ${MAXC.toLocaleString()})`);
 const maxN=Math.max(...L1,...L2),ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
-el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e),...altS.map(a=>load(a,s,e))]);const ms=new Map(ds[0]),mt=new Map(ds[1]),mA=altS.map((a,i)=>new Map(ds[2+i]));const full=[...ms.keys()].sort(),dates=full.filter(d=>d>=s&&mt.has(d)&&mA.every(m=>m.has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다'+(altS.length?` (${altS.map((a,i)=>a+' 데이터 '+(rowsOf(mA[i])[0]?.[0]||'없음')+'~').join(', ')})`:''));
+el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e),...altS.map(a=>load(a,s,e))]);const ms=new Map(ds[0]),mt=new Map(ds[1]),mA=altS.map((a,i)=>new Map(ds[2+i]));const full=[...ms.keys()].sort(),s2=readyStart(full,maxN,s);if(s2==null)throw Error(`${sig} 데이터(${full.length}일)가 이동평균 기간(${maxN}일)보다 짧아 신호를 만들 수 없습니다`);const dates=full.filter(d=>d>=s2&&mt.has(d)&&mA.every(m=>m.has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다'+(altS.length?` (${altS.map((a,i)=>a+' 데이터 '+(rowsOf(mA[i])[0]?.[0]||'없음')+'~').join(', ')})`:''));
 showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[alignCheck(ms,mt,sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(mt)[0][0])]);
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d)),py=altS.length?mA.map(m=>dates.map(d=>m.get(d))):null;
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell(),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
@@ -489,7 +491,7 @@ let bc=[],sc=[],rules={b:[],s:[]},maxN=0;
 if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];for(const x of[...rules.b,...rules.s])maxN=Math.max(maxN,x.n)}
 else{bc=readConds('buy');sc=readConds('sell');for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price')maxN=Math.max(maxN,n)}
 const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
-const sigM=new Map(await load(sig,xs,e)),trdM=new Map(await load(trd,s,e)),full=[...sigM.keys()].sort(),dates0=full.filter(d=>d>=s&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
+const sigM=new Map(await load(sig,xs,e)),trdM=new Map(await load(trd,s,e)),full=[...sigM.keys()].sort(),s2=readyStart(full,maxN,s),dates0=full.filter(d=>d>=(s2||s)&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
 let bF,sF,buy,sell;
 if(cross){const fl={},ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];bF=rules.b.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'up')[i])}));sF=rules.s.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'dn')[i])}))}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};buy=pick(evalConds(fpx,bc));sell=pick(evalConds(fpx,sc))}
@@ -506,6 +508,7 @@ let cands=typed?[...new Set(typed.split(/[\s,]+/).map(x=>x.trim().toUpperCase())
 const pins=[...new Set($('altpin').value.split(/[\s,]+/).map(x=>x.trim().toUpperCase()).filter(x=>x&&SYM_OK.test(x)&&x!==trdSym&&x!==ref))];
 cands=[...new Set([...cands,...pins])].filter(x=>SYM_OK.test(x)&&x!==trdSym&&x!==ref);
 const e=$('e').value,sd=$('s').value,info={},t0=performance.now();let idx=0,done=0;
+el.textContent='기준 백테스트 계산 중…';const base0=await run({silent:true,alt:''});if(base0.error)throw Error(base0.error);const sdEff=base0.from>sd?base0.from:sd; // 이평 워밍업으로 조정된 실제 시작일 기준으로 후보 데이터 유무를 판단
 $('altp').style.display='';$('altp').max=cands.length;$('altp').value=0;el.textContent=`후보 풀 ${cands.length}개 시세 받는 중…`;
 const eta=(d,tot,t)=>{const el2=(performance.now()-t)/1000,r=d/Math.max(el2,.001);return `경과 ${fmtT(el2)} · 남은 약 ${fmtT((tot-d)/r)}`};
 // 6개씩 동시에 받아 압축 저장 (메모리 절약)
@@ -514,8 +517,8 @@ await Promise.all(Array.from({length:12},worker));
 if(altCancel)throw Error('중단했습니다');
 const ok=cands.filter(c=>info[c]),bad=cands.filter(c=>!info[c]).map(c=>c+'(데이터 없음)');
 // 내가 백테스트한 기간(시작일~종료일) 전체에 데이터가 없는 ETF는 예외 처리
-const late=ok.filter(c=>dday(sd,info[c].first)>5).map(c=>`${c}(${info[c].first}~ 시작일보다 늦게 상장)`),ended=ok.filter(c=>dday(sd,info[c].first)<=5&&dday(info[c].last,e)>10).map(c=>`${c}(~${info[c].last} 데이터 종료)`);
-let usable=ok.filter(c=>dday(sd,info[c].first)<=5&&dday(info[c].last,e)<=10);if(!usable.length)throw Error('백테스트 기간 전체에 데이터가 있는 후보가 없습니다 (시작일을 늦춰 보세요)');
+const late=ok.filter(c=>dday(sdEff,info[c].first)>5).map(c=>`${c}(${info[c].first}~ 시작일보다 늦게 상장)`),ended=ok.filter(c=>dday(sdEff,info[c].first)<=5&&dday(info[c].last,e)>10).map(c=>`${c}(~${info[c].last} 데이터 종료)`);
+let usable=ok.filter(c=>dday(sdEff,info[c].first)<=5&&dday(info[c].last,e)<=10);if(!usable.length)throw Error('백테스트 기간 전체에 데이터가 있는 후보가 없습니다 (시작일을 늦춰 보세요)');
 // 나스닥(기준 지수)과의 상관이 낮은 순으로 상위 N개만 사용 (직접 후보를 입력했다면 그대로 사용)
 const corr={};let noCorr=0,corrOut=[];
 if(!typed){el.textContent=`${ref} 상관 계산 중…`;const rc=await fetchCompact(ref,sd,e),refMap=new Map();for(let i=0;i<rc.d.length;i++)refMap.set(rc.d[i],rc.p[i]);
@@ -524,7 +527,7 @@ if(!typed){el.textContent=`${ref} 상관 계산 중…`;const rc=await fetchComp
  const topN=withC.slice(0,N);corrOut=withC.slice(N).filter(c=>!pins.includes(c)).map(c=>`${c}(${corr[c].toFixed(2)})`);const keep=new Set([...topN,...pins.filter(c=>usable.includes(c)&&Number.isFinite(corr[c]))]);for(const c of usable)if(!keep.has(c))liteCover.delete(c);usable=[...keep]}
 for(const c of ok)if(!usable.includes(c))liteCover.delete(c);
 $('altp').max=usable.length+1;$('altp').value=0;const t1=performance.now();
-const base=await run({silent:true,alt:''});if(base.error)throw Error(base.error);
+const base=base0;
 el.textContent='비교 준비 중…';const scan=await prepScan();
 const rows=[{sym:'현금',name:'(기존 전략 그대로: 매도 대금은 현금)',base:true,...base}];let i=0;
 for(const c of usable){if(altCancel)break;if(++i%25==0){el.textContent=`${usable.length}개 ETF 비교 중… ${i}/${usable.length} · ${eta(i,usable.length,t1)}`;$('altp').value=i;await sleepMs(0)}
