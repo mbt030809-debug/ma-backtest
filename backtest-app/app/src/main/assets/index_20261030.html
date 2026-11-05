@@ -38,11 +38,12 @@ input[type=number]{width:70px}input[type=text]{width:120px}button{cursor:pointer
 <label>초기 주식비율(%)</label><input id="init" type="number" min="0" max="100" value="0">
 <label>현금 이자(연 %)</label><input id="cash" type="number" step="0.1" min="0" value="0">
 <label>신호 후 체결 지연(일) 매수</label><input id="delay" type="number" min="0" value="0"><label>매도</label><input id="delaySell" type="number" min="0" placeholder="매수와 같음" style="width:90px" title="돌파/이탈 방식에서만 따로 적용(비우면 매수 지연과 같음)"></div>
+<div class="row"><b>이평별 지연</b><span class="mut">(비우면 위 공통 지연)</span> 이평1 매수<input id="db1" type="number" min="1" style="width:52px"> 매도<input id="ds1" type="number" min="1" style="width:52px"> · 이평2 매수<input id="db2" type="number" min="1" style="width:52px"> 매도<input id="ds2" type="number" min="1" style="width:52px"></div>
 <div class="row"><label><input type="checkbox" id="stFirst" checked> 지연 중 이평선 상태 우선 (돌파/이탈 방식: 지연은 판단만 미룸 — 반대 신호가 나오면 대기 주문 취소, 장기선 우세)</label>
 <label>수수료(%, 돌파 방식)</label><input id="fee" type="number" step="0.01" min="0" value="0">
 <label>양도세율(%) · 연 1회 정산</label><input id="tax" type="number" step="0.1" min="0" value="0"></div>
 <div class="row"><span class="mut" id="pxinfo"></span><button id="pxclr" type="button">시세 캐시 지우기</button></div>
-<details><summary class="mut">옵션 설명</summary><div class="mut">'지연 중 이평선 상태 우선'을 켜면(돌파/이탈 방식, 기본) 지연은 판단만 미루는 것으로 취급합니다: 같은 이평선에서 반대 신호가 나오면(체결 당일 포함) 대기 중인 반대 주문을 취소해 이평선 위면 매수·아래면 매도가 우선되고, 서로 다른 이평선이 충돌하면 장기선이 우세합니다(장기선의 반대 대기 주문이 있으면 단기선 주문은 보류, 장기선 신호는 단기선의 반대 대기 주문을 취소). 끄면 기존 이평선 백테스터처럼 신호 순서대로 모두 체결합니다. 신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금: 달력연도(1/1~12/31)마다 주식·ETF 매도 손익(이익+손실)을 합산해 순이익에 세율을 곱하고, <b>다음 해 5/1(이후 첫 거래일)</b>에 납부(현금·보유 자산에서 비례해 차감). 그 해 매도가 없으면 세금 없음, 순손실이면 0(이월·환급 없음). 현금 이자는 과세 제외, 방어 ETF 매도 손익은 포함. 차트·통계의 자산은 실제 현금흐름 기준이라 5/1에 세금만큼 계단으로 줄어듦. 마지막 날만 보유분을 전부 즉시 매도한 것으로 보고 올해 순손익+미실현 이익에 바로 과세하고 아직 안 낸 세금도 차감(전략·단순보유 모두 같은 방식, 단순보유는 마지막 날에만 과세).</div></div></details>
+<details><summary class="mut">옵션 설명</summary><div class="mut">이평선마다 매수·매도 지연을 따로 줄 수 있습니다('이평별 지연', 비우면 공통 지연 사용; 돌파/이탈 방식). '지연 중 이평선 상태 우선'을 켜면(돌파/이탈 방식, 기본) 지연은 판단만 미루는 것으로 취급합니다: 같은 이평선에서 반대 신호가 나오면(체결 당일 포함) 대기 중인 반대 주문을 취소해 이평선 위면 매수·아래면 매도가 우선되고, 서로 다른 이평선이 충돌하면 장기선이 우세합니다(장기선의 반대 대기 주문이 있으면 단기선 주문은 보류, 장기선 신호는 단기선의 반대 대기 주문을 취소). 끄면 기존 이평선 백테스터처럼 신호 순서대로 모두 체결합니다. 신호는 종가 기준이며 지연 0일 = 신호 당일 종가 체결(수익은 다음 거래일부터), n일 지연 = n 거래일 뒤 종가 체결. 세금: 달력연도(1/1~12/31)마다 주식·ETF 매도 손익(이익+손실)을 합산해 순이익에 세율을 곱하고, <b>다음 해 5/1(이후 첫 거래일)</b>에 납부(현금·보유 자산에서 비례해 차감). 그 해 매도가 없으면 세금 없음, 순손실이면 0(이월·환급 없음). 현금 이자는 과세 제외, 방어 ETF 매도 손익은 포함. 차트·통계의 자산은 실제 현금흐름 기준이라 5/1에 세금만큼 계단으로 줄어듦. 마지막 날만 보유분을 전부 즉시 매도한 것으로 보고 올해 순손익+미실현 이익에 바로 과세하고 아직 안 낸 세금도 차감(전략·단순보유 모두 같은 방식, 단순보유는 마지막 날에만 과세).</div></div></details>
 <div class="row"><button class="p" id="run">백테스트 실행</button><span id="err"></span></div>
 <div class="mut" id="altbadge"></div>
 <div class="mut" id="chkbadge"></div>
@@ -117,8 +118,9 @@ for(const k of['l','r']){d.querySelector('.'+k+'n').style.display=d.querySelecto
 const readConds=t=>[...$(t).children].map(d=>({conn:d.querySelector('.cn')?.value,lk:d.querySelector('.lk').value,ln:+d.querySelector('.ln').value,op:d.querySelector('.op').value,rk:d.querySelector('.rk').value,rn:+d.querySelector('.rn').value}));
 document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'price',0,'sma',200));
 // 설정 저장/복원 (앱 업데이트 후에도 유지: WebView localStorage)
+const rdl=id=>{const x=($(id).value||'').trim();return x===''?null:Math.max(1,Math.floor(+x||1))};
 const dlSell=()=>{const x=($('delaySell').value||'').trim();return x===''?null:Math.max(1,Math.floor(+x||1))};
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','delaySell','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk2'];
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','delaySell','db1','ds1','db2','ds2','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk2'];
 function altBadge(){const v=($('alt').value||'').trim().toUpperCase(),el=$('altbadge');if(!el)return;if(!v){el.innerHTML='';return}el.innerHTML=`🛡 방어자산 <b>${v.replace(/[^A-Z0-9.^=,\-+]/g,'')}</b> 적용 중 (매도 대금을 현금 대신 보유) <button id="altclr" type="button">해제(현금)</button> <button id="altcmp" type="button">현금과 비교</button>`;$('altclr').onclick=()=>{$('alt').value='';altBadge();save();run()};$('altcmp').onclick=()=>{$('altlist').value=v.replace(/[^A-Z0-9.^=,\-+]/g,'').replace(/\+/g,',');save();recommend();setTimeout(()=>$('defSec').scrollIntoView({behavior:'smooth'}),300)}}
 function save(){altBadge();try{alPush()}catch(x){}try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.stFirst=$('stFirst').checked;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
 function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;if(o.stFirst!=null)$('stFirst').checked=o.stFirst;
@@ -173,7 +175,7 @@ const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d))),skip
 const fidx=new Map(full.map((d,i)=>[d,i])),P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>fidx.get(d));
 let sim,w,cashSim=null;
 if(cross){const fl={};const ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];
-const bB=rules.b.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'up')[i])})),sS=rules.s.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'dn')[i])})),oo={delay,delayBuy:delay,delaySell:dlSell()??delay,stateFirst:$('stFirst').checked,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100};
+const bB=rules.b.map((x,k)=>({r:x.r,n:x.n,d:rdl('db'+(k+1)),f:pos.map(i=>ff(x,'up')[i])})),sS=rules.s.map((x,k)=>({r:x.r,n:x.n,d:rdl('ds'+(k+1)),f:pos.map(i=>ff(x,'dn')[i])})),oo={delay,delayBuy:delay,delaySell:dlSell()??delay,stateFirst:$('stFirst').checked,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100};
 sim=alt?simulateEventsAlt(dates,P(trd),altSyms.map(P),bB,sS,oo):simulateEvents(dates,P(trd),bB,sS,oo);w=sim.w;if(alt&&!silent)cashSim=simulateEvents(dates,P(trd),bB,sS,oo)}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
 const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets(buy,sell,init),init,delay);
@@ -237,7 +239,7 @@ let N=0;for(let r=lo;r<hi;r++){const d=dec(r);if(!(B1[d[2]]==0&&B2[d[4]]==0))N++
 const n1a=new Uint16Array(N),n2a=new Uint16Array(N),b1a=new Uint16Array(N),s1a=new Uint16Array(N),b2a=new Uint16Array(N),s2a=new Uint16Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N),SO=new Float64Array(N),CA=new Float64Array(N),q=v=>Math.round(v*10000);
 let cnt=0,last=0;
 for(let r=lo;r<hi;r++){const[i1,i2,ib1,is1,ib2,is2]=dec(r),b1=B1[ib1],b2=B2[ib2];if(b1==0&&b2==0)continue;const n1=L1[i1],n2=L2[i2],s1=S1[is1],s2=S2[is2];
-const bb=[{r:b1,f:fl(n1,'up')},{r:b2,f:fl(n2,'up')}],ss=[{r:s1,n:n1,f:fl(n1,'dn')},{r:s2,n:n2,f:fl(n2,'dn')}],sim=py?simulateEventsAlt(dates,px,py,bb,ss,o):simulateEvents(dates,px,bb,ss,o);
+const dl=o.dl||{b:[null,null],s:[null,null]},bb=[{r:b1,n:n1,d:dl.b[0],f:fl(n1,'up')},{r:b2,n:n2,d:dl.b[1],f:fl(n2,'up')}],ss=[{r:s1,n:n1,d:dl.s[0],f:fl(n1,'dn')},{r:s2,n:n2,d:dl.s[1],f:fl(n2,'dn')}],sim=py?simulateEventsAlt(dates,px,py,bb,ss,o):simulateEvents(dates,px,bb,ss,o);
 const st=statsLite(sim.eqP,yrs),i=cnt++;n1a[i]=n1;n2a[i]=n2;b1a[i]=q(b1);s1a[i]=q(s1);b2a[i]=q(b2);s2a[i]=q(s2);tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;SO[i]=st.so;CA[i]=st.ca;
 const now=performance.now();if(now-last>150){last=now;self.postMessage({t:'p',wid,done:cnt,total:N})}}
 self.postMessage({t:'d',wid,cnt:N,n1a,n2a,b1a,s1a,b2a,s2a,tr,T,C,M,S,SO,CA},[n1a.buffer,n2a.buffer,b1a.buffer,s1a.buffer,b2a.buffer,s2a.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer,SO.buffer,CA.buffer])}`;
@@ -398,7 +400,7 @@ const maxN=Math.max(...L1,...L2),ext=new Date(s);ext.setDate(ext.getDate()-Math.
 el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e),...altS.map(a=>load(a,s,e))]);const ms=new Map(ds[0]),mt=new Map(ds[1]),mA=altS.map((a,i)=>new Map(ds[2+i]));const full=[...ms.keys()].sort(),s2=readyStart(full,maxN,s);if(s2==null)throw Error(`${sig} 데이터(${full.length}일)가 이동평균 기간(${maxN}일)보다 짧아 신호를 만들 수 없습니다`);const dates=full.filter(d=>d>=s2&&mt.has(d)&&mA.every(m=>m.has(d)));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다'+(altS.length?` (${altS.map((a,i)=>a+' 데이터 '+(rowsOf(mA[i])[0]?.[0]||'없음')+'~').join(', ')})`:''));
 showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[alignCheck(ms,mt,sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(mt)[0][0])]);
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d)),py=altS.length?mA.map(m=>dates.map(d=>m.get(d))):null;
-const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell(),stateFirst:$('stFirst').checked,init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
+const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell(),dl:{b:[rdl('db1'),rdl('db2')],s:[rdl('ds1'),rdl('ds2')]},stateFirst:$('stFirst').checked,init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
 const bhE=buyHold(px).map((v,i,a)=>i==a.length-1?v-Math.max(0,v-100)*o.tax:v),bh=stats(bhE,dates);
 const meta={lim:null,rv:[B1,S1,B2,S2].some(a=>a.length>1),c1:+$('c1').value,c2:+$('c2').value,sig,trd,alt:altS.join('+'),delay:(o.delaySell&&o.delaySell!=o.delay?`매수 ${o.delay}/매도 ${o.delaySell}`:o.delay),range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,so:bh.so,ca:bh.ca,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
@@ -496,11 +498,11 @@ else{bc=readConds('buy');sc=readConds('sell');for(const c of[...bc,...sc])for(co
 const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
 const sigM=new Map(await load(sig,xs,e)),trdM=new Map(await load(trd,s,e)),full=[...sigM.keys()].sort(),s2=readyStart(full,maxN,s),dates0=full.filter(d=>d>=(s2||s)&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
 let bF,sF,buy,sell;
-if(cross){const fl={},ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];bF=rules.b.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'up')[i])}));sF=rules.s.map(x=>({r:x.r,n:x.n,f:pos.map(i=>ff(x,'dn')[i])}))}
+if(cross){const fl={},ff=(x,k)=>(fl[x.n]=fl[x.n]||crossFlags(fpx,x.n))[k];bF=rules.b.map((x,k)=>({r:x.r,n:x.n,d:rdl('db'+(k+1)),f:pos.map(i=>ff(x,'up')[i])}));sF=rules.s.map((x,k)=>({r:x.r,n:x.n,d:rdl('ds'+(k+1)),f:pos.map(i=>ff(x,'dn')[i])}))}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};buy=pick(evalConds(fpx,bc));sell=pick(evalConds(fpx,sc))}
 return{one(c){const n0=dates0.length,keep=[],py=[];let j=0;for(let i=0;i<n0;i++){const di=d0i[i];while(j<c.d.length&&c.d[j]<di)j++;if(j<c.d.length&&c.d[j]===di){keep.push(i);py.push(c.p[j]);j++}}
 if(keep.length<3)return{error:'겹치는 데이터가 부족합니다'};const dates=keep.map(i=>dates0[i]),px=keep.map(i=>px0[i]);let sim;
-if(cross){const oo={delay,delayBuy:delay,delaySell:dlSell()??delay,stateFirst:$('stFirst').checked,init,cashRate,tax:taxRate,fee,ig:new Array(keep.length).fill(1)};sim=simulateEventsAlt(dates,px,py,bF.map(x=>({r:x.r,n:x.n,f:keep.map(i=>x.f[i])})),sF.map(x=>({r:x.r,n:x.n,f:keep.map(i=>x.f[i])})),oo)}
+if(cross){const oo={delay,delayBuy:delay,delaySell:dlSell()??delay,stateFirst:$('stFirst').checked,init,cashRate,tax:taxRate,fee,ig:new Array(keep.length).fill(1)};sim=simulateEventsAlt(dates,px,py,bF.map(x=>({r:x.r,n:x.n,d:x.d,f:keep.map(i=>x.f[i])})),sF.map(x=>({r:x.r,n:x.n,d:x.d,f:keep.map(i=>x.f[i])})),oo)}
 else{const sub=r=>r&&{v:keep.map(i=>r.v[i]),ok:keep.map(i=>r.ok[i])};const w=applied(targets(sub(buy),sub(sell),init),init,delay);sim=simulateAlt(dates,px,py,w,{cashRate,taxRate,delay})}
 return{st:statsLite(sim.eqP,yearsOf(dates)),pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length}}}}
 let altCancel=false;
@@ -590,7 +592,7 @@ async function restoreAlt(){try{const s=await idbGet('__altlast');if(!s||s.fp!==
 setTimeout(restoreAlt,0);
 $('zb1').innerHTML=zbar('cv');$('zb2').innerHTML=zbar('altcv');attachZoom('cv',()=>window._last&&draw(...window._last));attachZoom('altcv',()=>{const c=window._altChart;c&&$('altcv').style.display!='none'&&lineChart('altcv',c.out,c.dates)});
 // ---- 매일 종가 신호 알림 (안드로이드 앱의 AndroidApp 브리지 사용) ----
-function alCfg(){const g=(a,b,c)=>({n:Math.floor(+$(a).value||0),b:Math.round(Math.min(100,Math.max(0,+$(b).value||0))),s:Math.round(Math.min(100,Math.max(0,+$(c).value||0)))});return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell()||0,rules:[g('mn1','br1','sr1'),g('mn2','br2','sr2')]}}
+function alCfg(){const g=(a,b,c)=>({n:Math.floor(+$(a).value||0),b:Math.round(Math.min(100,Math.max(0,+$(b).value||0))),s:Math.round(Math.min(100,Math.max(0,+$(c).value||0)))});return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell()||0,rules:[{...g('mn1','br1','sr1'),db:rdl('db1')||0,ds:rdl('ds1')||0},{...g('mn2','br2','sr2'),db:rdl('db2')||0,ds:rdl('ds2')||0}]}}
 function alPush(){const st=$('alSt');if(!st)return;if(typeof AndroidApp==='undefined'||!AndroidApp.setAlert){st.textContent='· 앱(APK)에서만 동작';return}
 try{localStorage.setItem('mabt_alert',JSON.stringify({on:$('alOn').checked,all:$('alAll').checked}))}catch(x){}
 if($('mode').value!='cross'){st.textContent=$('alOn').checked?'· 돌파/이탈 방식에서만 동작':'';return}

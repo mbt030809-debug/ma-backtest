@@ -56,15 +56,16 @@ object AlertJob {
             val lines = ArrayList<String>()
             for (i in 0 until rules.length()) {
                 val r = rules.getJSONObject(i); val k = r.getInt("n"); val b = r.getInt("b"); val s = r.getInt("s")
+                val rdB = r.optInt("db", 0).let { if (it > 0) it else delay }; val rdS = r.optInt("ds", 0).let { if (it > 0) it else delayS }
                 if (k < 2 || last - 1 - k + 1 < 0) { lines.add("${k}일선: 데이터 부족"); continue }
                 val m = ma(px, last, k); val pm = ma(px, last - 1, k)
                 val up = px[last - 1] <= pm && px[last] > m
                 val dn = px[last - 1] >= pm && px[last] < m
                 val st = "종가 ${f2(px[last])} · ${k}일선 ${f2(m)} (${if (px[last] > m) "위 +" else "아래 -"}${f1(abs(px[last] / m - 1) * 100)}%)"
                 when {
-                    up && b > 0 -> { buy = true; lines.add("📈 ${k}일선 상향 돌파 → 매수 ${b}% (현금의 ${b}%)\n   $st") }
+                    up && b > 0 -> { buy = true; lines.add("📈 ${k}일선 상향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }
                     up -> lines.add("${k}일선 상향 돌파 (매수 0%라 무시)\n   $st")
-                    dn && s > 0 -> { sell = true; lines.add("📉 ${k}일선 하향 이탈 → 매도 ${s}% (보유의 ${s}%)\n   $st") }
+                    dn && s > 0 -> { sell = true; lines.add("📉 ${k}일선 하향 이탈 → 매도 ${s}% (보유의 ${s}%) · ${rdS}거래일 뒤 체결\n   $st") }
                     dn -> lines.add("${k}일선 하향 이탈 (매도 0%라 무시)\n   $st")
                     else -> lines.add("${k}일선 신호 없음\n   $st")
                 }
@@ -76,7 +77,7 @@ object AlertJob {
                 sell -> "📉 $trd 매도 신호"
                 else -> "$trd 신호 없음"
             }
-            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 신호 후 ${if (delayS != delay) "매수 ${delay}·매도 ${delayS}" else "$delay"}거래일 뒤 종가(보유·현금 상태에 따라 적용)")
+            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 위 표기한 거래일 뒤 종가(보유·현금 상태에 따라 적용)")
             if (sell && alt.isNotEmpty()) foot.append("\n매도 대금은 $alt 매수")
             if (test) foot.append("\n(테스트 알림 — 장중이면 현재가 기준)")
             postNote(ctx, title, lines.joinToString("\n") + "\n" + foot)

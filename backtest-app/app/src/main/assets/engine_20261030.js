@@ -98,7 +98,7 @@ function simulate(dates, px, w, o) {
 // 매수 규칙의 r은 "방어자산 평가금액의 r%".
 function simulateEventsAlt(dates, px, py, buys, sells, o) {
   const ys = Array.isArray(py[0]) ? py : [py], K = ys.length;
-  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; const maxD = Math.max(dB, dS, ...buys.map(x => x.d | 0), ...sells.map(x => x.d | 0)); // 이평선(규칙)마다 d(지연)를 따로 줄 수 있음 // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
   let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0;
   const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], pd = [], w = [], list = [];
@@ -116,13 +116,13 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
           for (let k = 0; k < K; k++) if (shy[k] > 0) { const q = shy[k] * f, amt = q * ys[k][i] * (1 - fee), cost = basy[k] * f; tx.rec(amt - cost); basy[k] -= cost; shy[k] -= q; sY[k] += amt; tk += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
             list.push({ i, si: i, side: 'S', asset: 'Y', yi: k, rule: '세금 납부용 매도', price: ys[k][i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh: shy[k] }) } } }
       paid += tk; list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
-    const add = (s, r, k, hit) => { const d = s ? dS : dB;
+    const add = (s, r, k, hit) => { const d = r.d != null ? Math.max(1, r.d | 0) : (s ? dS : dB);
       // 지연은 '판단만 미루는 것': 이평선 아래(이탈)면 매도, 위(돌파)면 매수가 우선이므로 반대 신호가 나오면 대기 주문을 정리한다(stateFirst, 기본 켜짐).
       //  - 같은 이평선의 반대 신호 → 대기 중인 반대 주문 취소
       //  - 다른 이평선끼리 충돌 → 장기선이 우세: 장기선의 실제 주문(비율>0)은 단기선의 반대 대기 주문을 취소하고,
       //    장기선의 반대 대기 주문이 남아 있으면 단기선의 새 주문은 내지 않음(보류)
       let sup = false;
-      if (hit && sf) for (let q = i; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => {
+      if (hit && sf) for (let q = i; q <= i + maxD; q++) (orders[q] || []).forEach(od => {
         if (od.dead || od.s === s) return;
         if (od.k === k) od.dead = true;
         else if (r.r > 0 && od.n < r.n) od.dead = true;
@@ -262,7 +262,7 @@ function statsLite(e, yrs) {
 // 시작일 종가에 init 비율 매수. 신호일 i의 주문은 i+delay 거래일 종가 체결, 같은 날은 매도 먼저(규칙 순서).
 // 현금이자는 달력일 기준 365일 복리, 세금은 매도 건별 평균단가 대비 이익에만(손실 0, 통산·공제 없음).
 function simulateEvents(dates, px, buys, sells, o) {
-  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; const maxD = Math.max(dB, dS, ...buys.map(x => x.d | 0), ...sells.map(x => x.d | 0)); // 이평선(규칙)마다 d(지연)를 따로 줄 수 있음 // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
   let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0, fees = 0; const orders = {}, eq = [], eqL = [], pd = [], w = [];
   const list = [], amt0 = cash * o.init;
@@ -272,10 +272,10 @@ function simulateEvents(dates, px, buys, sells, o) {
     const due = tx.step(i);
     if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c; const V = sh * px[i]; if (rem > 0 && V > 0) { const f = Math.min(1, rem / (V * (1 - fee))), q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f; tx.rec(amt - cost); basis -= cost; sh -= q; ssum += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++; tk += amt; list.push({ i, si: i, side: 'S', rule: '세금 납부용 매도', price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh }) } paid += tk;
       list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
-    const add = (s, r, k, hit) => { const d = s ? dS : dB;
+    const add = (s, r, k, hit) => { const d = r.d != null ? Math.max(1, r.d | 0) : (s ? dS : dB);
       // 매수·매도 지연이 다르면 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있어 정리한다(위 함수와 같은 규칙: 같은 이평선 반대 신호는 취소, 다른 이평선은 장기선 우세).
       let sup = false;
-      if (hit && sf) for (let q = i; q <= i + Math.max(dB, dS); q++) (orders[q] || []).forEach(od => {
+      if (hit && sf) for (let q = i; q <= i + maxD; q++) (orders[q] || []).forEach(od => {
         if (od.dead || od.s === s) return;
         if (od.k === k) od.dead = true;
         else if (r.r > 0 && od.n < r.n) od.dead = true;
