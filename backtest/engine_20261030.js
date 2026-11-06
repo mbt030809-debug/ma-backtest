@@ -96,17 +96,25 @@ function simulate(dates, px, w, o) {
 // 매도하면 그 대금으로 방어자산(Y)을 사고, 매수하면 방어자산(Y)을 팔아 X를 삼. 두 쪽 모두 이익에는 세율 적용(손실 0, 건별).
 // py: 방어자산 가격(배당 포함 수정종가). 여러 개면 [[...],[...]]로 주고 동일 비중 바구니로 보유(각 자산을 따로 사고팔며 따로 과세).
 // 매수 규칙의 r은 "방어자산 평가금액의 r%".
+// 방어자산 시세에 NaN이 있으면(상장 전) 그 구간은 '정보 없음': 매도 대금은 현금으로 두고, 시세가 생긴 날부터 방어 ETF로 보유(남은 현금도 그날 전환).
 function simulateEventsAlt(dates, px, py, buys, sells, o) {
-  const ys = Array.isArray(py[0]) ? py : [py], K = ys.length;
+  const ys0 = Array.isArray(py[0]) ? py : [py], K = ys0.length;
+  const av = ys0.map(a => a.map(v => Number.isFinite(v) && v > 0)), ys = ys0.map(a => a.map(v => Number.isFinite(v) && v > 0 ? v : 0));
+  const avail = i => { const r = []; for (let k = 0; k < K; k++) if (av[k][i]) r.push(k); return r; };
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; const maxD = Math.max(dB, dS, ...buys.map(x => x.d | 0), ...sells.map(x => x.d | 0)); // 이평선(규칙)마다 d(지연)를 따로 줄 수 있음 // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
   let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0;
   const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], pd = [], w = [], list = [];
   const a0 = 100 * o.init, y0 = 100 - a0;
   if (a0 > 0) { sh = a0 * (1 - fee) / px[0]; basis = a0; bX += a0; fees += a0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: sh, amt: a0, tax: 0, cash, sh }); }
-  if (y0 > 0) for (let k = 0; k < K; k++) { const a = y0 / K; shy[k] = a * (1 - fee) / ys[k][0]; basy[k] = a; bY[k] += a; fees += a * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: shy[k], amt: a, tax: 0, cash, sh: shy[k] }); }
+  const A0 = avail(0);
+  if (y0 > 0 && !A0.length) cash += y0;
+  if (y0 > 0) for (const k of A0) { const a = y0 / A0.length; shy[k] = a * (1 - fee) / ys[k][0]; basy[k] = a; bY[k] += a; fees += a * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: shy[k], amt: a, tax: 0, cash, sh: shy[k] }); }
   for (let i = 0; i < n; i++) {
     if (i > 0) { const c0 = cash; cash *= ig[i]; intr += cash - c0; }
+    if (i > 0 && cash > 1e-12) { const A = avail(i), newly = A.filter(k => !av[k][i - 1]); // 방어 ETF 시세가 처음 생긴 날: 들고 있던 현금을 ETF로 전환
+      if (newly.length) { const amtAll = cash; cash = 0; for (const k of A) { const a = amtAll / A.length, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
+        list.push({ i, si: i, side: 'B', asset: 'Y', yi: k, rule: '방어 ETF 시세 시작 → 현금 전환', price: ys[k][i], qty: qy, amt: a, tax: 0, cash, sh: shy[k] }); } } }
     const due = tx.step(i);
     if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c;
       if (rem > 0) { let V = sh * px[i]; for (let k = 0; k < K; k++) V += shy[k] * ys[k][i];
@@ -141,8 +149,9 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = 0;
         tx.rec(amt - cost); basis -= cost; sh -= q; sX += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
         list.push({ i, si: od.si, side: 'S', asset: 'X', rule: od.label, price: px[i], qty: q, amt, gain: amt - cost, tax: t, cash, sh });
-        const net = amt;
-        for (let k = 0; k < K; k++) { const a = net / K, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
+        const net = amt, AI = avail(i);
+        if (!AI.length) cash += net; // 방어 ETF 시세가 아직 없으면 현금으로 보유
+        for (const k of AI) { const a = net / AI.length, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
           list.push({ i, si: od.si, side: 'B', asset: 'Y', yi: k, rule: od.label + ' 대금', price: ys[k][i], qty: qy, amt: a, tax: 0, cash, sh: shy[k] }); }
       } else { // 방어자산(들) 매도 → X 매수
         let net = 0;
@@ -164,14 +173,20 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
 }
 // 상태 유지 방식(목표 비중 w[j])의 방어자산 버전: X 비중 w, 나머지는 방어자산(들)
 function simulateAlt(dates, px, py, w, o) {
-  const ys = Array.isArray(py[0]) ? py : [py], K = ys.length;
+  const ys0 = Array.isArray(py[0]) ? py : [py], K = ys0.length;
+  const av = ys0.map(a => a.map(v => Number.isFinite(v) && v > 0)), ys = ys0.map(a => a.map(v => Number.isFinite(v) && v > 0 ? v : 0));
+  const avail = i => { const r = []; for (let k = 0; k < K; k++) if (av[k][i]) r.push(k); return r; };
   const n = px.length, cd = Math.pow(1 + (o.cashRate || 0), 1 / 252) - 1, tax = o.taxRate || 0;
   const tx = makeTaxer(dates, tax);
   let X = w[0] * 100, bX = X, C = 0, paid = 0, trades = 0, bXs = X, sXs = 0, intr = 0; tx.step(0);
-  const Y = Array(K).fill((100 - X) / K), bY = Y.slice(), bYs = Y.slice(), sYs = Array(K).fill(0), eq = [100], eqL = [100], list = [], pd = [0];
+  const A0 = avail(0); if (X < 100 && !A0.length) C = 100 - X;
+  const Y = ys.map((_, k) => A0.includes(k) ? (100 - X) / A0.length : 0), bY = Y.slice(), bYs = Y.slice(), sYs = Array(K).fill(0), eq = [100], eqL = [100], list = [], pd = [0];
   if (X > 0) list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: X / px[0], amt: X, tax: 0, cash: C, sh: X / px[0] });
-  if (100 - X > 0) for (let k = 0; k < K; k++) list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: Y[k] / ys[k][0], amt: Y[k], tax: 0, cash: C, sh: Y[k] / ys[k][0] });
+  if (100 - X > 0) for (const k of A0) list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: Y[k] / ys[k][0], amt: Y[k], tax: 0, cash: C, sh: Y[k] / ys[k][0] });
   for (let j = 1; j < n; j++) {
+    { const A = avail(j - 1), newly = A.filter(k => j < 2 || !av[k][j - 2]); // 방어 ETF 시세가 처음 생기면 현금을 ETF로 전환
+      if (newly.length && C > 1e-12) { const amtAll = C; C = 0; for (const k of A) { const a = amtAll / A.length; Y[k] += a; bY[k] += a; bYs[k] += a; trades++;
+        list.push({ i: j - 1, si: j - 1, side: 'B', asset: 'Y', yi: k, rule: '방어 ETF 시세 시작 → 현금 전환', price: ys[k][j - 1], qty: a / ys[k][j - 1], amt: a, tax: 0, cash: C, sh: Y[k] / ys[k][j - 1] }); } } }
     const due = tx.step(j);
     if (due > 0) { let rem = due, c = Math.min(C, rem); C -= c; rem -= c; let tk = c; const V0 = X + Y.reduce((a, b) => a + b, 0);
       if (rem > 0 && V0 > 0) { const f = Math.min(1, rem / V0); if (X > 0) { const v = X * f, cost = bX * f; tx.rec(v - cost); sXs += v; bX -= cost; X -= v; tk += v; trades++; list.push({ i: j - 1, si: j - 1, side: 'S', asset: 'X', rule: '세금 납부용 매도', price: px[j - 1], qty: v / px[j - 1], amt: v, gain: v - cost, tax: 0, cash: C, sh: X / px[j - 1] }) }
@@ -182,7 +197,8 @@ function simulateAlt(dates, px, py, w, o) {
       const sold = X - tX, cost = bX * (sold / X), t = 0;
       tx.rec(sold - cost); bX -= cost; X = tX; sXs += sold; trades++;
       list.push({ i: j - 1, si, side: 'S', asset: 'X', rule: '매도 조건', price: px[j - 1], qty: sold / px[j - 1], amt: sold, gain: sold - cost, tax: t, cash: C, sh: X / px[j - 1] });
-      for (let k = 0; k < K; k++) { const a = (sold - t) / K; Y[k] += a; bY[k] += a; bYs[k] += a; trades++;
+      const AJ = avail(j - 1); if (!AJ.length) C += sold - t;
+      for (const k of AJ) { const a = (sold - t) / AJ.length; Y[k] += a; bY[k] += a; bYs[k] += a; trades++;
         list.push({ i: j - 1, si, side: 'B', asset: 'Y', yi: k, rule: '매도 대금', price: ys[k][j - 1], qty: a / ys[k][j - 1], amt: a, tax: 0, cash: C, sh: Y[k] / ys[k][j - 1] }); }
     } else if (tX > X + 1e-9) { // 방어자산(들) 일부 매도 → X 매수
       const need = Math.min(tX - X, sy + C), fromY = Math.min(need, sy), fromC = need - fromY; let net = fromC;
@@ -191,7 +207,7 @@ function simulateAlt(dates, px, py, w, o) {
       C -= fromC; X += net; bX += net; bXs += net; trades++;
       list.push({ i: j - 1, si, side: 'B', asset: 'X', rule: '매수 조건', price: px[j - 1], qty: net / px[j - 1], amt: net, tax: 0, cash: C, sh: X / px[j - 1] });
     }
-    X *= px[j] / px[j - 1]; for (let k = 0; k < K; k++) Y[k] *= ys[k][j] / ys[k][j - 1]; intr += C * cd; C *= 1 + cd;
+    X *= px[j] / px[j - 1]; for (let k = 0; k < K; k++) if (av[k][j] && av[k][j - 1]) Y[k] *= ys[k][j] / ys[k][j - 1]; intr += C * cd; C *= 1 + cd;
     let ut = 0, sY = 0; for (let k = 0; k < K; k++) { sY += Y[k]; ut += Y[k] - bY[k]; }
     pd.push(paid); eq.push(X + sY + C); eqL.push(X + sY + C - tx.pending() - tx.liq(X - bX + ut));
   }
