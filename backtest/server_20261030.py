@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MOCK = os.environ.get("MOCK") == "1"
-CACHE = {}
+CACHE = {}  # (심볼, 기간) → 시세. 개발용 서버라 메모리 보호를 위해 최대 300개만 보관
 
 
 def yahoo(symbol, start, end):
@@ -68,6 +68,8 @@ class H(BaseHTTPRequestHandler):
                     time.strptime(d, "%Y-%m-%d")
                 key = (sym, s, e)
                 if key not in CACHE:
+                    if len(CACHE) >= 300:
+                        CACHE.pop(next(iter(CACHE)))
                     CACHE[key] = (mock if MOCK else yahoo)(sym, s, e)
                 self.send(200, json.dumps(CACHE[key][0]).encode(), "application/json", CACHE[key][1])
             except Exception as ex:
