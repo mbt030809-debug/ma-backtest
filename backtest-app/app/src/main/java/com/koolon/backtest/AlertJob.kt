@@ -59,10 +59,14 @@ object AlertJob {
                 val rdB = r.optInt("db", 0).let { if (it > 0) it else delay }; val rdS = r.optInt("ds", 0).let { if (it > 0) it else delayS }
                 if (k < 2 || last - 1 - k + 1 < 0) { lines.add("${k}일선: 데이터 부족"); continue }
                 val m = ma(px, last, k); val pm = ma(px, last - 1, k)
-                val up = px[last - 1] <= pm && px[last] > m
-                val dn = px[last - 1] >= pm && px[last] < m
+                val buyDn = r.optBoolean("buyDn", false) // 매수 전용: 하향 돌파 시 매수(매도 없음)
+                val up = !buyDn && px[last - 1] <= pm && px[last] > m
+                val dn = !buyDn && px[last - 1] >= pm && px[last] < m
+                val dip = buyDn && px[last - 1] >= pm && px[last] < m
                 val st = "종가 ${f2(px[last])} · ${k}일선 ${f2(m)} (${if (px[last] > m) "위 +" else "아래 -"}${f1(abs(px[last] / m - 1) * 100)}%)"
                 when {
+                    dip && b > 0 -> { buy = true; lines.add("📈 ${k}일선 하향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }
+                    dip -> lines.add("${k}일선 하향 돌파 (매수 0%라 무시)\n   $st")
                     up && b > 0 -> { buy = true; lines.add("📈 ${k}일선 상향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }
                     up -> lines.add("${k}일선 상향 돌파 (매수 0%라 무시)\n   $st")
                     dn && s > 0 -> { sell = true; lines.add("📉 ${k}일선 하향 이탈 → 매도 ${s}% (보유의 ${s}%) · ${rdS}거래일 뒤 체결\n   $st") }

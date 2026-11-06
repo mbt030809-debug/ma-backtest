@@ -128,7 +128,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
         else if (r.r > 0 && od.n < r.n) od.dead = true;
         else if (r.r > 0 && od.n > r.n) sup = true;
       });
-      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (r.a || (s ? '↓' : '↑')) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
       buys.forEach((r, k) => add(false, r, k, r.f[i]));
@@ -281,7 +281,7 @@ function simulateEvents(dates, px, buys, sells, o) {
         else if (r.r > 0 && od.n < r.n) od.dead = true;
         else if (r.r > 0 && od.n > r.n) sup = true;
       });
-      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (s ? '↓' : '↑') }); };
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (r.a || (s ? '↓' : '↑')) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
       buys.forEach((r, k) => add(false, r, k, r.f[i]));
