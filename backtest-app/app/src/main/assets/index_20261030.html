@@ -556,9 +556,14 @@ const sleepMs=ms=>new Promise(r=>setTimeout(r,ms));
 // 후보 시세 영구 캐시(IndexedDB, 3일): 두 번째 스캔부터는 네트워크 없이 바로 읽음
 let idbP=null;const idb=()=>idbP||(idbP=new Promise(res=>{try{const r=indexedDB.open('mabt_px',1);r.onupgradeneeded=()=>r.result.createObjectStore('px');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(x){res(null)}}));
 const idbGet=async k=>{const db=await idb();if(!db)return null;return new Promise(res=>{try{const q=db.transaction('px').objectStore('px').get(k);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)}catch(x){res(null)}})};
-const idbPut=async(k,v)=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').put(v,k)}catch(x){}};
-const idbClear=async()=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').clear()}catch(x){}};
-const idbClean=async()=>{const db=await idb();if(!db)return;try{const st=db.transaction('px','readwrite').objectStore('px'),q=st.openCursor();q.onsuccess=()=>{const c=q.result;if(c){if(!c.value||Date.now()-c.value.t>180*864e5)c.delete();c.continue()}}}catch(x){}};
+const idbRaw=async(k,v)=>{const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').put(v,k)}catch(x){}};
+// 보관 시각 목록(__meta)을 작은 항목 하나로 따로 관리 → 정리할 때 수백 MB 시세를 커서로 훑지 않음
+let idbMeta=null,metaTm=null;
+const metaLoad=async()=>idbMeta||(idbMeta=(await idbGet('__meta'))||{});
+const metaSave=()=>{if(metaTm)return;metaTm=setTimeout(()=>{metaTm=null;if(idbMeta)idbRaw('__meta',idbMeta)},1500)};
+const idbPut=async(k,v)=>{await idbRaw(k,v);if(k!=='__meta'&&k!=='__altlast'&&v&&v.t){const m=await metaLoad();m[k]=v.t;metaSave()}};
+const idbClear=async()=>{idbMeta={};const db=await idb();if(!db)return;try{db.transaction('px','readwrite').objectStore('px').clear()}catch(x){}};
+const idbClean=async()=>{const db=await idb();if(!db)return;try{const m=await metaLoad(),old=Object.keys(m).filter(k=>Date.now()-m[k]>180*864e5);if(!old.length)return;const st=db.transaction('px','readwrite').objectStore('px');old.forEach(k=>{st.delete(k);delete m[k]});metaSave()}catch(x){}};
 function sliceCompact(c,s,e){const a=s2i(s),b=s2i(e);let i0=0,i1=c.d.length;while(i0<i1&&c.d[i0]<a)i0++;while(i1>i0&&c.d[i1-1]>b)i1--;return{d:c.d.subarray(i0,i1),p:c.p.subarray(i0,i1)}}
 // ---- 시세 증분 캐시 ----
 // 종목별 시세를 IndexedDB에 계속 보관하고, 다시 받을 때는 "새로 생긴 구간(마지막 날짜 이후, 더 이른 시작일이 필요하면 앞 구간)"만 받아 이어 붙임.
