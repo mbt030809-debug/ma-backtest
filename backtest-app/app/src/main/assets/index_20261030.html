@@ -588,6 +588,9 @@ const r=await fetchRaw(sym,S0,e);FC.full++;idbPut(sym,{t:Date.now(),rf:S0,rt:upt
 $('altgo').onclick=altScan;$('altsort').addEventListener('change',renderAlt);
 $('sw').onclick=sweep;
 ['sig','trd','cmp','alt','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
+// 이평2 '하향 돌파 시 매수'는 매수 전용이라 매도2 입력(일반·스윕)을 쓰지 않음 → 비활성 표시
+function syncTr2(){const dn=$('tr2').value=='dn';['sr2','rs2'].forEach(id=>{const e=$(id);e.disabled=dn;e.title=dn?'이평2가 하향 돌파 매수 전용이라 매도 비율은 쓰지 않습니다(0)':'';if(id=='rs2')e.placeholder=dn?'사용 안 함':'현재값'});}
+$('tr2').addEventListener('change',()=>{syncTr2();estSweep();save()});syncTr2();
 $('r10').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
 ['a1','b1','c1','a2','b2','c2','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
 try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.rows[0].so!==undefined&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
