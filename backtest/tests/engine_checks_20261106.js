@@ -41,4 +41,27 @@ console.log('5) 방어 ETF 상장 전 = 현금, 시세 전부 있으면 NaN 처�
 console.log('6) 이평별 지연');
 {const N=60,dates=mkDates(N),px=dates.map((_,i)=>100+i*.1),mk=a=>dates.map((_,i)=>a.includes(i));
  const r=E.simulateEvents(dates,px,[{r:1,n:152,d:2,f:mk([10])},{r:1,n:451,d:4,f:mk([])}],[{r:1,n:152,d:1,f:mk([])},{r:0,n:451,f:mk([])}],{init:0,cashRate:0,tax:0,fee:0,delay:1});ok(r.list.some(x=>x.side==='B'&&x.si===10&&x.i===12),'이평1 매수 지연 2일');}
+console.log('7) 독립 구현(기준)과 보유 비중 비교 — 이평 2개/3개(이평3 하향 돌파 전액 매수), 지연·상태우선');
+function ref(px,buys,sells,o){const n=px.length,dB=o.delayBuy,dS=o.delaySell;let cash=100,sh=0;const a0=100*o.init;if(a0>0){cash-=a0;sh=a0/px[0]}
+ const pend=[];const W=[];const maxD=Math.max(dB,dS,...buys.map(x=>x.d||0),...sells.map(x=>x.d||0));
+ for(let i=0;i<n;i++){
+  const sig=(isSell,r,k)=>{const hit=r.f[i];if(!hit)return;let sup=false;
+   if(o.sf)for(const od of pend){if(od.dead||od.s===isSell||od.day<i||od.day>i+maxD)continue;if(od.k===k)od.dead=true;else if(r.r>0&&od.n<r.n)od.dead=true;else if(r.r>0&&od.n>r.n)sup=true}
+   const d=r.d!=null?r.d:(isSell?dS:dB);if(r.r>0&&!sup&&i+d<n)pend.push({s:isSell,r:r.r,k,n:r.n,day:i+d,dead:false})};
+  const sigs=()=>{sells.forEach((r,k)=>sig(true,r,k));buys.forEach((r,k)=>sig(false,r,k))};
+  if(o.sf)sigs();
+  const today=pend.filter(od=>od.day===i&&!od.dead).sort((a,b)=>(a.s?0:1)-(b.s?0:1)||a.k-b.k);
+  for(const od of today){if(od.s){if(!(sh>0))continue;const q=sh*od.r;sh-=q;cash+=q*px[i]}else{if(!(cash>0))continue;const amt=cash*od.r;cash-=amt;sh+=amt/px[i]}}
+  if(!o.sf)sigs();
+  const v=cash+sh*px[i];W.push(v?sh*px[i]/v:0)}
+ return W}
+{let tot=0;for(let t=0;t<3000;t++){const N=[40,150,500][t%3];let a=100;const px=[],sig=[];for(let i=0;i<N;i++){a*=1+(rnd()-.5)*.05;px.push(a);sig.push(a*(1+(rnd()-.5)*.02))}
+ const n1=[3,8,20][t%3],n2=n1*[2,4][t%2],n3=n2*3,f1=E.crossFlags(sig,Math.min(n1,N-2)),f2=E.crossFlags(sig,Math.min(n2,N-2)),f3=E.crossFlags(sig,Math.min(n3,N-2)),dn2=t%3!==0,use3=t%2===0;
+ const D=()=>rnd()<.5?undefined:1+Math.floor(rnd()*4);
+ const B=[{r:[1,.5][t%2],n:n1,d:D(),f:f1.up},{r:[1,.4][(t>>1)%2],n:n2,d:D(),f:dn2?f2.dn:f2.up}],S=[{r:1,n:n1,d:D(),f:f1.dn},{r:dn2?0:[0,1][(t>>2)%2],n:n2,d:D(),f:dn2?px.map(()=>false):f2.dn}];
+ if(use3){B.push({r:1,n:n3,d:D(),a:'↓',f:f3.dn});S.push({r:0,n:n3,f:px.map(()=>false)})}
+ const dates=px.map((_,i)=>{const d=new Date('2015-01-02');d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10)});
+ const o={init:[0,1,.5][t%3],delay:1,delayBuy:1+Math.floor(rnd()*4),delaySell:1+Math.floor(rnd()*4),stateFirst:t%5!==0,cashRate:0,tax:0,fee:0};
+ const r=E.simulateEvents(dates,px,B,S,o),W=ref(px,B,S,{init:o.init,delayBuy:o.delayBuy,delaySell:o.delaySell,sf:o.stateFirst});tot++;
+ let md=0;for(let i=0;i<N;i++)md=Math.max(md,Math.abs(r.w[i]-W[i]));ok(md<1e-9,'기준 구현과 보유 비중 불일치',{t,use3,dn2,md})}console.log('   검사',tot,'건')}
 console.log(bad?`\n실패 ${bad} / 검사 ${checks}`:`\n모든 엔진 검사 통과 (${checks}개 조건 + 퍼즈)`);process.exit(bad?1:0);
