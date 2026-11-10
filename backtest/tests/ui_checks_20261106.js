@@ -3,7 +3,7 @@ const {chromium}=require('playwright');const BASE=process.env.BASE||'http://loca
 let bad=0,n=0;const ok=(c,m,x)=>{n++;console.log((c?'  ✓ ':'  ✗ ')+m+(c||x===undefined?'':' '+JSON.stringify(x)));if(!c)bad++};
 const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
 (async()=>{const br=await chromium.launch();
- const mkPage=async(init)=>{const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));if(init)await p.addInitScript(init);await p.goto(BASE);await p.evaluate(()=>document.querySelectorAll('details').forEach(d=>d.open=true));return p};
+ const mkPage=async(init)=>{const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));if(init)await p.addInitScript(init);await p.goto(BASE);if(!p.noAll)await p.addStyleTag({content:'.tab{display:block!important}'});await p.evaluate(()=>document.querySelectorAll('details').forEach(d=>d.open=true));return p};
  const base=async p=>{await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#cmp','');await p.fill('#s','2014-01-01');await p.fill('#tax','22');await p.fill('#fee','0.08');await p.fill('#cash','4')};
  const single=async p=>{for(const [a,b,c,v] of [['a1','b1','c1',60],['a2','b2','c2',200]]){await p.fill('#'+a,''+v);await p.fill('#'+b,''+v);await p.fill('#'+c,'1')}await p.fill('#mn1','60');await p.fill('#mn2','200')};
  const cmpSweep=async(p,tag)=>{await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
@@ -26,9 +26,9 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','LATE,MID,EARLY');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const sc=await p.evaluate(async()=>{const d=window._altData,res=[];for(const r of d.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});res.push([r.sym,['cagr','mdd','so','tot'].map(k=>Math.abs(r.st[k]-x.st[k])).reduce((a,b)=>Math.max(a,b),0)])}return res});
   ok(sc.length===3&&sc.every(([,d])=>d<1e-12),'스캔 결과 = 일반 실행 (상장 늦은 ETF 포함 3개)',sc);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
- console.log('C) 스캔 속도 경로 = 일반 실행 (후보 10개, 돌파/이탈·상태 유지)');
- for(const [name,c] of [['돌파/이탈',{mode:'cross',init:100,delay:1}],['이평별 지연+하향매수',{mode:'cross',init:100,delay:1,db1:2,ds1:1,db2:3,tr2:'dn'}],['상태 유지',{mode:'state',init:0,delay:1}]]){
-  const p=await mkPage();await base(p);await p.fill('#s','2013-01-01');await p.selectOption('#mode',c.mode);await p.fill('#init',''+c.init);await p.fill('#delay',''+c.delay);
+ console.log('C) 스캔 속도 경로 = 일반 실행 (후보 10개)');
+ for(const [name,c] of [['돌파/이탈',{mode:'cross',init:100,delay:1}],['이평별 지연+하향매수',{mode:'cross',init:100,delay:1,db1:2,ds1:1,db2:3,tr2:'dn'}]]){
+  const p=await mkPage();await base(p);await p.fill('#s','2013-01-01');await p.fill('#init',''+c.init);await p.fill('#delay',''+c.delay);
   if(c.mode==='cross'){await p.fill('#mn1','120');await p.fill('#mn2','250');for(const k of ['db1','ds1','db2'])await p.fill('#'+k,c[k]?''+c[k]:'');await p.selectOption('#tr2',c.tr2||'up')}
   await p.click('#run');await p.waitForTimeout(1500);await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
@@ -60,4 +60,24 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>a.comp-b.comp)[0];return{n1:r.n1,n2:r.n2,n3:r.n3,cagr:r.cagr,mdd:r.mdd,so:r.so,b1:r.b1,s1:r.s1,b2:r.b2}});
   await p.evaluate(r=>applyRow(r),top);await p.waitForTimeout(2000);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
   ok(Math.abs(run[0]-top.cagr)<1e-12&&Math.abs(run[1]-top.mdd)<1e-12&&Math.abs(run[2]-top.so)<1e-12,'1위 행 적용 → 일반 실행과 같은 값',{run,top});ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('H) 탭 화면: 요약 타일 · 설정 요약 · 설정 변경 경고 · 결과 적용 시 백테스트 탭으로');
+ {const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));await p.goto(BASE);
+  const vis=()=>p.evaluate(()=>[...document.querySelectorAll('.tab')].filter(x=>getComputedStyle(x).display!='none').map(x=>x.id).join(','));
+  ok(await vis()==='tab-bt','처음엔 백테스트 탭만 보임',await vis());
+  await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#s','2014-01-01');await p.fill('#mn1','60');await p.fill('#mn2','200');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(600);
+  ok(await p.evaluate(()=>document.querySelectorAll('#kpi .kpi').length)===4,'요약 타일 4개(CAGR·MDD·누적·칼마)');
+  await p.click('#goSw');ok(await vis()==='tab-sw','"최적값 찾기" 버튼 → 스윕 탭',await vis());
+  ok(/QQQ/.test(await p.evaluate(()=>document.getElementById('ctxSw').textContent))&&/TECL/.test(await p.evaluate(()=>document.getElementById('ctxSw').textContent)),'스윕 탭에 백테스트 설정 요약 표시');
+  for(const [k,v] of [['a1',60],['b1',80],['c1',20],['a2',200],['b2',200],['c2',1]])await p.fill('#'+k,''+v);
+  await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(400);
+  ok(await p.evaluate(()=>getComputedStyle(document.getElementById('swstale')).display)==='none','방금 찾은 결과는 경고 없음');
+  await p.click('#tabs button[data-t="bt"]');await p.fill('#fee','0.5');await p.dispatchEvent('#fee','change');await p.click('#tabs button[data-t="sw"]');
+  ok(await p.evaluate(()=>getComputedStyle(document.getElementById('swstale')).display)!=='none','수수료를 바꾸면 스윕 결과에 "설정 변경" 경고');
+  await p.click('#swt tr.swr');await p.waitForTimeout(1500);ok(await vis()==='tab-bt','스윕 행을 누르면 백테스트 탭으로 돌아와 실행',await vis());
+  await p.click('#goDef');await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,XLV');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(600);
+  ok(await p.evaluate(()=>getComputedStyle(document.getElementById('defResCard')).display)!=='none','방어 ETF 결과 카드 표시');
+  await p.evaluate(()=>document.querySelector('#altbetter tr.altr, #altt tr.altr').click());await p.waitForTimeout(1500);
+  ok(await vis()==='tab-bt'&&(await p.inputValue('#alt')).length>0,'ETF 행을 누르면 방어 ETF로 적용되고 백테스트 탭으로',[await vis(),await p.inputValue('#alt')]);
+  await p.click('#tabs button[data-t="def"]');ok(await p.evaluate(()=>getComputedStyle(document.getElementById('defstale')).display)==='none','방어 ETF만 적용한 것은 "설정 변경" 경고 아님');
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log(bad?`\n실패 ${bad} / ${n}`:`\n모든 화면 검사 통과 (${n}개)`);await br.close();process.exit(bad?1:0)})().catch(e=>{console.error('테스트 오류',e.stack.split('\n').slice(0,4).join(' / '));process.exit(2)});

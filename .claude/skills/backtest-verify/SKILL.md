@@ -14,6 +14,7 @@ description: ma-backtest(이평선 백테스터) 코드를 고친 뒤 엔진·�
 - **화면:** 일반 실행 = 스윕 = 방어 ETF 스캔(같은 설정이면 소수점까지 동일), 상장 늦은 방어 ETF, 앱 재시작 후 결과 복원, 이평 워밍업 시작일.
 
 ## 주의 (겪은 함정)
+- 화면은 탭 4개(백테스트 / 최적값 찾기 / 방어 ETF / 알림·설정). 다른 탭의 입력은 숨겨져 있어 Playwright `fill` 이 안 되므로 `showTab('sw')` 로 탭을 바꾸거나 테스트처럼 `.tab{display:block!important}` 스타일을 넣는다.
 - 엔진을 바꾸면 **세 경로(run / 스윕 워커 / prepScan)** 를 모두 같은 규칙으로 맞춰야 한다. 스윕 워커 코드는 `index_20261030.html` 안의 템플릿 문자열(`WK`)이라 백틱 안에서 `${}` 를 쓰면 안 된다.
 - Playwright `waitForFunction(fn, arg, options)` — 옵션은 **세 번째** 인자(`null, {polling:500, timeout}`). 기본 rAF 폴링은 무거운 스캔 중 렌더러를 죽일 수 있다.
 - 숨김(`type=hidden`)·닫힌 `<details>` 안 입력은 `fill` 이 안 된다 → 먼저 `details` 를 열거나 `evaluate` 로 값을 넣는다.
