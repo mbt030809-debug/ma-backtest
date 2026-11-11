@@ -30,11 +30,10 @@ button.lnk{border:0;background:none;color:var(--ac);padding:2px 4px;text-decorat
 @media(prefers-color-scheme:dark){.warn{background:#3a2a12;color:#ffc078;border-color:#5c4420}}
 details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid var(--bd);margin-top:10px;padding-top:8px}
 .tab{display:none}.tab.on{display:block}
+.cfg{margin-bottom:6px}.cfg>summary{list-style:none;background:var(--acs);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin-bottom:10px}.cfg>summary::-webkit-details-marker{display:none}.cfg>summary>b::after{content:' ▾'}.cfg:not([open])>summary>b::after{content:' ▸'}.ctxl{font-size:12px;margin-top:4px}.cfg[open] .ctxl{display:none}
 </style></head><body><main>
 <div class="top"><h1>ETF 백테스터</h1><span class="mut" id="appVer"></span></div>
-<nav class="tabs" id="tabs"><button type="button" data-t="bt" class="on">백테스트</button><button type="button" data-t="sw">최적값 찾기</button><button type="button" data-t="def">방어 ETF</button><button type="button" data-t="set">알림·설정</button></nav>
-
-<section class="tab on" id="tab-bt">
+<details id="cfgBox" class="cfg" open><summary><b>⚙ 백테스트 설정</b> <span class="mut">모든 탭에 공통 적용</span><div class="ctxl" id="ctx"></div></summary>
 <div class="card"><h2>① 종목 · 기간</h2>
 <div class="grid">
 <label class="f"><span>신호 종목 (이평선 계산)</span><input id="sig" type="text" value="QQQ" list="symlist"></label>
@@ -67,6 +66,10 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 <div class="row"><label><input type="checkbox" id="stFirst" checked> 지연 중 반대 신호가 나오면 대기 주문 취소 (이평선 상태 우선 · 장기선 우세)</label></div>
 <div class="mut">세금: 한 해 매도 손익을 합산해 다음 해 5/1 납부, 현금 이자는 제외. 마지막 날은 전량 매도한 것으로 계산.</div></details></div>
 
+</details>
+<nav class="tabs" id="tabs"><button type="button" data-t="bt" class="on">백테스트 결과</button><button type="button" data-t="sw">최적값 찾기</button><button type="button" data-t="def">방어 ETF</button><button type="button" data-t="set">알림·설정</button></nav>
+
+<section class="tab on" id="tab-bt">
 <button class="p big" id="run" type="button">백테스트 실행</button><div id="err"></div><div class="mut" id="chkbadge" style="margin-bottom:8px"></div>
 
 <div id="resSec" style="display:none">
@@ -83,7 +86,7 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 </section>
 
 <section class="tab" id="tab-sw">
-<div class="ctx" id="ctxSw"></div><div class="warn" id="swstale" style="display:none"></div>
+<div class="warn" id="swstale" style="display:none"></div>
 <div class="card"><h2>이평 일수 최적값 찾기</h2>
 <div class="rule"><b>이평 1</b><input id="a1" type="number" min="2" value="50"> ~ <input id="b1" type="number" min="2" value="300"> 간격 <input id="c1" type="number" min="1" value="25"></div>
 <div class="rule"><b>이평 2</b><input id="a2" type="number" min="2" value="200"> ~ <input id="b2" type="number" min="2" value="600"> 간격 <input id="c2" type="number" min="1" value="50"></div>
@@ -104,7 +107,7 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 </section>
 
 <section class="tab" id="tab-def">
-<div class="ctx" id="ctxDef"></div><div class="warn" id="defstale" style="display:none"></div>
+<div class="warn" id="defstale" style="display:none"></div>
 <div class="card" id="defSec"><h2>방어 ETF 찾기</h2>
 <div class="mut" style="margin-bottom:8px">매도 후 현금으로 두던 구간에 ETF를 대신 보유했다면 어땠는지 후보를 하나씩 바꿔 비교합니다. 상장 전 구간은 현금으로 계산.</div>
 <div class="row"><label>찾는 기준</label><select id="altsort"><option value="cagr">수익률(CAGR)</option><option value="tot">누적 수익</option><option value="sh">샤프</option><option value="so">소르티노</option><option value="ca">칼마</option><option value="mdd">MDD 작은 순</option><option value="comp">종합(수익률·MDD·소르티노)</option><option value="corr">나스닥 상관 낮은 순</option></select></div>
@@ -126,7 +129,7 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 
 <section class="tab" id="tab-set">
 <div class="card" id="alSec"><h2>📣 매일 종가 신호 알림 <span class="mut">앱 전용</span></h2>
-<div class="mut" style="margin-bottom:8px">미국장 마감 20분 뒤(한국 새벽) 백테스트 탭의 설정으로 신호를 계산해 알려 줍니다.</div>
+<div class="mut" style="margin-bottom:8px">미국장 마감 20분 뒤(한국 새벽) 위 백테스트 설정으로 신호를 계산해 알려 줍니다.</div>
 <div class="row"><label><input type="checkbox" id="alOn"> 매일 알림 켜기</label><label><input type="checkbox" id="alAll"> 신호 없는 날도 알림</label></div>
 <div class="row"><button type="button" id="alTest">테스트 알림</button><span class="mut" id="alSt"></span></div></div>
 <div class="card"><h2>앱 · 데이터</h2>
@@ -270,7 +273,7 @@ ctx.trades.forEach(t=>{if(t.side!='T'&&t.rule!='시작'&&t.asset!='Y'&&e0[t.i]!=
 ctx.trades.forEach(t=>{if(t.side=='S'&&/세금/.test(t.rule||'')&&t.asset!='Y'&&e0[t.i]!=null){g.fillStyle='#868e96';g.beginPath();g.arc(X(t.i),Y(e0[t.i]),3,0,6.3);g.fill()}})}g.restore()}
 
 const rsx=r=>`${+(r.b1*100).toFixed(1)}/${+(r.s1*100).toFixed(1)}/${+(r.b2*100).toFixed(1)}`;
-function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.n3>0){$('en3').checked=true;$('mn3').value=r.n3}if(r.b1!=null){$('br1').value=+(r.b1*100).toFixed(2);$('sr1').value=+(r.s1*100).toFixed(2);$('br2').value=+(r.b2*100).toFixed(2);$('sr2').value=+(r.s2*100).toFixed(2)}$('mode').value='cross';save();showTab('bt');run()}
+function applyRow(r){$('mn1').value=r.n1;$('mn2').value=r.n2;if(r.n3>0){$('en3').checked=true;$('mn3').value=r.n3}if(r.b1!=null){$('br1').value=+(r.b1*100).toFixed(2);$('sr1').value=+(r.s1*100).toFixed(2);$('br2').value=+(r.b2*100).toFixed(2);$('sr2').value=+(r.s2*100).toFixed(2)}$('mode').value='cross';save();showTab('bt');$('tabs').scrollIntoView();run()}
 const WK=`self.onmessage=e=>{const{fpx,pos,px,py,dates,L1,L2,L3,B1,S1,B2,S2,o,lo,hi,wid}=e.data;o.ig=interestFactors(dates,o.cashRate);const yrs=yearsOf(dates),cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
 const nS2=S2.length,nB2=B2.length,nS1=S1.length,nB1=B1.length,nL2=L2.length,nL3=L3.length,dec=r=>{const s2=r%nS2;r=(r-s2)/nS2;const b2=r%nB2;r=(r-b2)/nB2;const s1=r%nS1;r=(r-s1)/nS1;const b1=r%nB1;r=(r-b1)/nB1;const i3=r%nL3;r=(r-i3)/nL3;const i2=r%nL2;const i1=(r-i2)/nL2;return[i1,i2,b1,s1,b2,s2,i3]};
 let N=0;for(let r=lo;r<hi;r++){const d=dec(r);if(!(B1[d[2]]==0&&B2[d[4]]==0))N++}
@@ -479,7 +482,7 @@ const cv=r=>Number.isFinite(r.corr)?r.corr:9;rows.sort(key=='comp'?(a,b)=>a.comp
 const trdN=$('trd').value.trim().toUpperCase(),sg=v=>(v>=0?'+':'')+v.toFixed(1),tot100=r=>r.st.tot*100;
 const line=(r,i)=>{const yy=r.pnl.y.reduce((a,b)=>a+b,0),oth=r.pnl.int-r.pnl.tax-r.pnl.unreal,tt=r.pnl.x+yy+oth;return `<tr${r.base?' style="font-weight:600"':' class="altr" style="cursor:pointer'+(r.basket?';font-weight:600':'')+'" data-s="'+(r.basket?r.syms.join(','):r.sym)+'"'}><td>${r.base?'기준':r.basket?'합산':i+1}</td><td>${r.basket?'바구니':r.sym}</td><td>${r.basket?r.syms.join(' + '):r.name}</td><td>${r.corr!=null&&Number.isFinite(r.corr)?r.corr.toFixed(2):'-'}</td><td>${r.etfFrom&&r.etfFrom>r.from?`<span title="그 전은 현금 보유">${r.etfFrom}~ ⏳</span>`:r.from+'~'}</td><td class="${cl(r.pnl.x)}">${sg(r.pnl.x)}</td><td class="${cl(yy)}" title="${r.basket?r.syms.map((a,k)=>a+' '+sg(r.pnl.y[k])).join(' / '):''}">${r.base?'(현금)':sg(yy)}</td><td class="${cl(oth)}">${sg(oth)}</td><td class="${cl(tt)}"><b>${sg(tt)}</b></td><td class="${cl(r.st.cagr)}">${pc2(r.st.cagr)}</td><td class="neg">${pc2(r.st.mdd)}</td><td>${r.st.sh.toFixed(2)}</td><td>${r.st.so.toFixed(2)}</td><td>${r.st.ca.toFixed(2)}</td><td>${r.base?'-':`손익 ${tt-tot100(base)>=0?'+':''}${(tt-tot100(base)).toFixed(1)} · MDD ${r.st.mdd>=base.st.mdd?'+':''}${((r.st.mdd-base.st.mdd)*100).toFixed(1)}%p`}</td></tr>`};
 $('altt').innerHTML=`<tr><th>순위</th><th>ETF</th><th>이름</th><th>나스닥 상관</th><th>구간</th><th>${trdN} 손익</th><th>방어 ETF 손익</th><th>이자·세금</th><th>합산 손익</th><th>합산 CAGR</th><th>합산 MDD</th><th>샤프</th><th>소르티노</th><th>칼마</th><th>기존(현금) 대비</th></tr>`+line(base,0)+baskets.map(r=>line(r,0)).join('')+rows.map((r,i)=>line(r,i)).join('');
-$('altt').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();showTab('bt');run()});
+$('altt').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();showTab('bt');$('tabs').scrollIntoView();run()});
 const top=rows[0],better=rows.filter(r=>key=='corr'?r.st.tot>base.st.tot:r.st[key=='comp'?'so':key]>base.st[key=='comp'?'so':key]).length;
 $('altnote').innerHTML=top?`${d.byCorr?`후보 풀 ${d.total}개 → 기간 전체 데이터 있음 ${d.pool}개 → <b>${d.ref} 상관이 낮은 순 ${d.usable}개</b>${d.noCorr?`(상관 계산 불가 ${d.noCorr}개 제외)`:''} 비교`:`직접 입력 후보 ${d.total}개 중 비교 ${rows.length}개`}${d.late.length?` · <b>시작일 이후 상장 ${d.late.length}개는 상장 전까지 현금으로 보유</b>`:''}${d.ended.length?` · 데이터가 일찍 끝나 제외 ${d.ended.length}개`:''}${d.bad.length?` · 데이터 없음/오류 ${d.bad.length}개`:''}. 행을 누르면 그 ETF를 방어 ETF로 적용합니다.${d.corrOut&&d.corrOut.length?`<details><summary>나스닥 상관이 높아 제외된 ETF ${d.corrOut.length}개 (상관 낮은 순 ${d.usable}개 밖) — 꼭 보고 싶으면 위 옵션 "항상 포함할 ETF"나 개수를 늘리세요</summary>${d.corrOut.join(', ')}</details>`:''}${d.pins&&d.pins.length?`<div class="mut">항상 포함: ${d.pins.join(', ')}</div>`:''}${d.cover?`<details><summary>후보 ETF 상장 시기 분포 (백테스트 시작일 ${d.sdEff}) — 그 전에 상장하지 않은 ETF는 상장 전까지 현금</summary>${d.cover.map(([y,n])=>`${y}-01 전부터 시세: <b>${n}개</b>`).join(' · ')}</details>`:''}${d.late.length+d.ended.length?`<details><summary>상장 전 구간을 현금으로 보유한 ETF(상장일) · 데이터 종료로 제외</summary>${d.late.length?'상장이 늦음: '+d.late.join(', ')+'<br>':''}${d.ended.length?'데이터 종료: '+d.ended.join(', '):''}</details>`:''}${d.bad.length?`<details><summary>데이터 없는 ETF</summary>${d.bad.join(', ')}</details>`:''}`:'비교할 후보가 없습니다';renderAltExtra(d,rows,base,key)}
 
@@ -509,7 +512,7 @@ return `<details${why?' open':''} style="margin:6px 0"><summary><b>왜 ${nm(r)}�
 <tr style="font-weight:600"><td>= 합산 손익 차이</td><td class="${c(tt(r)-tt(base))}">${sg(tt(r)-tt(base))}</td></tr></table></div>
 <div class="mut">가정: 현금 이자 연 ${cr}% (과세 제외) · 수수료 ${fe}% · 세율 ${tx}%. 수수료 합계(참고): ${nm(r)} 전략 ${(P.fee||0).toFixed(1)} vs 현금 전략 ${(B.fee||0).toFixed(1)} — 갈아탈 때마다 두 번 부담하므로 수수료가 크면 현금이 유리해집니다.</div></details>`};
 const bestR=better[0];$('altbetter').innerHTML=(bestR?`<div class="card" style="margin:8px 0;border-color:var(--ac)"><b>🏆 ${MI.n} 기준 가장 좋은 방어 ETF: ${nm(bestR)}</b> <span class="mut">${bestR.name||''}</span><br>${key=='comp'?'수익률·MDD·소르티노 순위합 1위':`${MI.n} <b>${MI.f(MI.v(bestR))}</b> (현금 ${MI.f(MI.v(base))})`} · 합산 손익 <b class="${cl(bestR.st.tot)}">${sg(tt(bestR))}</b> (현금 대비 <span class="pos">${sg(tt(bestR)-tt(base))}</span>) · CAGR ${pc2(bestR.st.cagr)} · MDD ${pc2(bestR.st.mdd)} · 샤프 ${bestR.st.sh.toFixed(2)} · 소르티노 ${bestR.st.so.toFixed(2)} · 칼마 ${bestR.st.ca.toFixed(2)}</div>${diag(bestR,false)}`:'')+`<h2 style="margin-top:10px">현금보다 나은 방어자산 ETF <span class="pos">${better.length}개</span> <span class="mut">/ 후보 ${all.length}개 · 찾는 기준: ${MI.n} (${critTxt})</span></h2><div class="mut">⚠ = 레버리지·인버스·변동성 ETF(장기 보유 주의)</div>`+(better.length?`<div class="tbl"><table><tr><th>순위</th><th>ETF</th><th>이름</th>${hd('corr','나스닥 상관')}${hd('tot','합산 손익')}<th>현금 대비</th>${hd('cagr','CAGR')}${hd('mdd','MDD')}${hd('sh','샤프')}${hd('so','소르티노')}${hd('ca','칼마')}</tr>${better.map((r,i)=>`<tr class="altr" style="cursor:pointer" data-s="${r.sym}"><td>${i+1}</td><td>${nm(r)}</td><td>${r.name}</td>${cellc('corr',`<td>${Number.isFinite(r.corr)?r.corr.toFixed(2):'-'}</td>`)}${cellc('tot',`<td class="${cl(r.st.tot)}"><b>${sg(tt(r))}</b></td>`)}<td class="pos">${sg(tt(r)-tt(base))}</td>${cellc('cagr',`<td class="${cl(r.st.cagr)}">${pc2(r.st.cagr)}</td>`)}${cellc('mdd',`<td class="neg">${pc2(r.st.mdd)}</td>`)}${cellc('sh',`<td>${r.st.sh.toFixed(2)}</td>`)}${cellc('so',`<td>${r.st.so.toFixed(2)}</td>`)}${cellc('ca',`<td>${r.st.ca.toFixed(2)}</td>`)}</tr>`).join('')}</table></div>`:`<div class="mut">현금(${MI.n} ${MI.f(MI.v(base))})보다 나은 방어자산 ETF가 없습니다. 아래 차트는 이 기준 상위 ${K}개를 대신 보여줍니다.</div>${diag([...all].sort(key=='comp'?(a,b)=>a.comp-b.comp:(a,b)=>MI.v(b)-MI.v(a))[0],true)}`);
-$('altbetter').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();showTab('bt');run()});
+$('altbetter').querySelectorAll('.altr').forEach(t=>t.onclick=()=>{$('alt').value=t.dataset.s;save();showTab('bt');$('tabs').scrollIntoView();run()});
 // 차트·비교표: 현금 전략 + 상위 K 추천 + 단순보유 (메모리 절약을 위해 상위만 시리즈를 다시 계산)
 const pick=(better.length?better:[...all].sort(key=='comp'?(a,b)=>a.comp-b.comp:(a,b)=>MI.v(b)-MI.v(a))).slice(0,K);
 for(const r of pick){if(!r.e){const x=await run({silent:true,alt:r.sym});if(x.error)continue;r.e=x.e;r.dates=x.dates;r.bhAlt=x.bhAlt}if(tok!==altTok)return}
@@ -646,17 +649,18 @@ $('zb1').innerHTML=zbar('cv');$('zb2').innerHTML=zbar('altcv');attachZoom('cv',(
 
 // ---- 탭 · 설정 요약 · 결과 연동 ----
 const TABS=['bt','sw','def','set'];
-function showTab(t){if(!TABS.includes(t))t='bt';TABS.forEach(x=>$('tab-'+x).classList.toggle('on',x==t));document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t==t));try{localStorage.setItem('mabt_tab',t)}catch(x){}syncCtx();scrollTo({top:0});
+function showTab(t){if(!TABS.includes(t))t='bt';TABS.forEach(x=>$('tab-'+x).classList.toggle('on',x==t));document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t==t));try{localStorage.setItem('mabt_tab',t)}catch(x){}syncCtx();
  if(t=='bt'&&window._last)draw(...window._last);if(t=='sw'&&window._swrows)drawHeat(window._swrows,window._swmeta);if(t=='def'){const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)}}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
 // 백테스트 탭의 설정 중 스윕·방어 ETF 결과에 영향을 주는 값(이평 일수·비율은 스윕이 따로 정하므로 제외)
 const baseFp=()=>JSON.stringify(['sig','trd','alt','s','e','init','cash','tax','fee','delay','delaySell','db1','ds1','db2','db3','tr2'].map(i=>$(i).value).concat([$('stFirst').checked,$('en3').checked]));
 function ctxText(){const v=i=>$(i).value.trim(),alt=v('alt').toUpperCase(),d=v('delaySell');return `<b>${v('sig').toUpperCase()}</b> 신호 → <b>${v('trd').toUpperCase()}</b> 매매 · ${v('s')}~ · 이평 ${v('mn1')} / ${v('mn2')}${v('tr2')=='dn'?'↓':'↑'}${$('en3').checked?' / '+v('mn3')+'↓':''} · ${alt?'방어 '+alt:'현금'} · 지연 ${v('delay')}${d&&d!=v('delay')?'/'+d:''}일 · 세율 ${v('tax')}% · 수수료 ${v('fee')}%`}
-function syncCtx(){const h=ctxText()+' <button type="button" class="lnk" onclick="showTab(\'bt\')">설정 바꾸기</button>';$('ctxSw').innerHTML='백테스트 설정: '+h;$('ctxDef').innerHTML='백테스트 설정: '+h;
+function syncCtx(){$('ctx').innerHTML=ctxText();
  const st=(el,fp,msg)=>{const stale=fp&&fp!==baseFp();el.style.display=stale?'':'none';if(stale)el.textContent=msg};
  st($('swstale'),window._swFp,'⚠ 종목·기간·비용 설정이 이 결과를 만들 때와 달라졌습니다. 다시 찾아 주세요.');{const el=$('defstale'),stale=window._defFp&&window._defFp!==altFp();el.style.display=stale?'':'none';if(stale)el.textContent='⚠ 이평·비용 등 설정이 이 결과를 만들 때와 달라졌습니다. 다시 찾아 주세요.'}
- $('sw3hint').textContent=$('en3').checked?'(비우면 '+$('mn3').value+'일 고정)':'(백테스트 탭에서 이평 3 사용을 켜야 적용)'}
-$('goSw').onclick=()=>showTab('sw');$('goDef').onclick=()=>showTab('def');
+ $('sw3hint').textContent=$('en3').checked?'(비우면 '+$('mn3').value+'일 고정)':'(위 설정에서 이평 3 사용을 켜야 적용)'}
+$('goSw').onclick=()=>{showTab('sw');$('tabs').scrollIntoView()};$('goDef').onclick=()=>{showTab('def');$('tabs').scrollIntoView()};
+try{if(localStorage.getItem('mabt_cfg')==='0')$('cfgBox').open=false}catch(x){}$('cfgBox').addEventListener('toggle',()=>{try{localStorage.setItem('mabt_cfg',$('cfgBox').open?'1':'0')}catch(x){}});
 setTimeout(()=>{try{syncCtx()}catch(x){}},0);
 // ---- 매일 종가 신호 알림 (안드로이드 앱의 AndroidApp 브리지 사용) ----
 function alCfg(){const g=(a,b,c)=>({n:Math.floor(+$(a).value||0),b:Math.round(Math.min(100,Math.max(0,+$(b).value||0))),s:Math.round(Math.min(100,Math.max(0,+$(c).value||0)))});return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell()||0,rules:[{...g('mn1','br1','sr1'),db:rdl('db1')||0,ds:rdl('ds1')||0},{...g('mn2','br2','sr2'),db:rdl('db2')||0,ds:rdl('ds2')||0,buyDn:$('tr2').value=='dn'},...($('en3').checked?[{n:Math.floor(+$('mn3').value||0),b:100,s:0,db:rdl('db3')||0,ds:0,buyDn:true}]:[])]}}
