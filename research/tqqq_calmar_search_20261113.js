@@ -176,13 +176,15 @@ function refine(D) {
   console.log('\n[촘촘히] 이평1 100~180(5 간격) × 이평2 400~600(25 간격) 칼마');
   console.log('     ' + R2.map(b => String(b).padStart(6)).join(''));
   R1.forEach((a, i) => console.log(String(a).padStart(5) + R2.map((_, j) => M[i][j].calmar.toFixed(2).padStart(6)).join('')));
-  R1.forEach((a, i) => R2.forEach((b, j) => A.push({ a, b, r: M[i][j], s: sm(i, j) })));
+  const mn = (i, j) => { let m = Infinity; for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const r = M[i + di]?.[j + dj]; if (r) m = Math.min(m, r.calmar); } return m; };
+  R1.forEach((a, i) => R2.forEach((b, j) => A.push({ a, b, r: M[i][j], s: sm(i, j), m: mn(i, j), edge: !i || !j || i === R1.length - 1 || j === R2.length - 1 })));
   const v = A.map(x => x.r.calmar).sort((x, y) => x - y);
   console.log(`  칸 ${v.length}개 · 중앙값 ${v[v.length >> 1].toFixed(2)} · 최저 ${v[0].toFixed(2)} · 0.47(계속 보유) 넘는 칸 ${v.filter(x => x > 0.47).length}개`);
-  const show = (tag, x) => { const h = [runOne(D, ev(x.a, x.b), D.s0, mid).calmar, runOne(D, ev(x.a, x.b), mid).calmar]; console.log(`${tag} ${x.a}/${x.b} | 칼마 ${x.r.calmar.toFixed(2)} (이웃평균 ${x.s.toFixed(2)}) | CAGR ${(x.r.cagr * 100).toFixed(1)}% | MDD ${(x.r.mdd * 100).toFixed(1)}% | 샤프 ${x.r.sharpe.toFixed(2)} | 매매 ${x.r.trades} | 칼마 ~2018 ${h[0].toFixed(2)} / 2019~ ${h[1].toFixed(2)}`); };
+  const show = (tag, x) => { const h = [runOne(D, ev(x.a, x.b), D.s0, mid).calmar, runOne(D, ev(x.a, x.b), mid).calmar]; console.log(`${tag} ${x.a}/${x.b} | 칼마 ${x.r.calmar.toFixed(2)} (이웃평균 ${x.s.toFixed(2)} · 이웃최저 ${x.m.toFixed(2)}) | CAGR ${(x.r.cagr * 100).toFixed(1)}% | MDD ${(x.r.mdd * 100).toFixed(1)}% | 샤프 ${x.r.sharpe.toFixed(2)} | 매매 ${x.r.trades} | 칼마 ~2018 ${h[0].toFixed(2)} / 2019~ ${h[1].toFixed(2)}`); };
   console.log('\n[최종 후보]');
   show('칼마 최고      ', A.reduce((p, q) => q.r.calmar > p.r.calmar ? q : p));
   show('이웃평균 최고  ', A.reduce((p, q) => q.s > p.s ? q : p));
+  show('이웃최저 최고  ', A.filter(x => !x.edge).reduce((p, q) => q.m > p.m ? q : p));
   [...A].sort((p, q) => q.r.calmar - p.r.calmar).slice(1, 5).forEach(x => show('칼마 상위      ', x));
 }
 
