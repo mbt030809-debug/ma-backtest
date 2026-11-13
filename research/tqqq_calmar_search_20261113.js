@@ -142,6 +142,28 @@ function strategies(D) {
   return L;
 }
 
+// 상위 전략의 근처 값 검사: 1위가 날카로운 한 점(우연)인지, 넓게 좋은 구역인지
+function robust(D) {
+  const Q = D.c.QQQ, T = D.px, n = D.dates.length, mid = D.dates.findIndex(d => d >= '2019-01-01');
+  const cal = st => runOne(D, st).calmar, half = st => [runOne(D, st, D.s0, mid).calmar, runOne(D, st, mid).calmar];
+  const grid = (title, rows, cols, mk, rl, cl) => {
+    console.log(`\n[근처 값] ${title}`); console.log('     ' + cols.map(c => String(cl(c)).padStart(6)).join(''));
+    const all = [];
+    for (const r of rows) { const line = cols.map(c => { const v = cal(mk(r, c)); all.push({ r, c, v }); return v.toFixed(2).padStart(6); }); console.log(String(rl(r)).padStart(5) + line.join('')); }
+    const vs = all.map(x => x.v).sort((a, b) => a - b), best = all.reduce((a, b) => b.v > a.v ? b : a);
+    console.log(`  → 최고 ${best.v.toFixed(2)} (${rl(best.r)}, ${cl(best.c)}) · 중앙값 ${vs[vs.length >> 1].toFixed(2)} · 최저 ${vs[0].toFixed(2)} · 칸 ${vs.length}개`);
+    return best;
+  };
+  const ev = (rules) => ({ f: () => ({ events: rules }) });
+  const b1 = grid('앱 규칙: QQQ 이평1 돌파/이탈 + 이평2 상향 매수 (행=이평1, 열=이평2)', [107, 117, 127, 137, 147, 157, 167], [462, 487, 512, 537, 562], (a, b) => ev([[a, 'up', 1, 1], [b, 'up', 1, 0]]), r => r, c => c);
+  const vq = {}; const V = k => vq[k] || (vq[k] = (() => { const r = Q.map((v, i) => i ? Math.log(v / Q[i - 1]) : 0), o = Array(n).fill(NaN); for (let i = k; i < n; i++) { let m = 0, s = 0; for (let j = i - k + 1; j <= i; j++) m += r[j]; m /= k; for (let j = i - k + 1; j <= i; j++) s += (r[j] - m) ** 2; o[i] = Math.sqrt(s / (k - 1) * 252); } return o; })());
+  const b2 = grid('변동성 필터: QQQ k일 변동성 < x%면 보유 (행=k일, 열=x%)', [10, 15, 20, 30, 40], [20, 22, 24, 25, 26, 28, 30], (k, x) => ({ f: () => ({ w: V(k).map(v => Number.isFinite(v) && v < x / 100 ? 1 : 0) }) }), r => r + '일', c => c + '%');
+  const sm = k => { const o = Array(n).fill(NaN); let s = 0; for (let i = 0; i < n; i++) { s += T[i]; if (i >= k) s -= T[i - k]; if (i >= k - 1) o[i] = s / k; } return o; };
+  const b3 = grid('TQQQ > k일선이면 보유 (열=k)', [''], [150, 170, 180, 190, 200, 210, 220, 230, 250], (_, k) => { const m = sm(k); return { f: () => ({ w: T.map((v, i) => v > m[i] ? 1 : 0) }) }; }, () => '', c => c);
+  const h = st => half(st).map(v => v.toFixed(2)).join(' / ');
+  console.log(`\n[기간 나눔 칼마 ~2018 / 2019~] 앱규칙 ${b1.r}/${b1.c}: ${h(ev([[b1.r, 'up', 1, 1], [b1.c, 'up', 1, 0]]))}`);
+}
+
 function runOne(D, st, s0 = D.s0, end = D.dates.length) {
   const sub = { dates: D.dates.slice(0, end), px: D.px.slice(0, end), s0 };
   const r = st.f();
@@ -181,6 +203,7 @@ if (require.main === module) (async () => {
   const p = v => (v * 100).toFixed(1) + '%';
   console.log('\n순위 | 전략 | 칼마 | CAGR | MDD | 샤프 | 매매 | 칼마(~2018) | 칼마(2019~)');
   res.forEach((r, k) => console.log(`${k + 1}. [${r.fam}] ${r.name} | ${r.calmar.toFixed(2)} | ${p(r.cagr)} | ${p(r.mdd)} | ${r.sharpe.toFixed(2)} | ${r.trades} | ${r.cal1.toFixed(2)} | ${r.cal2.toFixed(2)}`));
+  if (ARGS.includes('--robust')) robust(D);
   const out = arg('--out'); if (out) fs.writeFileSync(out, JSON.stringify({ period: [dates[s0], dates.at(-1)], fee: FEE, tax: TAX, cash: CASH, res }, null, 1));
 })().catch(e => { console.error('오류:', e.message); process.exit(1); });
 
