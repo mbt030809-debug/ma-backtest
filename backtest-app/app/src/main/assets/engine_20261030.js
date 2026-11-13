@@ -322,4 +322,4 @@ function simulateEvents(dates, px, buys, sells, o) {
   return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
-if (typeof module !== 'undefined') module.exports = { yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+if (typeof module !== 'undefined') module.exports = { makeTaxer, yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };

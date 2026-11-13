@@ -1,0 +1,28 @@
+name: research
+# research/ 폴더가 바뀌면 실제 시세(Yahoo)로 전략 탐색을 돌리고 결과를 로그·아티팩트로 남김
+on:
+  push:
+    branches: [claude/backtest-app]
+    paths: ['research/**', '.github/workflows/research.yml']
+  workflow_dispatch:
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: TQQQ 매매법 100개 칼마 탐색
+        run: |
+          node research/tqqq_calmar_search_20261113.js --save prices.json --out results.json | tee results.txt
+          echo "---- 현금 이자 3% 민감도 ----"
+          node research/tqqq_calmar_search_20261113.js --data prices.json --cash 0.03 | head -15
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tqqq-calmar-search
+          path: |
+            results.json
+            results.txt
+            prices.json
