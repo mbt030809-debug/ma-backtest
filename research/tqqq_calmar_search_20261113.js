@@ -9,6 +9,8 @@ const E = require(path.join(__dirname, '../backtest/engine_20261030.js'));
 const ARGS = process.argv.slice(2), arg = k => { const i = ARGS.indexOf(k); return i >= 0 ? ARGS[i + 1] : null; };
 const START = arg('--start') || '2012-01-03', FEE0 = +(arg('--fee') ?? 0.0008), TAX0 = +(arg('--tax') ?? 0.22), CASH0 = +(arg('--cash') ?? 0), FEE = FEE0, TAX = TAX0, CASH = CASH0;
 const SYMS = ['TQQQ', 'QQQ', '^VIX', 'TLT', 'GLD', 'IEF', 'SHY'];
+// 추가 지표용(없어도 진행): VIX 기간구조, 나스닥 변동성, 신용스프레드, 금리, 달러, 반도체 등
+const EXTRA = ['^VIX3M', '^VIX9D', '^VXN', 'HYG', 'LQD', 'JNK', 'SPY', 'UUP', '^TNX', '^IRX', 'SOXX', 'XLU', 'BIL', 'DBC', '^SKEW', '^MOVE', 'RSP', 'IWM'];
 
 // ---------- 시세 ----------
 async function yahoo(sym) {
@@ -212,10 +214,14 @@ if (require.main === module) (async () => {
   let raw;
   if (ARGS.includes('--mock')) raw = mock();
   else if (arg('--data')) raw = JSON.parse(fs.readFileSync(arg('--data'), 'utf8'));
-  else { raw = {}; for (const s of SYMS) { raw[s] = await yahoo(s); console.error(`${s}: ${raw[s].length}일 ${raw[s][0][0]} ~ ${raw[s].at(-1)[0]}`); } if (arg('--save')) fs.writeFileSync(arg('--save'), JSON.stringify(raw)); }
+  else {
+    raw = {}; for (const s of SYMS) { raw[s] = await yahoo(s); console.error(`${s}: ${raw[s].length}일 ${raw[s][0][0]} ~ ${raw[s].at(-1)[0]}`); }
+    if (ARGS.includes('--extra')) for (const s of EXTRA) { try { raw[s] = await yahoo(s); console.error(`${s}: ${raw[s].length}일 ${raw[s][0][0]} ~ ${raw[s].at(-1)[0]}`); } catch (e) { console.error(`${s}: 실패 ${e.message}`); } }
+    if (arg('--save')) fs.writeFileSync(arg('--save'), JSON.stringify(raw));
+  }
   // TQQQ 날짜 기준으로 정렬(다른 종목은 직전 값 유지)
   const dates = raw.TQQQ.map(r => r[0]), c = {}, h = {}, l = {};
-  for (const s of SYMS) { const m = new Map(raw[s].map(r => [r[0], r])); let last = null; c[s] = []; h[s] = []; l[s] = []; for (const d of dates) { const r = m.get(d) || last; last = r; c[s].push(r ? r[1] : NaN); h[s].push(r ? r[2] : NaN); l[s].push(r ? r[3] : NaN); } }
+  for (const s of Object.keys(raw)) { const m = new Map(raw[s].map(r => [r[0], r])); let last = null; c[s] = []; h[s] = []; l[s] = []; for (const d of dates) { const r = m.get(d) || last; last = r; c[s].push(r ? r[1] : NaN); h[s].push(r ? r[2] : NaN); l[s].push(r ? r[3] : NaN); } }
   const s0 = dates.findIndex(d => d >= START), D = { dates, px: c.TQQQ, c, h, l, s0 };
   const L = strategies(D);
   console.log(`기간 ${dates[s0]} ~ ${dates.at(-1)} (${dates.length - s0}거래일) · 전략 ${L.length}개 · 수수료 ${FEE * 100}% · 세율 ${TAX * 100}% · 현금이자 ${CASH * 100}% · 지연 1일`);

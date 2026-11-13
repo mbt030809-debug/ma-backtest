@@ -16,9 +16,12 @@ jobs:
           node-version: 20
       - name: TQQQ 매매법 100개 칼마 탐색
         run: |
-          node research/tqqq_calmar_search_20261113.js --save prices.json --out results.json --robust --refine | tee results.txt
+          node research/tqqq_calmar_search_20261113.js --save prices.json --out results.json --extra | tee results.txt
           echo "---- 현금 이자 3% 민감도 ----"
           node research/tqqq_calmar_search_20261113.js --data prices.json --cash 0.03 | head -15
+      - name: 시세 덤프(로그로 내려받아 로컬에서 반복 탐색)
+        run: |
+          echo "@@BEGIN"; gzip -9c prices.json | base64 -w 180 | sed 's/^/@@P /'; echo "@@END"
       - uses: actions/upload-artifact@v4
         with:
           name: tqqq-calmar-search
