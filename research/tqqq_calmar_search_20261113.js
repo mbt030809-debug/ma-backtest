@@ -164,6 +164,28 @@ function robust(D) {
   console.log(`\n[기간 나눔 칼마 ~2018 / 2019~] 앱규칙 ${b1.r}/${b1.c}: ${h(ev([[b1.r, 'up', 1, 1], [b1.c, 'up', 1, 0]]))}`);
 }
 
+// 3차: 1위 계열(QQQ 이평1 돌파/이탈 + 이평2 상향 매수)을 촘촘히 훑고, 이웃 평균(3x3)이 가장 높은 '넓게 좋은' 값을 고른다
+function refine(D) {
+  const A = [], R1 = [], R2 = [];
+  for (let a = 100; a <= 180; a += 5) R1.push(a);
+  for (let b = 400; b <= 600; b += 25) R2.push(b);
+  const mid = D.dates.findIndex(d => d >= '2019-01-01');
+  const ev = (a, b) => ({ f: () => ({ events: [[a, 'up', 1, 1], [b, 'up', 1, 0]] }) });
+  const M = R1.map(a => R2.map(b => runOne(D, ev(a, b))));
+  const sm = (i, j) => { let s = 0, c = 0; for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const r = M[i + di]?.[j + dj]; if (r) { s += r.calmar; c++; } } return s / c; };
+  console.log('\n[촘촘히] 이평1 100~180(5 간격) × 이평2 400~600(25 간격) 칼마');
+  console.log('     ' + R2.map(b => String(b).padStart(6)).join(''));
+  R1.forEach((a, i) => console.log(String(a).padStart(5) + R2.map((_, j) => M[i][j].calmar.toFixed(2).padStart(6)).join('')));
+  R1.forEach((a, i) => R2.forEach((b, j) => A.push({ a, b, r: M[i][j], s: sm(i, j) })));
+  const v = A.map(x => x.r.calmar).sort((x, y) => x - y);
+  console.log(`  칸 ${v.length}개 · 중앙값 ${v[v.length >> 1].toFixed(2)} · 최저 ${v[0].toFixed(2)} · 0.47(계속 보유) 넘는 칸 ${v.filter(x => x > 0.47).length}개`);
+  const show = (tag, x) => { const h = [runOne(D, ev(x.a, x.b), D.s0, mid).calmar, runOne(D, ev(x.a, x.b), mid).calmar]; console.log(`${tag} ${x.a}/${x.b} | 칼마 ${x.r.calmar.toFixed(2)} (이웃평균 ${x.s.toFixed(2)}) | CAGR ${(x.r.cagr * 100).toFixed(1)}% | MDD ${(x.r.mdd * 100).toFixed(1)}% | 샤프 ${x.r.sharpe.toFixed(2)} | 매매 ${x.r.trades} | 칼마 ~2018 ${h[0].toFixed(2)} / 2019~ ${h[1].toFixed(2)}`); };
+  console.log('\n[최종 후보]');
+  show('칼마 최고      ', A.reduce((p, q) => q.r.calmar > p.r.calmar ? q : p));
+  show('이웃평균 최고  ', A.reduce((p, q) => q.s > p.s ? q : p));
+  [...A].sort((p, q) => q.r.calmar - p.r.calmar).slice(1, 5).forEach(x => show('칼마 상위      ', x));
+}
+
 function runOne(D, st, s0 = D.s0, end = D.dates.length) {
   const sub = { dates: D.dates.slice(0, end), px: D.px.slice(0, end), s0 };
   const r = st.f();
@@ -204,6 +226,7 @@ if (require.main === module) (async () => {
   console.log('\n순위 | 전략 | 칼마 | CAGR | MDD | 샤프 | 매매 | 칼마(~2018) | 칼마(2019~)');
   res.forEach((r, k) => console.log(`${k + 1}. [${r.fam}] ${r.name} | ${r.calmar.toFixed(2)} | ${p(r.cagr)} | ${p(r.mdd)} | ${r.sharpe.toFixed(2)} | ${r.trades} | ${r.cal1.toFixed(2)} | ${r.cal2.toFixed(2)}`));
   if (ARGS.includes('--robust')) robust(D);
+  if (ARGS.includes('--refine')) refine(D);
   const out = arg('--out'); if (out) fs.writeFileSync(out, JSON.stringify({ period: [dates[s0], dates.at(-1)], fee: FEE, tax: TAX, cash: CASH, res }, null, 1));
 })().catch(e => { console.error('오류:', e.message); process.exit(1); });
 
