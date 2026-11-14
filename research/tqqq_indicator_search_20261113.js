@@ -7,7 +7,9 @@ const fs = require('fs'), path = require('path');
 const { simW, metrics } = require('./tqqq_calmar_search_20261113.js');
 const ARGS = process.argv.slice(2), arg = k => { const i = ARGS.indexOf(k); return i >= 0 ? ARGS[i + 1] : null; };
 const START = arg('--start') || '2012-01-03', OOS = arg('--oos'), FEE = 0.0008, TOPN = +(arg('--top') || 30);
-const MINC = +(arg('--min-cagr') ?? 0.25); // 거의 안 사서 낙폭만 작은 '가짜 고칼마' 제외: 세금 전 연수익 이 값 미만은 탈락
+const W = (arg('--width') || '200,120,150,100,60,60').split(',').map(Number); // 단계별 상위 몇 개를 다음 단계로 넘길지
+const ONLY = arg('--only'); // 예: --only TQQQ → 그 종목 자체 가격으로 만든 지표만 사용(다른 종목·VIX·금리 안 씀)
+const MINC = +(arg('--min-cagr') ?? 0.25); // 거의 안 사서 낙폭만 작은 '가짜 고칼마' 제외: 세후 연수익 이 값 미만은 탈락
 
 // ---------- 데이터 ----------
 const raw = JSON.parse(fs.readFileSync(arg('--data'), 'utf8'));
@@ -64,11 +66,28 @@ for (const k of [21, 63]) add(`국채 TLT ${k}일 수익률`, roc(TLT, k));
 add('SKEW', c('^SKEW')); add('MOVE(채권 변동성)', c('^MOVE')); for (const k of [10, 21]) add(`MOVE ${k}일 변화율`, roc(c('^MOVE'), k));
 // 비교용 이평선 지표(조합 재료로만)
 for (const k of [50, 100, 150, 200]) add(`QQQ/${k}일선`, ratio(Q, sma(Q, k)));
+// 단일 종목 모드: 위 지표를 버리고 해당 종목 가격(종가·고가·저가)만으로 지표를 다시 만든다
+if (ONLY) {
+  for (const k of Object.keys(IND)) delete IND[k];
+  const P = c(ONLY), Hh = H[ONLY].slice(0, n), Ll = Lo[ONLY].slice(0, n), N = ONLY;
+  const tr = P.map((v, i) => i ? Math.max(Hh[i] - Ll[i], Math.abs(Hh[i] - P[i - 1]), Math.abs(Ll[i] - P[i - 1])) / P[i - 1] : NaN);
+  for (const k of [5, 10, 20, 40, 60, 120]) add(`${N} ${k}일 변동성`, rvol(P, k));
+  for (const [a, b] of [[5, 20], [10, 60], [20, 120], [20, 60]]) add(`${N} 변동성 ${a}/${b}`, ratio(rvol(P, a), rvol(P, b)));
+  for (const k of [2, 3, 5, 14, 30]) add(`${N} RSI${k}`, rsi(P, k));
+  for (const k of [1, 3, 5, 10, 21, 42, 63, 126, 189, 252]) add(`${N} ${k}일 수익률`, roc(P, k));
+  for (const k of [5, 10, 21, 63, 126, 252]) add(`${N} ${k}일 고점 대비`, ddh(P, k));
+  for (const k of [10, 20, 55, 126, 252]) add(`${N} ${k}일 범위 위치`, pos(P, k));
+  for (const k of [10, 20, 40]) add(`${N} ${k}일 상승일 비율`, upr(P, k));
+  for (const k of [5, 14, 30]) add(`${N} ATR${k}%`, sma(tr, k));
+  add(`${N} 당일 변동폭(고-저)%`, Hh.map((h, i) => (h - Ll[i]) / P[i]));
+  for (const k of [10, 21, 63]) add(`${N} ${k}일 저점 대비`, roll(P, k, (x, y) => { let m = Infinity; for (let j = x; j <= y; j++) m = Math.min(m, P[j]); return P[y] / m - 1; }));
+  if (!ARGS.includes('--no-ma')) for (const k of [20, 50, 100, 150, 200]) add(`${N}/${k}일선`, ratio(P, sma(P, k)));
+}
 
-// ---------- 빠른 계산(세금 제외) ----------
+// ---------- 빠른 계산 ----------
 const r = new Float64Array(n); for (let i = 1; i < n; i++) r[i] = T[i] / T[i - 1] - 1;
 const yrs = (Date.parse(dates[nE - 1]) - Date.parse(dates[s0])) / 864e5 / 365.25;
-function fast(w) { // w[i] = 종가 i 판단 목표 비중(0/1), 종가 i+1 체결
+function fast0(w) { // 세금 제외(참고용)
   let e = 1, pk = 1, mdd = 0, p = 0;
   for (let i = s0; i < nE; i++) {
     if (i > s0) e *= 1 + p * r[i];
@@ -77,6 +96,26 @@ function fast(w) { // w[i] = 종가 i 판단 목표 비중(0/1), 종가 i+1 체�
     if (e > pk) pk = e; else if (e / pk - 1 < mdd) mdd = e / pk - 1;
   }
   const cagr = Math.pow(e, 1 / yrs) - 1;
+  return { cal: cagr < MINC ? -1 : mdd < 0 ? cagr / -mdd : 0, cagr, mdd };
+}
+// 세금 포함 빠른 계산: simW(0/1 비중, 현금)와 같은 규칙 — 연 순실현손익×22%를 다음해 5/1 이후 첫 거래일에 납부(현금 부족 시 일부 매도),
+// 마지막 날은 전량 매도 가정 세금 차감
+const TAXR = 0.22, YR = Int32Array.from(dates, d => +d.slice(0, 4)), DUE = {};
+for (let i = 0; i < n; i++) { const y = YR[i]; if (DUE[y] === undefined && dates[i] >= `${y}-05-01`) DUE[y] = i; }
+function fast(w) {
+  let cash = 100, V = 0, B = 0, net = 0, yr = YR[s0], pk = 100, mdd = 0, v = 100; const lq = []; // [납부 index, 금액]
+  for (let i = s0; i < nE; i++) {
+    if (i > s0) V *= 1 + r[i];
+    if (YR[i] !== yr) { const am = Math.max(0, net) * TAXR; lq.push([DUE[yr + 1] ?? 1e9, am]); net = 0; yr = YR[i]; }
+    let due = 0; while (lq.length && lq[0][0] <= i) due += lq.shift()[1];
+    if (due > 0) { let c = Math.min(cash, due); cash -= c; let rem = due - c; if (rem > 0 && V > 0) { const f = Math.min(1, rem / (V * (1 - FEE))), amt = V * f * (1 - FEE), cost = B * f; net += amt - cost; V -= V * f; B -= cost; cash += amt; const c2 = Math.min(cash, rem); cash -= c2; } }
+    const t = w[i - 1], tot = cash + V, cur = tot > 0 ? V / tot : 0;
+    if (Math.abs(cur - t) > 1e-9) { if (t === 0) { const amt = V * (1 - FEE); net += amt - B; cash += amt; V = 0; B = 0; } else if (cash > 1e-12) { V += cash * (1 - FEE); B += cash; cash = 0; } }
+    v = cash + V;
+    if (i === nE - 1) { let pend = 0; for (const q of lq) pend += q[1]; v -= pend + TAXR * Math.max(0, net + V - B); }
+    if (v > pk) pk = v; else if (v / pk - 1 < mdd) mdd = v / pk - 1;
+  }
+  const cagr = Math.pow(v / 100, 1 / yrs) - 1;
   return { cal: cagr < MINC ? -1 : mdd < 0 ? cagr / -mdd : 0, cagr, mdd };
 }
 
@@ -92,6 +131,13 @@ for (const [name, a] of Object.entries(IND)) {
   }
 }
 function fmt(t) { return Math.abs(t) < 1 && t !== 0 && Math.abs(t) < .5 ? (Math.abs(t) < .2 ? (t * 100).toFixed(1) + '%' : t.toFixed(3)) : (+t.toPrecision(3)).toString(); }
+if (ARGS.includes('--parity')) { // 빠른 계산 = 앱 세금 규칙 계산(simW) 일치 확인
+  let rs = 11; const rnd = k => (rs = (rs * 1103515245 + 12345) % 2147483648) % k;
+  for (let t = 0; t < 12; t++) { const a = CONDS[rnd(CONDS.length)], b2 = CONDS[rnd(CONDS.length)], w = new Uint8Array(n); for (let i = 0; i < n; i++) w[i] = a.b[i] & b2.b[i];
+    const f = fast(w), Dx = { dates: dates.slice(0, nE), px: T.slice(0, nE), s0 }, sm = simW(Dx, Array.from(w.slice(0, nE)), null), m = metrics(sm.e, dates.slice(s0, nE));
+    console.log(`빠른 CAGR ${(f.cagr * 100).toFixed(3)} MDD ${(f.mdd * 100).toFixed(3)} | simW CAGR ${(m.cagr * 100).toFixed(3)} MDD ${(m.mdd * 100).toFixed(3)}`); }
+  process.exit(0);
+}
 const andB = (...bs) => { const o = new Uint8Array(n); for (let i = 0; i < n; i++) { let v = 1; for (const b of bs) if (!b[i]) { v = 0; break; } o[i] = v; } return o; };
 const latchB = (en, ex) => { const o = new Uint8Array(n); let s = 1; for (let i = 0; i < n; i++) { if (!ex[i]) s = 0; else if (en[i]) s = 1; o[i] = s; } return o; }; // ex = 보유 허용 조건(거짓이면 청산)
 // 후보 = { en, ex, ands } → 신호 배열은 필요할 때 다시 만듦(메모리 절약)
@@ -109,20 +155,28 @@ const best = () => cand.reduce((a, b) => b.cal > a.cal ? b : a);
 const S1 = CONDS.map(cd => test({ ands: [cd] })).filter(Boolean).sort((a, b) => b.cal - a.cal);
 log('1단계 최고', lab(S1[0]), S1[0].cal.toFixed(2));
 // 2단계: 상위 조건 × 전체 조건 (AND)
-for (const a of S1.slice(0, 200)) for (const cd of CONDS) if (cd.name !== a.ands[0].name) test({ ands: [a.ands[0], cd] }, andB(a.ands[0].b, cd.b));
+for (const a of S1.slice(0, W[0])) for (const cd of CONDS) if (cd.name !== a.ands[0].name) test({ ands: [a.ands[0], cd] }, andB(a.ands[0].b, cd.b));
 log('2단계 최고', lab(best()), best().cal.toFixed(2));
 // 3단계: 상위 2개 조합 × 전체 조건 (AND 3개)
-const top2 = cand.filter(x => x.ands.length === 2 && !x.ex).sort((a, b) => b.cal - a.cal).slice(0, 120);
+const top2 = cand.filter(x => x.ands.length === 2 && !x.ex).sort((a, b) => b.cal - a.cal).slice(0, W[1]);
 for (const a of top2) { const ab = build(a); for (const cd of CONDS) if (!a.ands.some(q => q.name === cd.name)) test({ ands: [...a.ands, cd] }, andB(ab, cd.b)); }
 log('3단계 최고', lab(best()), best().cal.toFixed(2));
 // 4단계: 청산 조건과 재진입 조건을 따로(래치)
-const topC = S1.slice(0, 150).map(x => x.ands[0]);
+const topC = S1.slice(0, W[2]).map(x => x.ands[0]);
 for (const ex of topC) for (const en of CONDS) if (en.name !== ex.name) test({ ex, en, ands: [] });
 log('4단계 최고', lab(best()), best().cal.toFixed(2));
 // 5단계: 상위 래치 × 추가 필터(AND)
-const topL = cand.filter(x => x.ex && !x.ands.length).sort((a, b) => b.cal - a.cal).slice(0, 100);
+const topL = cand.filter(x => x.ex && !x.ands.length).sort((a, b) => b.cal - a.cal).slice(0, W[3]);
 for (const a of topL) { const ab = build(a); for (const cd of CONDS) test({ ...a, ands: [cd] }, andB(ab, cd.b)); }
-log('5단계 최고', lab(best()), best().cal.toFixed(2), `· 후보 ${cand.length}개`);
+log('5단계 최고', lab(best()), best().cal.toFixed(2));
+// 6단계: 상위 3개 조합 × 전체 조건 (AND 4개)
+const top3 = cand.filter(x => x.ands.length === 3 && !x.ex).sort((a, b) => b.cal - a.cal).slice(0, W[4]);
+for (const a of top3) { const ab = build(a); for (const cd of CONDS) if (!a.ands.some(q => q.name === cd.name)) test({ ands: [...a.ands, cd] }, andB(ab, cd.b)); }
+log('6단계 최고', lab(best()), best().cal.toFixed(2));
+// 7단계: 상위 (래치+필터 1개) × 전체 조건 (필터 2개)
+const topL1 = cand.filter(x => x.ex && x.ands.length === 1).sort((a, b) => b.cal - a.cal).slice(0, W[5]);
+for (const a of topL1) { const ab = build(a); for (const cd of CONDS) if (cd.name !== a.ands[0].name) test({ ...a, ands: [...a.ands, cd] }, andB(ab, cd.b)); }
+log('7단계 최고', lab(best()), best().cal.toFixed(2), `· 후보 ${cand.length}개`);
 cand.sort((a, b) => b.cal - a.cal);
 
 // ---------- 세금 포함 재계산 ----------
