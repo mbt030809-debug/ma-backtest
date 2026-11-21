@@ -130,20 +130,24 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
       //  - 다른 이평선끼리 충돌 → 장기선이 우세: 장기선의 실제 주문(비율>0)은 단기선의 반대 대기 주문을 취소하고,
       //    장기선의 반대 대기 주문이 남아 있으면 단기선의 새 주문은 내지 않음(보류)
       let sup = false;
-      if (hit && sf) for (let q = i; q <= i + maxD; q++) (orders[q] || []).forEach(od => {
-        if (od.dead || od.s === s) return;
+      // r.free(바닥 신호): 다른 규칙과 서로 취소·보류하지 않고 독립적으로 체결됨
+      if (hit && sf && !r.free) for (let q = i; q <= i + maxD; q++) (orders[q] || []).forEach(od => {
+        if (od.dead || od.free || od.s === s) return;
         if (od.k === k) od.dead = true;
         else if (r.r > 0 && od.n < r.n) od.dead = true;
         else if (r.r > 0 && od.n > r.n) sup = true;
       });
-      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, free: !!r.free, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
       buys.forEach((r, k) => add(false, r, k, r.f[i]));
     };
     if (sf) signals(); // 상태 우선: 오늘 신호로 대기 주문을 먼저 정리한 뒤 체결
+    let soldToday = false; // 같은 날 이평 매도가 체결되면 같은 날 바닥 신호 매수는 건너뜀(그날은 매도 우선, 바닥 신호가 이어지면 다음 날 매수)
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.dead) return; // 반대 신호로 취소된 주문
+      if (!od.s && od.free && soldToday) return;
+      if (od.s && !od.free) soldToday = true;
       if (od.s) { // X 매도 → 방어자산(들) 매수
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = 0;
@@ -306,20 +310,24 @@ function simulateEvents(dates, px, buys, sells, o) {
     const add = (s, r, k, hit) => { const d = r.d != null ? Math.max(1, r.d | 0) : (s ? dS : dB);
       // 매수·매도 지연이 다르면 주문이 뒤늦게 체결돼 최신 신호와 반대 상태가 될 수 있어 정리한다(위 함수와 같은 규칙: 같은 이평선 반대 신호는 취소, 다른 이평선은 장기선 우세).
       let sup = false;
-      if (hit && sf) for (let q = i; q <= i + maxD; q++) (orders[q] || []).forEach(od => {
-        if (od.dead || od.s === s) return;
+      // r.free(바닥 신호): 다른 규칙과 서로 취소·보류하지 않고 독립적으로 체결됨
+      if (hit && sf && !r.free) for (let q = i; q <= i + maxD; q++) (orders[q] || []).forEach(od => {
+        if (od.dead || od.free || od.s === s) return;
         if (od.k === k) od.dead = true;
         else if (r.r > 0 && od.n < r.n) od.dead = true;
         else if (r.r > 0 && od.n > r.n) sup = true;
       });
-      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, free: !!r.free, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
       buys.forEach((r, k) => add(false, r, k, r.f[i]));
     };
     if (sf) signals(); // 상태 우선: 오늘 신호로 대기 주문을 먼저 정리한 뒤 체결
+    let soldToday = false; // 같은 날 이평 매도가 체결되면 같은 날 바닥 신호 매수는 건너뜀(그날은 매도 우선, 바닥 신호가 이어지면 다음 날 매수)
     (orders[i] || []).sort((a, b) => (a.s ? 0 : 1) - (b.s ? 0 : 1) || a.k - b.k).forEach(od => {
       if (od.dead) return; // 반대 신호로 취소된 주문
+      if (!od.s && od.free && soldToday) return;
+      if (od.s && !od.free) soldToday = true;
       if (od.s) {
         if (!(sh > 0)) return;
         const q = sh * od.r, amt = q * px[i] * (1 - fee), cost = basis * (q / sh), t = 0;

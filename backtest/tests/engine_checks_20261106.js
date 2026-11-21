@@ -41,17 +41,17 @@ console.log('5) 방어 ETF 상장 전 = 현금, 시세 전부 있으면 NaN 처�
 console.log('6) 이평별 지연');
 {const N=60,dates=mkDates(N),px=dates.map((_,i)=>100+i*.1),mk=a=>dates.map((_,i)=>a.includes(i));
  const r=E.simulateEvents(dates,px,[{r:1,n:152,d:2,f:mk([10])},{r:1,n:451,d:4,f:mk([])}],[{r:1,n:152,d:1,f:mk([])},{r:0,n:451,f:mk([])}],{init:0,cashRate:0,tax:0,fee:0,delay:1});ok(r.list.some(x=>x.side==='B'&&x.si===10&&x.i===12),'이평1 매수 지연 2일');}
-console.log('7) 독립 구현(기준)과 보유 비중 비교 — 이평 2개 + 바닥 신호(전액 매수, n=1e6 장기 우세), 지연·상태우선');
+console.log('7) 독립 구현(기준)과 보유 비중 비교 — 이평 2개 + 바닥 신호(전액 매수, 이평 규칙과 독립 free), 지연·상태우선');
 function ref(px,buys,sells,o){const n=px.length,dB=o.delayBuy,dS=o.delaySell;let cash=100,sh=0;const a0=100*o.init;if(a0>0){cash-=a0;sh=a0/px[0]}
  const pend=[];const W=[];const maxD=Math.max(dB,dS,...buys.map(x=>x.d||0),...sells.map(x=>x.d||0));
  for(let i=0;i<n;i++){
   const sig=(isSell,r,k)=>{const hit=r.f[i];if(!hit)return;let sup=false;
-   if(o.sf)for(const od of pend){if(od.dead||od.s===isSell||od.day<i||od.day>i+maxD)continue;if(od.k===k)od.dead=true;else if(r.r>0&&od.n<r.n)od.dead=true;else if(r.r>0&&od.n>r.n)sup=true}
-   const d=r.d!=null?r.d:(isSell?dS:dB);if(r.r>0&&!sup&&i+d<n)pend.push({s:isSell,r:r.r,k,n:r.n,day:i+d,dead:false})};
+   if(o.sf&&!r.free)for(const od of pend){if(od.dead||od.free||od.s===isSell||od.day<i||od.day>i+maxD)continue;if(od.k===k)od.dead=true;else if(r.r>0&&od.n<r.n)od.dead=true;else if(r.r>0&&od.n>r.n)sup=true}
+   const d=r.d!=null?r.d:(isSell?dS:dB);if(r.r>0&&!sup&&i+d<n)pend.push({s:isSell,r:r.r,k,n:r.n,free:!!r.free,day:i+d,dead:false})};
   const sigs=()=>{sells.forEach((r,k)=>sig(true,r,k));buys.forEach((r,k)=>sig(false,r,k))};
   if(o.sf)sigs();
-  const today=pend.filter(od=>od.day===i&&!od.dead).sort((a,b)=>(a.s?0:1)-(b.s?0:1)||a.k-b.k);
-  for(const od of today){if(od.s){if(!(sh>0))continue;const q=sh*od.r;sh-=q;cash+=q*px[i]}else{if(!(cash>0))continue;const amt=cash*od.r;cash-=amt;sh+=amt/px[i]}}
+  const today=pend.filter(od=>od.day===i&&!od.dead).sort((a,b)=>(a.s?0:1)-(b.s?0:1)||a.k-b.k);let soldToday=false;
+  for(const od of today){if(!od.s&&od.free&&soldToday)continue;if(od.s&&!od.free)soldToday=true;if(od.s){if(!(sh>0))continue;const q=sh*od.r;sh-=q;cash+=q*px[i]}else{if(!(cash>0))continue;const amt=cash*od.r;cash-=amt;sh+=amt/px[i]}}
   if(!o.sf)sigs();
   const v=cash+sh*px[i];W.push(v?sh*px[i]/v:0)}
  return W}
@@ -59,11 +59,18 @@ function ref(px,buys,sells,o){const n=px.length,dB=o.delayBuy,dS=o.delaySell;let
  const n1=[3,8,20][t%3],n2=n1*[2,4][t%2],f1=E.crossFlags(sig,Math.min(n1,N-2)),f2=E.crossFlags(sig,Math.min(n2,N-2)),dn2=t%3!==0,use3=t%2===0,f3=px.map((_,i)=>(i*7+t)%(9+t%11)===0);
  const D=()=>rnd()<.5?undefined:1+Math.floor(rnd()*4);
  const B=[{r:[1,.5][t%2],n:n1,d:D(),f:f1.up},{r:[1,.4][(t>>1)%2],n:n2,d:D(),f:dn2?f2.dn:f2.up}],S=[{r:1,n:n1,d:D(),f:f1.dn},{r:dn2?0:[0,1][(t>>2)%2],n:n2,d:D(),f:dn2?px.map(()=>false):f2.dn}];
- if(use3){B.push({r:1,n:1e6,d:D(),lbl:'바닥 신호',f:f3});S.push({r:0,n:1e6,f:px.map(()=>false)})}
+ if(use3){B.push({r:1,n:1,free:true,d:D(),lbl:'바닥 신호',f:f3});S.push({r:0,n:1,f:px.map(()=>false)})}
  const dates=px.map((_,i)=>{const d=new Date('2015-01-02');d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10)});
  const o={init:[0,1,.5][t%3],delay:1,delayBuy:1+Math.floor(rnd()*4),delaySell:1+Math.floor(rnd()*4),stateFirst:t%5!==0,cashRate:0,tax:0,fee:0};
  const r=E.simulateEvents(dates,px,B,S,o),W=ref(px,B,S,{init:o.init,delayBuy:o.delayBuy,delaySell:o.delaySell,sf:o.stateFirst});tot++;
  let md=0;for(let i=0;i<N;i++)md=Math.max(md,Math.abs(r.w[i]-W[i]));ok(md<1e-9,'기준 구현과 보유 비중 불일치',{t,use3,dn2,md})}console.log('   검사',tot,'건')}
+console.log('7b) 바닥 신호는 이평 규칙과 독립: 이평1 매도는 항상 체결, 같은 날 겹치면 그날은 매도 우선·바닥 신호가 이어지면 다음 날 매수(회귀: 2020-03 NDX 182일선 이탈 + 바닥 신호)');
+{const n=14,px=Array.from({length:n},(_,i)=>100+i),ds=px.map((_,i)=>'2020-03-'+String(i+2).padStart(2,'0')),fl=(...d)=>px.map((_,i)=>d.includes(i));
+ for(const dB of [1,3]){const mk=bottom=>{const B=[{r:1,n:182,f:fl()}],S=[{r:1,n:182,f:fl(4)}];if(bottom){B.push({r:1,n:1,free:true,d:dB,lbl:'바닥 신호',f:fl(4,5)});S.push({r:0,n:1,f:fl()})}
+   return E.simulateEvents(ds,px,B,S,{delay:1,delayBuy:dB,delaySell:1,stateFirst:true,init:1,cashRate:0,tax:0,fee:0})};
+  const off=mk(false),on=mk(true),sOff=off.list.filter(t=>t.side==='S'),sOn=on.list.filter(t=>t.side==='S'),bOn=on.list.filter(t=>t.side==='B'&&/바닥/.test(t.rule));
+  ok(sOff.length===1&&sOn.length===1&&sOn[0].si===sOff[0].si&&sOn[0].i===sOff[0].i,'바닥 신호를 켜도 이평1 매도는 같은 날 체결됨(바닥 매수 지연 '+dB+')',{off:off.list.map(t=>t.side+t.si+'→'+t.i),on:on.list.map(t=>t.side+t.si+'→'+t.i)});
+  ok(bOn.length===1&&bOn[0].i>sOn[0].i,'바닥 신호 매수는 없어지지 않고 매도 다음 날(이후)에 체결됨',on.list.map(t=>t.side+t.si+'→'+t.i))}}
 console.log('8) 바닥 신호(bottomFlags) — 독립 구현과 일치, 값 없는 날은 false, 임계값 경계');
 {const naive=(px,vix,m,g)=>{const n=px.length,out=[];let e12=px[0],e26=px[0];const E12=[px[0]],E26=[px[0]];for(let i=1;i<n;i++){e12=px[i]*2/13+e12*(1-2/13);e26=px[i]*2/27+e26*(1-2/27);E12.push(e12);E26.push(e26)}
   let v=NaN;for(let i=0;i<n;i++){if(Number.isFinite(vix[i]))v=vix[i];let hit=false;if(i>=20){const r=[];for(let j=i-20;j<=i;j++)r.push(j?Math.log(px[j]/px[j-1]):0);const mu=r.reduce((a,b)=>a+b,0)/21,sd=Math.sqrt(r.reduce((a,b)=>a+(b-mu)**2,0)/21)*Math.sqrt(252);hit=(E12[i]-E26[i])/px[i]<m&&v/100-sd>g}out.push(hit)}return out};
