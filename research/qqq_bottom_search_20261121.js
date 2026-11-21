@@ -158,11 +158,14 @@ log(`4개 조건까지 · 최종 후보 ${found.size}`);
 }
 
 // ---------- 결과 ----------
-const res = [...found.values()].sort((x, y) => x.fal - y.fal || x.mean - y.mean || x.parts.length - y.parts.length || x.max - y.max);
+// 산 뒤 추가 하락: 바닥마다 첫 신호 이후 창 끝까지의 최저 종가가 첫 신호가보다 몇 % 더 낮았나(평균·최악)
+for (const x of found.values()) { const mo = []; TG.forEach((t, k) => { const f = x.ds.find(i => tgOf[i] === k); if (f === undefined) return; let m = Infinity; for (let i = f; i < n && dates[i] <= t.end; i++) m = Math.min(m, NDX[i]); mo.push(m / NDX[f] - 1); }); x.avgDD = mo.reduce((a, b) => a + b, 0) / mo.length; x.worstDD = Math.min(...mo); }
+const RANK = arg('--rank');
+const res = [...found.values()].sort((x, y) => RANK === 'drop' ? (y.avgDD - x.avgDD || x.mean - y.mean) : x.fal - y.fal || x.mean - y.mean || x.parts.length - y.parts.length || x.max - y.max);
 console.log(`QQQ 폭락장 바닥 신호 탐색 · ${dates[0]} ~ ${dates[n - 1]} · 지표 ${Object.keys(IND).length}개 · 조건 ${CONDS.length}개 · 신호 ≤ ${MAXS}일 · 바닥 ±${WIN}거래일 밖 신호 ≤ ${MAXF}개${HOLD ? ` · ${HOLD} 바닥은 정답에서 숨기고 탐색` : ''}`);
 console.log('바닥(나스닥100 종가 최저): ' + TG.map(t => `${t.nm}=${dates[t.low]}${t.zone.length > 1 ? `(쌍바닥 ${t.zone.filter(z => z !== t.low).map(z => dates[z]).join('·')})` : ''}`).join(', '));
 console.log(`후보 ${res.length}개 · 평균 거리(거래일) 순`);
 const showDay = i => { const t = tgOf[i] >= 0 ? TG[tgOf[i]] : null; const lowP = t ? (NDX[i] / t.lo - 1) * 100 : NaN; const d = t ? i - t.zone.reduce((a, z) => Math.abs(i - z) < Math.abs(i - a) ? z : a) : NaN; return `${dates[i]}(${t ? t.nm : '바닥 밖'}${t ? ` ${d >= 0 ? '+' : ''}${d}일, 최저가 +${lowP.toFixed(1)}%` : ''})`; };
-res.slice(0, TOPN).forEach((x, k) => console.log(`${k + 1}. ${x.parts.map(p => p.label).join(' & ')}\n    신호 ${x.cnt}일 · 평균 ${x.mean.toFixed(1)}일 · 최대 ${x.max}일 → ${x.ds.map(showDay).join(', ')}`));
+res.slice(0, TOPN).forEach((x, k) => console.log(`${k + 1}. ${x.parts.map(p => p.label).join(' & ')}\n    신호 ${x.cnt}일 · 평균 ${x.mean.toFixed(1)}일 · 최대 ${x.max}일 · 산 뒤 추가 하락 평균 ${(x.avgDD * 100).toFixed(1)}% 최악 ${(x.worstDD * 100).toFixed(1)}% → ${x.ds.map(showDay).join(', ')}`));
 if (HOLD) { const k = TG.findIndex(t => t.nm === HOLD); const hit = res.filter(x => x.ds.some(i => tgOf[i] === k)); console.log(`\n[검증] ${HOLD} 바닥을 숨기고 찾은 후보 ${res.length}개 중 ${HOLD} 바닥(±${WIN}일)에도 신호가 켜진 것 ${hit.length}개 (${res.length ? (hit.length / res.length * 100).toFixed(0) : 0}%)`); hit.slice(0, 5).forEach(x => console.log(`  - ${x.parts.map(p => p.label).join(' & ')} → ${x.ds.map(showDay).join(', ')}`)); }
 const out = arg('--out'); if (out) fs.writeFileSync(out, JSON.stringify(res.slice(0, 200).map(x => ({ rule: x.parts.map(p => ({ nm: p.nm, dir: p.dir, t: p.t })), label: x.parts.map(p => p.label).join(' & '), days: x.ds.map(i => dates[i]), mean: x.mean, max: x.max })), null, 1));
