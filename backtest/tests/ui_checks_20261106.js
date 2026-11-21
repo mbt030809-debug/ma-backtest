@@ -46,6 +46,7 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  {const p=await mkPage();await base(p);await single(p);await p.fill('#mn2','150');await p.fill('#a2','150');await p.fill('#b2','150');await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{document.getElementById('en3').checked=true;save()});
   await cmpSweep(p,'바닥 신호 사용');
   const m3=await p.evaluate(()=>[...document.querySelectorAll('#trd2 tr')].slice(1).filter(r=>/매수3/.test(r.cells[4].textContent)).length);ok(m3>0,'바닥 신호 매수 체결이 있음',m3);
+  {const lg=await p.evaluate(()=>document.getElementById('lg').innerText);ok(/▲ 매수1/.test(lg)&&/◆ 매수2|▼ 매도1/.test(lg)&&/★ 매수3 바닥 신호/.test(lg),'차트 범례에 신호별 마커(이평1 ▲/▼, 바닥 신호 ★)가 구분되어 표시됨',lg)}
   await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
   ok(w.cnt===10&&w.m<1e-12,'바닥 신호 사용: 스캔 = 일반 실행',w);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}

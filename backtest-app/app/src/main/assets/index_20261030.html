@@ -231,7 +231,7 @@ const out=[{name:`전략(${sig} 신호→${trd}${alt?' · 방어 '+alt:''})${sfx
 $('resSec').style.display='';out.forEach((o,i)=>{o.st=stats(o.e,dates);o.c=COL[i%COL.length];o.hidden=!!HID[o.name]});
 {const a=out[0].st,h=out.find(o=>o.name.startsWith(trd+' 보유')),pct=v=>(v*100).toFixed(1)+'%',k=(t,v,sub,c)=>`<div class="kpi"><span>${t}</span><b class="${c||''}">${v}</b><small>${sub||''}</small></div>`;
 $('kpi').innerHTML=k('연수익률(CAGR)',pct(a.cagr),h?`${trd} 보유 ${pct(h.st.cagr)}`:'',cl(a.cagr))+k('최대 낙폭(MDD)',pct(a.mdd),h?`${trd} 보유 ${pct(h.st.mdd)}`:'','neg')+k('누적 수익',pct(a.tot),h?`${trd} 보유 ${pct(h.st.tot)}`:'',cl(a.tot))+k('칼마 · 샤프',`${(a.ca||0).toFixed(2)} · ${a.sh.toFixed(2)}`,`매매 ${sim.trades}회 · 세후`)}draw(out,dates,ctx);
-buildLegend('lg',out,'<span><i style="background:rgba(47,158,68,.5)"></i>초록 배경=보유</span><span><i style="background:rgba(224,49,49,.45)"></i>빨강 배경='+(alt?alt:'현금')+'</span><span>▲매수 ▼매도</span>',()=>draw(out,dates,ctx));
+buildLegend('lg',out,'<span><i style="background:rgba(47,158,68,.5)"></i>초록 배경=보유</span><span><i style="background:rgba(224,49,49,.45)"></i>빨강 배경='+(alt?alt:'현금')+'</span>'+sigLegend(ctx.trades).join('')+'<span class="mut">(회색 점=세금 납부용 매도)</span>',()=>draw(out,dates,ctx));
 const inv=w.slice(1).reduce((a,b)=>a+b,0)/(dates.length-1);
 {const yp=yearlyPnl(dates,sim),tt=k=>yp.reduce((a,x)=>a+x[k],0),sg2=v=>(v>=0?'+':'')+v.toFixed(1);
 $('yp').innerHTML='<tr><th>연도</th><th>수익(세전)</th><th>└ 실현(매도)</th><th>세금(납부액)</th><th>순수익</th><th>순수익률</th></tr>'+yp.map(x=>`<tr><td>${x.y}</td><td class="${cl(x.gross)}">${sg2(x.gross)}</td><td class="${cl(x.real)}">${sg2(x.real)}</td><td class="mut">${x.tax.toFixed(1)}</td><td class="${cl(x.net)}"><b>${sg2(x.net)}</b></td><td class="${cl(x.ret)}">${pc(x.ret)}</td></tr>`).join('')+`<tr style="font-weight:600"><td>합계</td><td class="${cl(tt('gross'))}">${sg2(tt('gross'))}</td><td class="${cl(tt('real'))}">${sg2(tt('real'))}</td><td class="mut">${tt('tax').toFixed(1)}</td><td class="${cl(tt('net'))}">${sg2(tt('net'))}</td><td></td></tr>`;
@@ -261,6 +261,10 @@ c.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const v=VIE
 const up=e=>{pts.delete(e.pointerId);pd=0;c.style.cursor='grab'};c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);
 c.addEventListener('dblclick',()=>c._reset())}
 function zbar(id){return`<div class="row" style="margin-top:4px"><button type="button" onclick="$('${id}')._zoom(.5,.6)">＋ 확대</button><button type="button" onclick="$('${id}')._zoom(.5,1.6)">－ 축소</button><button type="button" onclick="$('${id}')._reset()">⟲ 전체</button></div>`}
+// 매수/매도 마커: 어떤 신호(규칙)로 체결됐는지에 따라 색·모양을 다르게 표시 (이평1 ▲ 초록/▼ 빨강, 이평2 ◆ 파랑, 바닥 신호 ★ 주황)
+const SIGSTY={B1:['#2f9e44','tri'],B2:['#1c7ed6','dia'],B3:['#f08c00','star'],S1:['#e03131','tri'],S2:['#ae3ec9','dia'],S3:['#c2255c','star']};
+const sigKey=t=>{const m=/^(매수|매도)(\d)/.exec(t.rule||'');return m?(m[1]=='매수'?'B':'S')+m[2]:(t.side=='B'?'B1':'S1')},sigSty=k=>SIGSTY[k]||SIGSTY[k[0]+'1'],sigIgnore=t=>t.side=='T'||t.rule=='시작'||t.asset=='Y'||/세금/.test(t.rule||'');
+function sigLegend(trades){const seen=new Map();(trades||[]).forEach(t=>{if(sigIgnore(t))return;const k=sigKey(t);if(!seen.has(k))seen.set(k,t)});return[...seen.keys()].sort().map(k=>{const[c,sh]=sigSty(k),t=seen.get(k),gl=sh=='tri'?(k[0]=='B'?'▲':'▼'):sh=='dia'?'◆':'★';return `<span><b style="color:${c}">${gl}</b> ${String(t.rule||'').replace(/[<>&]/g,'')}</span>`})}
 function draw(out,dates,ctx){const c=$('cv'),dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
 const lg=$('log').checked,f=v=>lg?Math.log(v):v,vis=out.filter(o=>!o.hidden),all=(vis.length?vis:out).flatMap(o=>o.e).filter(v=>v>0).map(f),L=50,B=22,T=8,R=8,n=dates.length,V=vw('cv',n),i0=Math.max(0,Math.floor(V.a)),i1=Math.min(n-1,Math.ceil(V.b)),all2=(vis.length?vis:out).flatMap(o=>o.e.slice(i0,i1+1)).filter(v=>v>0).map(f),lo=Math.min(...all2),hi=Math.max(...all2);
 const X=i=>L+(i-V.a)/((V.b-V.a)||1)*(W-L-R),Y=v=>T+(1-(f(v)-lo)/(hi-lo||1))*(H-T-B),st=getComputedStyle(document.body);g.font='11px system-ui';g.fillStyle=st.color;g.strokeStyle=st.getPropertyValue('--bd');
@@ -270,8 +274,10 @@ for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=T+(1-k/4)*(H-T-B);g.beginPath();g
 axisLabels(g,dates,X,V,L,W,R,H);
 g.save();g.beginPath();g.rect(L,T,W-L-R,H-T-B);g.clip();out.forEach(o=>{if(o.hidden)return;g.strokeStyle=o.c;g.lineWidth=1.6;g.beginPath();o.e.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});
 // 매수/매도 마커: 전략 선 위 체결일에 표시
-if(ctx&&!out[0].hidden){const e0=out[0].e,tri=(i,buy)=>{const px=X(i),py=Y(e0[i]),z=6,d=buy?1:-1;g.fillStyle=buy?'#2f9e44':'#e03131';g.strokeStyle='#fff';g.lineWidth=1;g.beginPath();g.moveTo(px,py-d*3);g.lineTo(px-z,py-d*(3-z*1.5));g.lineTo(px+z,py-d*(3-z*1.5));g.closePath();g.fill();g.stroke()};
-ctx.trades.forEach(t=>{if(t.side!='T'&&t.rule!='시작'&&t.asset!='Y'&&e0[t.i]!=null&&!/세금/.test(t.rule||''))tri(t.i,t.side=='B')});
+if(ctx&&!out[0].hidden){const e0=out[0].e,mk=(i,key,buy)=>{const px=X(i),py=Y(e0[i]),z=6,d=buy?1:-1,[col,sh]=sigSty(key);g.fillStyle=col;g.strokeStyle='#fff';g.lineWidth=1;g.beginPath();
+if(sh=='tri'){g.moveTo(px,py-d*3);g.lineTo(px-z,py-d*(3-z*1.5));g.lineTo(px+z,py-d*(3-z*1.5))}else if(sh=='dia'){g.moveTo(px,py-7);g.lineTo(px+6,py);g.lineTo(px,py+7);g.lineTo(px-6,py)}else{for(let k=0;k<10;k++){const r=k%2?3.4:8,a=-Math.PI/2+k*Math.PI/5;k?g.lineTo(px+r*Math.cos(a),py+r*Math.sin(a)):g.moveTo(px+r*Math.cos(a),py+r*Math.sin(a))}}
+g.closePath();g.fill();g.stroke()};
+ctx.trades.forEach(t=>{if(!sigIgnore(t)&&e0[t.i]!=null)mk(t.i,sigKey(t),t.side=='B')});
 // 5/1 세금 납부용 매도는 신호 매도가 아니므로 작은 회색 점으로만 표시
 ctx.trades.forEach(t=>{if(t.side=='S'&&/세금/.test(t.rule||'')&&t.asset!='Y'&&e0[t.i]!=null){g.fillStyle='#868e96';g.beginPath();g.arc(X(t.i),Y(e0[t.i]),3,0,6.3);g.fill()}})}g.restore()}
 
