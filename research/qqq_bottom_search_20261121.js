@@ -13,10 +13,14 @@ const col = (s, k) => { const m = new Map(raw[s].map(r => [r[0], r])); let last 
 const C = col('QQQ', 1), O = col('QQQ', 2), Hh = col('QQQ', 3), L = col('QQQ', 4), V = col('QQQ', 5), NDX = col('^NDX', 1);
 
 // ---------- 바닥(목표) ----------
-const TG = [['2002', '2001-09-01', '2003-06-30'], ['2009', '2008-06-01', '2009-12-31'], ['2018', '2018-09-01', '2019-03-31'], ...(ARGS.includes('--with2020') ? [['2020', '2020-02-01', '2020-06-30']] : []), ['2022', '2022-01-01', '2023-03-31'], ['2025', '2025-01-01', '2025-08-31']]
-  .map(([nm, a, b]) => { const end = b; const ix = []; for (let i = 0; i < n; i++) if (dates[i] >= a && dates[i] <= b) ix.push(i); const lo = Math.min(...ix.map(i => NDX[i])); const zone = ix.filter(i => NDX[i] <= lo * 1.01); const low = ix.find(i => NDX[i] === lo); return { nm, zone, low, lo, end }; });
+const PEAK = ARGS.includes('--peak'); // 고점 모드: 폭락 직전 최고점(나스닥100 종가 최고) 부근에서 켜지는 신호를 찾는다
+const TG = (PEAK ? [['2002', '2000-01-01', '2000-12-31', '2003-06-30', '2002-10-09'], ['2009', '2007-06-01', '2008-05-31', '2009-12-31', '2009-03-09'], ['2018', '2018-06-01', '2018-12-31', '2019-03-31', '2018-12-24'], ...(ARGS.includes('--with2020') ? [['2020', '2020-01-01', '2020-03-31', '2020-06-30', '2020-03-23']] : []), ['2022', '2021-06-01', '2022-03-31', '2023-03-31', '2022-12-28'], ['2025', '2024-12-01', '2025-04-30', '2025-08-31', '2025-04-08']]
+  : [['2002', '2001-09-01', '2003-06-30'], ['2009', '2008-06-01', '2009-12-31'], ['2018', '2018-09-01', '2019-03-31'], ...(ARGS.includes('--with2020') ? [['2020', '2020-02-01', '2020-06-30']] : []), ['2022', '2022-01-01', '2023-03-31'], ['2025', '2025-01-01', '2025-08-31']])
+  .map(([nm, a, b, endc, bot]) => { const end = endc || b; const ix = []; for (let i = 0; i < n; i++) if (dates[i] >= a && dates[i] <= b) ix.push(i);
+    if (PEAK) { const hi = Math.max(...ix.map(i => NDX[i])); const zone = ix.filter(i => NDX[i] >= hi * .99); const low = ix.find(i => NDX[i] === hi); return { nm, zone, low, lo: hi, end, bot }; }
+    const lo = Math.min(...ix.map(i => NDX[i])); const zone = ix.filter(i => NDX[i] <= lo * 1.01); const low = ix.find(i => NDX[i] === lo); return { nm, zone, low, lo, end }; });
 const tgOf = new Int8Array(n).fill(-1), distOf = new Float64Array(n).fill(Infinity);
-TG.forEach((t, k) => { for (let i = 0; i < n; i++) { const d = Math.min(...t.zone.map(z => Math.abs(i - z))); if (d <= WIN && d < distOf[i]) { distOf[i] = d; tgOf[i] = k; } } });
+TG.forEach((t, k) => { for (let i = 0; i < n; i++) { if (t.bot && dates[i] > t.bot) continue; /* 고점 모드: 바닥 이후는 대상 아님 */ const d = Math.min(...t.zone.map(z => Math.abs(i - z))); if (d <= WIN && d < distOf[i]) { distOf[i] = d; tgOf[i] = k; } } });
 const ACT = TG.map((t, k) => HOLD !== t.nm); // --hold 연도: 그 바닥은 탐색에서 빼고(정답 숨김) 나중에 맞히는지 확인
 
 // ---------- 지표 ----------
@@ -244,12 +248,13 @@ log(`4개 조건까지 · 최종 후보 ${found.size}`);
 // ---------- 결과 ----------
 // 산 뒤 추가 하락: 바닥마다 첫 신호 이후 창 끝까지의 최저 종가가 첫 신호가보다 몇 % 더 낮았나(평균·최악)
 for (const x of found.values()) { const mo = []; TG.forEach((t, k) => { const f = x.ds.find(i => tgOf[i] === k); if (f === undefined) return; let m = Infinity; for (let i = f; i < n && dates[i] <= t.end; i++) m = Math.min(m, NDX[i]); mo.push(m / NDX[f] - 1); }); x.avgDD = mo.reduce((a, b) => a + b, 0) / mo.length; x.worstDD = Math.min(...mo); }
-const RANK = arg('--rank');
-const res = [...found.values()].sort((x, y) => RANK === 'drop' ? (y.avgDD - x.avgDD || x.mean - y.mean) : x.fal - y.fal || x.mean - y.mean || x.parts.length - y.parts.length || x.max - y.max);
-console.log(`QQQ 폭락장 바닥 신호 탐색 · ${dates[0]} ~ ${dates[n - 1]} · 지표 ${Object.keys(IND).length}개 · 조건 ${CONDS.length}개 · 신호 ≤ ${MAXS}일 · 바닥 ±${WIN}거래일 밖 신호 ≤ ${MAXF}개${HOLD ? ` · ${HOLD} 바닥은 정답에서 숨기고 탐색` : ''}`);
-console.log('바닥(나스닥100 종가 최저): ' + TG.map(t => `${t.nm}=${dates[t.low]}${t.zone.length > 1 ? `(쌍바닥 ${t.zone.filter(z => z !== t.low).map(z => dates[z]).join('·')})` : ''}`).join(', '));
+const RANK = arg('--rank') || (PEAK ? 'gap' : '');
+for (const x of found.values()) { const gp = []; TG.forEach((t, k) => { const f = x.ds.find(i => tgOf[i] === k); if (f !== undefined) gp.push(Math.abs(NDX[f] / t.lo - 1)); }); x.avgGap = gp.reduce((a, b) => a + b, 0) / gp.length; x.worstGap = Math.max(...gp); }
+const res = [...found.values()].sort((x, y) => RANK === 'gap' ? (x.fal - y.fal || x.avgGap - y.avgGap || x.mean - y.mean) : RANK === 'drop' ? (y.avgDD - x.avgDD || x.mean - y.mean) : x.fal - y.fal || x.mean - y.mean || x.parts.length - y.parts.length || x.max - y.max);
+console.log(`QQQ 폭락장 ${PEAK ? '고점' : '바닥'} 신호 탐색 · ${dates[0]} ~ ${dates[n - 1]} · 지표 ${Object.keys(IND).length}개 · 조건 ${CONDS.length}개 · 신호 ≤ ${MAXS}일 · ${PEAK ? '고점' : '바닥'} ±${WIN}거래일 밖 신호 ≤ ${MAXF}개${HOLD ? ` · ${HOLD} 바닥은 정답에서 숨기고 탐색` : ''}`);
+console.log((PEAK ? '고점(나스닥100 종가 최고): ' : '바닥(나스닥100 종가 최저): ') + TG.map(t => `${t.nm}=${dates[t.low]}${t.zone.length > 1 ? `(1% 이내 ${t.zone.filter(z => z !== t.low).map(z => dates[z]).join('·')})` : ''}`).join(', '));
 console.log(`후보 ${res.length}개 · 평균 거리(거래일) 순`);
-const showDay = i => { const t = tgOf[i] >= 0 ? TG[tgOf[i]] : null; const lowP = t ? (NDX[i] / t.lo - 1) * 100 : NaN; const d = t ? i - t.zone.reduce((a, z) => Math.abs(i - z) < Math.abs(i - a) ? z : a) : NaN; return `${dates[i]}(${t ? t.nm : '바닥 밖'}${t ? ` ${d >= 0 ? '+' : ''}${d}일, 최저가 +${lowP.toFixed(1)}%` : ''})`; };
-res.slice(0, TOPN).forEach((x, k) => console.log(`${k + 1}. ${x.parts.map(p => p.label).join(' & ')}\n    신호 ${x.cnt}일 · 평균 ${x.mean.toFixed(1)}일 · 최대 ${x.max}일 · 산 뒤 추가 하락 평균 ${(x.avgDD * 100).toFixed(1)}% 최악 ${(x.worstDD * 100).toFixed(1)}% → ${x.ds.map(showDay).join(', ')}`));
+const showDay = i => { const t = tgOf[i] >= 0 ? TG[tgOf[i]] : null; const lowP = t ? (NDX[i] / t.lo - 1) * 100 : NaN; const d = t ? i - t.zone.reduce((a, z) => Math.abs(i - z) < Math.abs(i - a) ? z : a) : NaN; return `${dates[i]}(${t ? t.nm : (PEAK ? '고점 밖' : '바닥 밖')}${t ? ` ${d >= 0 ? '+' : ''}${d}일, ${PEAK ? '최고점 대비 ' + lowP.toFixed(1) : '최저가 +' + lowP.toFixed(1)}%` : ''})`; };
+res.slice(0, TOPN).forEach((x, k) => console.log(`${k + 1}. ${x.parts.map(p => p.label).join(' & ')}\n    신호 ${x.cnt}일 · 평균 ${x.mean.toFixed(1)}일 · 최대 ${x.max}일 · ${PEAK ? `첫 신호가 고점 대비 평균 -${(x.avgGap * 100).toFixed(1)}% (최악 -${(x.worstGap * 100).toFixed(1)}%) · 신호 뒤 하락(고점 이후 최저까지) 평균 ` : '산 뒤 추가 하락 평균 '} ${(x.avgDD * 100).toFixed(1)}% 최악 ${(x.worstDD * 100).toFixed(1)}% → ${x.ds.map(showDay).join(', ')}`));
 if (HOLD) { const k = TG.findIndex(t => t.nm === HOLD); const hit = res.filter(x => x.ds.some(i => tgOf[i] === k)); console.log(`\n[검증] ${HOLD} 바닥을 숨기고 찾은 후보 ${res.length}개 중 ${HOLD} 바닥(±${WIN}일)에도 신호가 켜진 것 ${hit.length}개 (${res.length ? (hit.length / res.length * 100).toFixed(0) : 0}%)`); hit.slice(0, 5).forEach(x => console.log(`  - ${x.parts.map(p => p.label).join(' & ')} → ${x.ds.map(showDay).join(', ')}`)); }
 const out = arg('--out'); if (out) fs.writeFileSync(out, JSON.stringify(res.slice(0, 200).map(x => ({ rule: x.parts.map(p => ({ nm: p.nm, dir: p.dir, t: p.t })), label: x.parts.map(p => p.label).join(' & '), days: x.ds.map(i => dates[i]), mean: x.mean, max: x.max })), null, 1));
