@@ -177,6 +177,71 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
   }
   return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
+// ---- 목표 주식비율 방식 ----
+// evs: 이벤트 배열(우선순위 오름차순 — 같은 날 여러 신호가 켜지면 배열에서 뒤에 있는 것이 이김).
+//   각 이벤트 { f: boolean[] (신호가 켜진 날), t: 목표 주식 비중 0~1, d: 지연(거래일, 1 이상), label, rk(규칙 번호), dir('up'|'dn'|'bt') }
+// 이벤트가 켜지는 날 그 이벤트의 목표 비중으로 '대기 주문' 1개를 만들고 이전 대기 주문은 버린다(마지막 신호만 따름).
+// 체결일에 총자산(주식+현금+방어자산) 대비 주식 비중을 t 로 맞춘다: 부족하면 매수, 넘치면 매도(예: 0%→50% 는 50% 매수, 100%→50% 는 50% 매도).
+// 비중은 체결일에만 맞추고, 그 뒤 가격이 변해 비중이 달라져도 다음 신호까지 그대로 둔다.
+// py: 방어자산 가격(없으면 null=현금). 팔면 방어자산(들)을 동일 비중으로 사고, 살 때는 현금 → 방어자산 순으로 자금을 만든다.
+// 세금·수수료·현금 이자·방어 ETF 상장 전 현금 처리는 simulateEventsAlt 와 같다.
+function simulateTargets(dates, px, py, evs, o) {
+  const ys0 = py ? (Array.isArray(py[0]) ? py : [py]) : [], K = ys0.length;
+  const av = ys0.map(a => a.map(v => Number.isFinite(v) && v > 0)), ys = ys0.map(a => a.map(v => Number.isFinite(v) && v > 0 ? v : 0));
+  const avail = i => { const r = []; for (let k = 0; k < K; k++) if (av[k][i]) r.push(k); return r; };
+  const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, dflt = Math.max(1, o.delay | 0);
+  const tx = makeTaxer(dates, tax);
+  let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0, pend = null;
+  const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), eq = [], eqL = [], pd = [], w = [], list = [];
+  const a0 = 100 * o.init, y0 = 100 - a0;
+  if (a0 > 0) { sh = a0 * (1 - fee) / px[0]; basis = a0; bX += a0; fees += a0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'X', rule: '시작', price: px[0], qty: sh, amt: a0, tax: 0, cash, sh }); }
+  const A0 = avail(0);
+  if (y0 > 0 && !A0.length) cash += y0;
+  if (y0 > 0) for (const k of A0) { const a = y0 / A0.length; shy[k] = a * (1 - fee) / ys[k][0]; basy[k] = a; bY[k] += a; fees += a * fee; trades++; list.push({ i: 0, si: 0, side: 'B', asset: 'Y', yi: k, rule: '시작(방어자산)', price: ys[k][0], qty: shy[k], amt: a, tax: 0, cash, sh: shy[k] }); }
+  for (let i = 0; i < n; i++) {
+    if (i > 0) { const c0 = cash; cash *= ig[i]; intr += cash - c0; }
+    if (i > 0 && cash > 1e-12 && K) { const A = avail(i), newly = A.filter(k => !av[k][i - 1]); // 방어 ETF 시세가 처음 생긴 날: 들고 있던 현금을 ETF로 전환
+      if (newly.length) { const amtAll = cash; cash = 0; for (const k of A) { const a = amtAll / A.length, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
+        list.push({ i, si: i, side: 'B', asset: 'Y', yi: k, rule: '방어 ETF 시세 시작 → 현금 전환', price: ys[k][i], qty: qy, amt: a, tax: 0, cash, sh: shy[k] }); } } }
+    const due = tx.step(i);
+    if (due > 0) { let rem = due, c = Math.min(cash, rem); cash -= c; rem -= c; let tk = c;
+      if (rem > 0) { let V = sh * px[i]; for (let k = 0; k < K; k++) V += shy[k] * ys[k][i];
+        if (V > 0) { const f = Math.min(1, rem / (V * (1 - fee)));
+          if (sh > 0) { const q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f; tx.rec(amt - cost); basis -= cost; sh -= q; sX += amt; tk += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
+            list.push({ i, si: i, side: 'S', asset: 'X', rule: '세금 납부용 매도', price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh }) }
+          for (let k = 0; k < K; k++) if (shy[k] > 0) { const q = shy[k] * f, amt = q * ys[k][i] * (1 - fee), cost = basy[k] * f; tx.rec(amt - cost); basy[k] -= cost; shy[k] -= q; sY[k] += amt; tk += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
+            list.push({ i, si: i, side: 'S', asset: 'Y', yi: k, rule: '세금 납부용 매도', price: ys[k][i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh: shy[k] }) } } }
+      paid += tk; list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
+    // 신호: 켜진 이벤트 중 마지막(우선순위 가장 높은) 것이 대기 주문이 됨. 새 신호는 이전 대기 주문을 대체한다.
+    for (const ev of evs) if (ev.f[i]) { const d = ev.d != null ? Math.max(1, ev.d | 0) : dflt; pend = i + d < n ? { day: i + d, t: ev.t, label: ev.label, si: i, rk: ev.rk, dir: ev.dir } : null; }
+    if (pend && pend.day === i) {
+      const od = pend; pend = null;
+      const vx0 = sh * px[i]; let vy0 = 0; for (let k = 0; k < K; k++) vy0 += shy[k] * ys[k][i];
+      const total = cash + vx0 + vy0, want = od.t * total, eps = 1e-9 * Math.max(total, 1);
+      if (vx0 > want + eps) { // 주식 비중 줄이기: 매도 → 방어자산 또는 현금
+        const f = (vx0 - want) / vx0, q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f;
+        tx.rec(amt - cost); basis -= cost; sh -= q; sX += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
+        list.push({ i, si: od.si, side: 'S', asset: 'X', rule: od.label, rk: od.rk, dir: od.dir, tgt: od.t, price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh });
+        const AI = avail(i);
+        if (!AI.length) cash += amt; // 방어 ETF 시세가 아직 없으면 현금으로 보유
+        for (const k of AI) { const a = amt / AI.length, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
+          list.push({ i, si: od.si, side: 'B', asset: 'Y', yi: k, rule: od.label + ' 대금', price: ys[k][i], qty: qy, amt: a, tax: 0, cash, sh: shy[k] }); }
+      } else if (want > vx0 + eps) { // 주식 비중 늘리기: 현금 → 방어자산 순으로 자금을 만들어 매수
+        const need = (want - vx0) / (1 - fee); let net = Math.min(cash, need); cash -= net; const rem = need - net;
+        if (rem > 1e-12 && K) { let Vy = 0; for (let k = 0; k < K; k++) Vy += shy[k] * ys[k][i] * (1 - fee);
+          if (Vy > 0) { const f = Math.min(1, rem / Vy);
+            for (let k = 0; k < K; k++) { if (!(shy[k] > 0)) continue; const qy = shy[k] * f, amtY = qy * ys[k][i] * (1 - fee), costY = basy[k] * f;
+              tx.rec(amtY - costY); basy[k] -= costY; shy[k] -= qy; sY[k] += amtY; fees += fee < 1 ? amtY / (1 - fee) * fee : 0; trades++; net += amtY;
+              list.push({ i, si: od.si, side: 'S', asset: 'Y', yi: k, rule: od.label + ' 자금', price: ys[k][i], qty: qy, amt: amtY, gain: amtY - costY, tax: 0, cash, sh: shy[k] }); } } }
+        if (net > 0) { const q = net * (1 - fee) / px[i]; sh += q; basis += net; bX += net; fees += net * fee; trades++;
+          list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, rk: od.rk, dir: od.dir, tgt: od.t, price: px[i], qty: q, amt: net, tax: 0, cash, sh }); }
+      }
+    }
+    const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }
+    const v = cash + vx + vy; pd.push(paid); eq.push(v); eqL.push(v - tx.pending() - tx.liq(vx - basis + ut)); w.push(v ? vx / v : 0);
+  }
+  return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: sX - bX + sh * px[n - 1], y: shy.map((q, k) => sY[k] - bY[k] + q * ys[k][n - 1]), int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
+}
 // 상태 유지 방식(목표 비중 w[j])의 방어자산 버전: X 비중 w, 나머지는 방어자산(들)
 function simulateAlt(dates, px, py, w, o) {
   const ys0 = Array.isArray(py[0]) ? py : [py], K = ys0.length;
@@ -349,4 +414,4 @@ function simulateEvents(dates, px, buys, sells, o) {
   return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
-if (typeof module !== 'undefined') module.exports = { bottomFlags, makeTaxer, yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+if (typeof module !== 'undefined') module.exports = { simulateTargets, bottomFlags, makeTaxer, yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };

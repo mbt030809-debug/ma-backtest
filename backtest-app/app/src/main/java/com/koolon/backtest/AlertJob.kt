@@ -54,7 +54,7 @@ object AlertJob {
         if (!test && !c.optBoolean("on")) return R.DONE
         try {
             val sig = c.getString("sig"); val trd = c.getString("trd"); val alt = c.optString("alt", "")
-            val delay = max(1, c.optInt("delay", 1)); val delayS = c.optInt("delaySell", 0).let { if (it > 0) it else delay }; val always = c.optBoolean("always", false) || test
+            val delay = max(1, c.optInt("delay", 1)); val always = c.optBoolean("always", false) || test
             val rules = c.getJSONArray("rules")
             var maxN = 2
             for (i in 0 until rules.length()) maxN = max(maxN, rules.getJSONObject(i).getInt("n"))
@@ -67,50 +67,39 @@ object AlertJob {
             val px = DoubleArray(n) { arr.getJSONArray(it).getDouble(1) }
             val last = n - 1
             if (!test && dates[last] != today.toString()) return R.RETRY // 아직 오늘 종가 없음(휴장이거나 데이터 지연)
-            var buy = false; var sell = false
+            var act = false
             val lines = ArrayList<String>()
             for (i in 0 until rules.length()) {
-                val r = rules.getJSONObject(i); val k = r.getInt("n"); val b = r.getInt("b"); val s = r.getInt("s")
-                val rdB = r.optInt("db", 0).let { if (it > 0) it else delay }; val rdS = r.optInt("ds", 0).let { if (it > 0) it else delayS }
-                if (r.optBoolean("bottom", false)) { // 바닥 신호: 전액 매수
+                val r = rules.getJSONObject(i); val k = r.getInt("n")
+                val rdU = r.optInt("du", 0).let { if (it > 0) it else delay }; val rdD = r.optInt("dd", 0).let { if (it > 0) it else delay }
+                if (r.optBoolean("bottom", false)) { // 바닥 신호: 목표 주식 비중(t%)으로 조정
                     val vb = JSONArray(Yahoo.prices("^VIX", from, today.toString()).first)
                     val vm = HashMap<String, Double>(); for (j in 0 until vb.length()) vm[vb.getJSONArray(j).getString(0)] = vb.getJSONArray(j).getDouble(1)
                     var lastV = Double.NaN; val vx = DoubleArray(n) { vm[dates[it]]?.also { v -> lastV = v } ?: lastV }
-                    val mTh = r.optDouble("bm", -0.027); val gTh = r.optDouble("bg", 0.043)
+                    val mTh = r.optDouble("bm", -0.027); val gTh = r.optDouble("bg", 0.043); val t = r.optInt("t", 100)
                     val (hit, macd, gap) = bottom(px, vx, mTh, gTh)
                     val st = "MACD/가격 ${f2(macd * 100)}% (기준 ${f2(mTh * 100)}% 미만) · VIX−실현변동성 ${f2(gap * 100)}%p (기준 ${f2(gTh * 100)}%p 초과)"
-                    if (hit) { buy = true; lines.add("📈 바닥 신호 충족 → 매수 100% (현금 전액) · ${rdB}거래일 뒤 체결\n   $st") } else lines.add("바닥 신호 없음\n   $st")
+                    if (hit) { act = true; lines.add("📈 바닥 신호 충족 → 주식 비중 ${t}%로 조정 · ${rdU}거래일 뒤 체결\n   $st") } else lines.add("바닥 신호 없음\n   $st")
                     continue
                 }
                 if (k < 2 || last - 1 - k + 1 < 0) { lines.add("${k}일선: 데이터 부족"); continue }
                 val m = ma(px, last, k); val pm = ma(px, last - 1, k)
-                val buyDn = r.optBoolean("buyDn", false) // 매수 전용: 하향 돌파 시 매수(매도 없음)
-                val up = !buyDn && px[last - 1] <= pm && px[last] > m
-                val dn = !buyDn && px[last - 1] >= pm && px[last] < m
-                val dip = buyDn && px[last - 1] >= pm && px[last] < m
-                val bd = r.optInt("bd", 0) // 이평2: 하향 돌파 때 매수 비율(%), 상향 돌파 때는 b(%)
-                val dip2 = bd > 0 && px[last - 1] >= pm && px[last] < m
+                val up = px[last - 1] <= pm && px[last] > m
+                val dn = px[last - 1] >= pm && px[last] < m
+                val upT = r.optInt("up", -1); val dnT = r.optInt("dn", -1) // 돌파 때 목표 주식 비중(%), -1 이면 무시
                 val st = "종가 ${f2(px[last])} · ${k}일선 ${f2(m)} (${if (px[last] > m) "위 +" else "아래 -"}${f1(abs(px[last] / m - 1) * 100)}%)"
                 when {
-                    dip2 -> { buy = true; lines.add("📈 ${k}일선 하향 돌파 → 매수 ${bd}% (현금의 ${bd}%) · ${rdB}거래일 뒤 체결\n   $st") }
-                    dip && b > 0 -> { buy = true; lines.add("📈 ${k}일선 하향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }
-                    dip -> lines.add("${k}일선 하향 돌파 (매수 0%라 무시)\n   $st")
-                    up && b > 0 -> { buy = true; lines.add("📈 ${k}일선 상향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }
-                    up -> lines.add("${k}일선 상향 돌파 (매수 0%라 무시)\n   $st")
-                    dn && s > 0 -> { sell = true; lines.add("📉 ${k}일선 하향 이탈 → 매도 ${s}% (보유의 ${s}%) · ${rdS}거래일 뒤 체결\n   $st") }
-                    dn -> lines.add("${k}일선 하향 이탈 (매도 0%라 무시)\n   $st")
+                    up && upT >= 0 -> { act = true; lines.add("📈 ${k}일선 상향 돌파 → 주식 비중 ${upT}%로 조정 · ${rdU}거래일 뒤 체결\n   $st") }
+                    up -> lines.add("${k}일선 상향 돌파 (목표 비율 칸이 비어 무시)\n   $st")
+                    dn && dnT >= 0 -> { act = true; lines.add("📉 ${k}일선 하향 돌파 → 주식 비중 ${dnT}%로 조정 · ${rdD}거래일 뒤 체결\n   $st") }
+                    dn -> lines.add("${k}일선 하향 돌파 (목표 비율 칸이 비어 무시)\n   $st")
                     else -> lines.add("${k}일선 신호 없음\n   $st")
                 }
             }
-            if (!(buy || sell) && !always) return R.DONE
-            val title = when {
-                buy && sell -> "$trd 신호: 매수·매도 동시 발생"
-                buy -> "📈 $trd 매수 신호"
-                sell -> "📉 $trd 매도 신호"
-                else -> "$trd 신호 없음"
-            }
-            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 위 표기한 거래일 뒤 종가(보유·현금 상태에 따라 적용)")
-            if (sell && alt.isNotEmpty()) foot.append("\n매도 대금은 $alt 매수")
+            if (!act && !always) return R.DONE
+            val title = if (act) "🔔 $trd 주식 비중 조정 신호" else "$trd 신호 없음"
+            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 위 표기한 거래일 뒤 종가, 총자산 대비 주식 비중을 목표 %로 맞춤(적으면 매수·많으면 매도). 지연 중 새 신호가 나오면 마지막 신호만 따름")
+            if (act && alt.isNotEmpty()) foot.append("\n줄어든 주식 비중은 $alt 로 보유")
             if (test) foot.append("\n(테스트 알림 — 장중이면 현재가 기준)")
             postNote(ctx, title, lines.joinToString("\n") + "\n" + foot)
             return R.DONE

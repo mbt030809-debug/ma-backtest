@@ -79,4 +79,29 @@ console.log('8) 바닥 신호(bottomFlags) — 독립 구현과 일치, 값 없�
  ok(hits>0,'신호가 한 번도 안 켜지면 검사가 무의미함',hits);console.log('   검사',cnt,'건, 신호 총',hits,'일');
  const px=Array.from({length:60},(_,i)=>100-i*.5),vix=px.map(()=>NaN);ok(E.bottomFlags(px,vix,0,-9).every(x=>x===false),'VIX 값이 없으면 항상 false');
  ok(E.bottomFlags(px.slice(0,10),px.slice(0,10).map(()=>30),0,-9).every(x=>x===false),'21일 미만은 false')}
+console.log('9) 목표 주식비율(simulateTargets): 0%→50% 는 50% 매수, 100%→50% 는 50% 매도, 마지막 신호만 따름, 같은 날 겹치면 뒤 이벤트 우선');
+{const n=14,px=Array.from({length:n},(_,i)=>100),ds=px.map((_,i)=>'2020-03-'+String(i+2).padStart(2,'0')),fl=(...d)=>px.map((_,i)=>d.includes(i));
+ const run=(init,evs,py)=>E.simulateTargets(ds,px,py||null,evs,{delay:1,init,cashRate:0,tax:0,fee:0});
+ { const r=run(0,[{f:fl(3),t:.5,d:1,label:'a',rk:1,dir:'up'}]);ok(r.list.length===1&&Math.abs(r.w[4]-.5)<1e-12&&r.list[0].side==='B'&&Math.abs(r.list[0].amt-50)<1e-9,'0% 였을 때 목표 50% → 총자산의 50% 매수',r.list.map(x=>x.side+x.amt)) }
+ { const r=run(1,[{f:fl(3),t:.5,d:1,label:'a',rk:1,dir:'dn'}]);ok(r.list.filter(x=>x.si===3).length===1&&r.list.find(x=>x.si===3).side==='S'&&Math.abs(r.w[4]-.5)<1e-12,'100% 였을 때 목표 50% → 50% 매도',r.list.map(x=>x.side+x.amt)) }
+ { const r=run(1,[{f:fl(3),t:0,d:1,label:'a',rk:1,dir:'dn'}]);ok(Math.abs(r.w[4])<1e-12,'목표 0% → 전액 매도') }
+ { const r=run(.5,[{f:fl(3),t:.5,d:1,label:'a',rk:1,dir:'up'}]);ok(r.list.length===1,'이미 목표 비중이면 거래 없음(시작 매수만)',r.list.length) }
+ { const r=run(0,[{f:fl(3),t:1,d:3,label:'긴지연',rk:1,dir:'up'},{f:fl(4),t:0,d:1,label:'짧은',rk:2,dir:'dn'}]);ok(r.list.length===0&&r.w.every(v=>v===0),'지연 중 새 신호가 나오면 이전 대기 주문은 취소(마지막 신호만): 100% 대기 중 0% 신호 → 거래 없음',r.list.map(x=>x.label)) }
+ { const r=run(0,[{f:fl(3),t:.3,d:1,label:'bt',rk:9,dir:'bt'},{f:fl(3),t:1,d:1,label:'ma',rk:1,dir:'up'}]);ok(Math.abs(r.w[4]-1)<1e-12,'같은 날 겹치면 배열 뒤 이벤트가 이김(뒤=우선)',r.w[4]) }
+ { const r=run(1,[{f:fl(3),t:0,d:1,label:'x',rk:1,dir:'dn'},{f:fl(5),t:1,d:1,label:'y',rk:1,dir:'up'}]);ok(Math.abs(r.w[4])<1e-12&&Math.abs(r.w[6]-1)<1e-12,'매도 후 다시 목표 100% → 전액 재매수') }
+}
+{ // 독립 구현(값 기준)과 일치: 현금 / 방어자산 1개, 세금·수수료 0
+ const ref=(px,py,evs,init,dflt,ig)=>{const n=px.length;let cash=0,S=init*100/px[0],D=py?(1-init)*100/py[0]:0;if(!py)cash=(1-init)*100;let pend=null;const eq=[],w=[];
+  for(let i=0;i<n;i++){if(i>0)cash*=ig[i];for(const e of evs)if(e.f[i]){const d=e.d!=null?e.d:dflt;pend=i+d<n?{day:i+d,t:e.t}:null}
+   if(pend&&pend.day===i){const sv=S*px[i],dv=py?D*py[i]:0,tot=cash+sv+dv,want=pend.t*tot;pend=null;
+    if(sv>want+1e-9){const amt=sv-want;S=want/px[i];if(py)D+=amt/py[i];else cash+=amt}
+    else if(want>sv+1e-9){let need=want-sv;const c=Math.min(cash,need);cash-=c;need-=c;if(need>0&&py){D-=need/py[i]}S=want/px[i]}}
+   const v=cash+S*px[i]+(py?D*py[i]:0);eq.push(v);w.push(S*px[i]/v)}return{eq,w}};
+ let tot=0,worst=0;for(let tt=0;tt<1500;tt++){const N=[30,120,400][tt%3];let a=100,b=100;const px=[],py=[];for(let i=0;i<N;i++){a*=1+(rnd()-.5)*.06;b*=1+(rnd()-.45)*.01;px.push(a);py.push(b)}
+  const ds=px.map((_,i)=>{const d=new Date('2015-01-02');d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10)});
+  const K=1+Math.floor(rnd()*4),evs=[];for(let k=0;k<K;k++){const f=px.map(()=>rnd()<.06);evs.push({f,t:[0,.25,.5,.8,1][Math.floor(rnd()*5)],d:rnd()<.5?undefined:1+Math.floor(rnd()*4),label:'e'+k,rk:k+1,dir:'up'})}
+  const init=[0,.5,1][tt%3],useY=tt%2===0,dflt=1+Math.floor(rnd()*3),cr=[0,.04][tt%2];
+  const o={init,delay:dflt,cashRate:cr,tax:0,fee:0},sim=E.simulateTargets(ds,px,useY?py:null,evs,o),R=ref(px,useY?py:null,evs,init,dflt,E.interestFactors(ds,cr));tot++;
+  let md=0;for(let i=0;i<N;i++)md=Math.max(md,Math.abs(sim.eq[i]-R.eq[i])/Math.max(1,R.eq[i]),Math.abs(sim.w[i]-R.w[i]));worst=Math.max(worst,md);ok(md<1e-9,'simulateTargets 가 독립 구현과 다름',{tt,useY,md})}
+ console.log('   검사',tot,'건, 최대 오차',worst.toExponential(2))}
 console.log(bad?`\n실패 ${bad} / 검사 ${checks}`:`\n모든 엔진 검사 통과 (${checks}개 조건 + 퍼즈)`);process.exit(bad?1:0);

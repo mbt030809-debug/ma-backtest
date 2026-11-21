@@ -5,19 +5,25 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
 (async()=>{const br=await chromium.launch();
  const mkPage=async(init)=>{const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));if(init)await p.addInitScript(init);await p.goto(BASE);if(!p.noAll)await p.addStyleTag({content:'.tab{display:block!important}'});await p.evaluate(()=>document.querySelectorAll('details').forEach(d=>d.open=true));return p};
  const base=async p=>{await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#cmp','');await p.fill('#s','2014-01-01');await p.fill('#tax','22');await p.fill('#fee','0.08');await p.fill('#cash','4')};
- const single=async p=>{for(const [a,b,c,v] of [['a1','b1','c1',60],['a2','b2','c2',200]]){await p.fill('#'+a,''+v);await p.fill('#'+b,''+v);await p.fill('#'+c,'1')}await p.fill('#mn1','60');await p.fill('#mn2','200')};
+ const SR=(p,arr)=>p.evaluate(a=>{RULES=a.map(x=>Object.assign(newRule(137,'',''),x));renderRules();save()},arr);
+ const DEF=[{n:60,up:'100',dn:'0'},{n:200,up:'100',dn:''}];
+ const single=async(p,r=DEF)=>SR(p,r.map(x=>({...x,na:''+x.n,nb:''+x.n,nc:'1',us:'',ds:''})));
  const cmpSweep=async(p,tag)=>{await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(300);const sw=await p.evaluate(()=>[window._swrows[0].cagr,window._swrows[0].mdd,window._swrows[0].so]);
   ok(run.every((v,i)=>Math.abs(v-sw[i])<1e-12),tag+': 일반 실행 = 스윕',{run,sw})};
- console.log('A) 일반 실행 = 스윕 (공통/이평별 지연, 상태우선, 이평2 하향매수, 방어 ETF)');
+
+ console.log('A) 일반 실행 = 스윕 (공통/이평별 지연, 목표 비율, 방어 ETF)');
  {const p=await mkPage();await base(p);await single(p);await p.fill('#delay','1');
   await cmpSweep(p,'기본');
-  await p.fill('#db1','2');await p.fill('#ds1','1');await p.fill('#db2','4');await cmpSweep(p,'이평별 지연');
-  await p.fill('#x2','100');await p.fill('#y2','0');await cmpSweep(p,'이평2 하향 100%·상향 0%');await p.fill('#x2','30');await p.fill('#y2','70');await cmpSweep(p,'이평2 하향 30%·상향 70%');await p.fill('#x2','50');await p.fill('#y2','100');await cmpSweep(p,'이평2 하향 50%·상향 100%(각자 따로)');await p.fill('#x2','0');await p.fill('#y2','100');
-    await p.fill('#alt','XLV');await cmpSweep(p,'방어 ETF XLV');ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+  await single(p,[{n:60,up:'100',dn:'0',du:'2',dd:'1'},{n:200,up:'100',dn:'',du:'4'}]);await cmpSweep(p,'이평별 지연');
+  await single(p,[{n:60,up:'100',dn:'0'},{n:200,up:'0',dn:'100'}]);await cmpSweep(p,'이평2 상향 0%·하향 100%');
+  await single(p,[{n:60,up:'100',dn:'0'},{n:200,up:'70',dn:'30'}]);await cmpSweep(p,'이평2 상향 70%·하향 30%');
+  await single(p,[{n:60,up:'50',dn:'20'},{n:200,up:'100',dn:'60'}]);await cmpSweep(p,'목표 비율 50/20 · 100/60(부분 비중)');
+  await single(p,[{n:60,up:'100',dn:'0'},{n:120,up:'80',dn:'30'},{n:200,up:'100',dn:''}]);await cmpSweep(p,'이평 3개');
+  await single(p);await p.fill('#alt','XLV');await cmpSweep(p,'방어 ETF XLV');ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('B) 방어 ETF 상장 전 = 현금, 스캔 = 일반 실행, 스윕 = 일반 실행');
  {const p=await mkPage(()=>{const of=window.fetch,L={LATE:'2014-03-03',MID:'2016-06-01',EARLY:'2009-01-02'};window.fetch=async(u,...a)=>{const m=/symbol=([^&]+)&start=([^&]+)&end=([^&]+)/.exec(String(u));if(!m||!(m[1] in L))return of(u,...a);const[,sym,s,e]=m,rows=[];let d=new Date(Math.max(+new Date(s),+new Date(L[sym]))),x=100,i=0;const end=new Date(e);for(;d<=end;d.setUTCDate(d.getUTCDate()+1))if(d.getUTCDay()%6){i++;x*=1+Math.sin(i/11)*.006+.0003;rows.push([d.toISOString().slice(0,10),x])}return{json:async()=>rows,headers:{get:()=>'adj'}}}});
-  await base(p);await p.fill('#s','2012-01-02');await p.fill('#e','2019-12-31');await p.fill('#mn1','60');await p.fill('#mn2','200');await p.fill('#alt','LATE');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
+  await base(p);await p.fill('#s','2012-01-02');await p.fill('#e','2019-12-31');await SR(p,[{n:60,up:'100',dn:'0'},{n:200,up:'100',dn:''}]);await p.fill('#alt','LATE');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
   const r=await p.evaluate(()=>{const[out,dates]=window._last,alt=out[0].e,cash=out[1].e,L=dates.findIndex(d=>d>='2014-03-03');let md=0;for(let i=0;i<L;i++)md=Math.max(md,Math.abs(alt[i]-cash[i])/Math.max(1,cash[i]));return{start:dates[0],md}});
   ok(r.start==='2012-01-02'&&r.md===0,'상장(2014-03-03) 전 구간 자산이 현금 전략과 같고 시작일은 그대로',r);
   await single(p);await cmpSweep(p,'상장이 늦은 방어 ETF');
@@ -26,10 +32,10 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   const sc=await p.evaluate(async()=>{const d=window._altData,res=[];for(const r of d.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});res.push([r.sym,['cagr','mdd','so','tot'].map(k=>Math.abs(r.st[k]-x.st[k])).reduce((a,b)=>Math.max(a,b),0)])}return res});
   ok(sc.length===3&&sc.every(([,d])=>d<1e-12),'스캔 결과 = 일반 실행 (상장 늦은 ETF 포함 3개)',sc);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('C) 스캔 속도 경로 = 일반 실행 (후보 10개)');
- for(const [name,c] of [['돌파/이탈',{mode:'cross',init:100,delay:1}],['이평별 지연+하향매수',{mode:'cross',init:100,delay:1,db1:2,ds1:1,db2:3,x2:60,y2:40}]]){
-  const p=await mkPage();await base(p);await p.fill('#s','2013-01-01');await p.fill('#init',''+c.init);await p.fill('#delay',''+c.delay);
-  if(c.mode==='cross'){await p.fill('#mn1','120');await p.fill('#mn2','250');for(const k of ['db1','ds1','db2'])await p.fill('#'+k,c[k]?''+c[k]:'');await p.fill('#x2',''+(c.x2||0));await p.fill('#y2',''+(c.y2==null?100:c.y2))}
-  await p.click('#run');await p.waitForTimeout(1500);await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
+
+ for(const [name,c] of [['돌파/이탈',{init:100,delay:1,rules:[{n:120,up:'100',dn:'0'},{n:250,up:'100',dn:''}]}],['목표 비율+이평별 지연',{init:100,delay:1,rules:[{n:120,up:'80',dn:'20',du:'2',dd:'1'},{n:250,up:'40',dn:'60',du:'3'}]}]]){
+  const p=await mkPage();await base(p);await p.fill('#s','2013-01-01');await p.fill('#init',''+c.init);await p.fill('#delay',''+c.delay);await SR(p,c.rules);
+ await p.click('#run');await p.waitForTimeout(1500);await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
   ok(w.cnt===10&&w.m<1e-12,name+': 스캔 = 일반 실행',w);ok(p.errs.length===0,name+': JS 오류 없음',p.errs);await p.close()}
  console.log('D) 앱 재시작(새로고침) 후 방어 ETF 결과 복원');
@@ -39,61 +45,73 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   ok(/복원/.test(after[0])&&after[1]===before,'새로고침 후 결과 복원',after);await p.close()}
  console.log('E) 이평 워밍업 시작일 보정(2012-06 상장·360일선 → 상장 후 360번째 거래일)');
  {const p=await mkPage(()=>{const of=window.fetch;window.fetch=async(u,...a)=>{const m=/symbol=(LISTED)&start=([^&]+)&end=([^&]+)/.exec(String(u));if(!m)return of(u,...a);const[,,s,e]=m,rows=[];let d=new Date(Math.max(+new Date(s),+new Date('2012-06-01'))),x=100,i=0;const end=new Date(e);for(;d<=end;d.setUTCDate(d.getUTCDate()+1))if(d.getUTCDay()%6){i++;x*=1+Math.sin(i/9)*.01+.0004;rows.push([d.toISOString().slice(0,10),x])}return{json:async()=>rows,headers:{get:()=>'adj'}}}});
-  await p.fill('#sig','LISTED');await p.fill('#trd','LISTED');await p.fill('#cmp','');await p.fill('#s','2012-01-02');await p.fill('#e','2016-01-04');await p.fill('#mn1','360');await p.fill('#mn2','100');await p.fill('#alt','');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
+  await p.fill('#sig','LISTED');await p.fill('#trd','LISTED');await p.fill('#cmp','');await p.fill('#s','2012-01-02');await p.fill('#e','2016-01-04');await SR(p,[{n:360,up:'100',dn:'0'},{n:100,up:'100',dn:''}]);await p.fill('#alt','');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
   const st=await p.evaluate(()=>window._last[1][0]);const exp=await p.evaluate(async()=>(await (await fetch('/api/prices?symbol=LISTED&start=2012-01-02&end=2016-01-04')).json())[359][0]);ok(st===exp,'시작일='+exp,st);await p.close()}
  console.log('F) 바닥 신호(MACD·VIX 조건 충족 시 전액 매수) — 일반 실행 = 스윕 = 스캔');
- {const p=await mkPage();await base(p);await single(p);await p.fill('#mn2','150');await p.fill('#a2','150');await p.fill('#b2','150');await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{document.getElementById('en3').checked=true;save()});
+ {const p=await mkPage();await base(p);await single(p,[{n:60,up:'100',dn:'0'},{n:150,up:'100',dn:''}]);await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{document.getElementById('en3').checked=true;save()});
   await cmpSweep(p,'바닥 신호 사용');
-  const m3=await p.evaluate(()=>[...document.querySelectorAll('#trd2 tr')].slice(1).filter(r=>/매수3/.test(r.cells[4].textContent)).length);ok(m3>0,'바닥 신호 매수 체결이 있음',m3);
+  const m3=await p.evaluate(()=>[...document.querySelectorAll('#trd2 tr')].slice(1).filter(r=>/바닥 신호/.test(r.cells[4].textContent)).length);ok(m3>0,'바닥 신호 매수 체결이 있음',m3);
   {const r=await p.evaluate(()=>{const L=window._last[2].lines,has=document.querySelectorAll('#lg .lgk[data-k^="ma:"]').length,mk=document.querySelectorAll('#lg .lgk[data-k^="mk:"]').length;return{n:L.length,ok:L.every(o=>o.e.length===window._last[1].length&&o.e.every(Number.isFinite)),has,mk}});
    ok(r.n===2&&r.ok&&r.has===2&&r.mk>=2,'이평선 2개가 차트 데이터·범례에 있고(값 모두 유효) 마커 종류별 범례도 있음',r);
    const t=await p.evaluate(()=>{const el=document.querySelector('#lg .lgk[data-k^="mk:"]'),k=el.dataset.k;el.click();const off=!!HID[k]&&document.querySelector('#lg .lgk[data-k="'+k+'"]').style.opacity==='0.35';document.querySelector('#lg .lgk[data-k="'+k+'"]').click();const on=!HID[k];const m=document.querySelector('#lg .lgk[data-k^="ma:"]'),mk=m.dataset.k;m.click();const moff=!!HID[mk];document.querySelector('#lg .lgk[data-k="'+mk+'"]').click();return{off,on,moff,mon:!HID[mk]}});
    ok(t.off&&t.on&&t.moff&&t.mon,'마커·이평선 범례를 누르면 끄고 다시 켜짐',t)}
-  {const lg=await p.evaluate(()=>document.getElementById('lg').innerText);ok(/▲ 매수1/.test(lg)&&/◆ 매수2|▼ 매도1/.test(lg)&&/★ 매수3 바닥 신호/.test(lg),'차트 범례에 신호별 마커(이평1 ▲/▼, 바닥 신호 ★)가 구분되어 표시됨',lg)}
+  {const lg=await p.evaluate(()=>document.getElementById('lg').innerText);ok(/▲▼ 이평1 60일/.test(lg)&&/★ 바닥 신호/.test(lg),'차트 범례에 신호별 마커(이평1 ▲▼, 바닥 신호 ★)가 구분되어 표시됨',lg)}
   await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
   ok(w.cnt===10&&w.m<1e-12,'바닥 신호 사용: 스캔 = 일반 실행',w);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('G) 바닥 신호 스윕(고급도구) — 조합 수·바닥신호 열·1위 행 적용 시 일반 실행과 일치');
  {const p=await mkPage();await base(p);await p.fill('#s','2012-01-02');
-  for(const [a,b,c,x,y,z] of [['a1','b1','c1',50,90,20],['a2','b2','c2',150,250,50]])for(const [k,v] of [[a,x],[b,y],[c,z]])await p.fill('#'+k,''+v);
+  await p.evaluate(()=>{RULES[0].na='50';RULES[0].nb='90';RULES[0].nc='20';RULES[1].na='150';RULES[1].nb='250';RULES[1].nc='50';renderSwRules();save()});
   await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{const e=document.getElementById('en3');e.checked=true;e.dispatchEvent(new Event('change'))});
   ok(/9개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 9개(3×3, 바닥 신호는 고정)');
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),90000);await p.waitForTimeout(500);
-  const info=await p.evaluate(()=>({n:window._swrows.length,n3:[...new Set(window._swrows.map(r=>r.n3))].sort().join(','),hdr:[...document.getElementById('swt').rows[0].cells].map(c=>c.textContent).join('|')}));
-  ok(info.n===9&&info.n3==='1'&&/바닥신호/.test(info.hdr),'9개 결과, 바닥 신호 사용 표시, 표에 바닥신호 열',info);
-  const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>a.comp-b.comp)[0];return{n1:r.n1,n2:r.n2,n3:r.n3,cagr:r.cagr,mdd:r.mdd,so:r.so,b1:r.b1,s1:r.s1,b2:r.b2,s2:r.s2}});
+  const info=await p.evaluate(()=>({n:window._swrows.length,hdr:[...document.getElementById('swt').rows[0].cells].map(c=>c.textContent).join('|')}));
+  ok(info.n===9&&/바닥신호/.test(info.hdr),'9개 결과, 바닥 신호 사용 표시, 표에 바닥신호 열',info);
+  const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>a.comp-b.comp)[0];return{rules:r.rules,cagr:r.cagr,mdd:r.mdd,so:r.so}});
   await p.evaluate(r=>applyRow(r),top);await p.waitForTimeout(2000);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
   ok(Math.abs(run[0]-top.cagr)<1e-12&&Math.abs(run[1]-top.mdd)<1e-12&&Math.abs(run[2]-top.so)<1e-12,'1위 행 적용 → 일반 실행과 같은 값',{run,top});ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
- console.log('I) 이평1·이평2·바닥 신호를 각각 사용/끄기 — 끈 규칙은 체결·차트선에서 빠지고, 일반 실행 = 스윕');
+
+ console.log('I) 이평 규칙 사용/끄기·추가/삭제 — 끈 규칙은 체결·차트선에서 빠지고, 일반 실행 = 스윕');
  {const p=await mkPage();await base(p);await single(p);
-  const info=()=>p.evaluate(()=>{const rows=[...document.querySelectorAll('#trd2 tr')].slice(1).map(r=>r.cells[4].textContent);return{r1:rows.filter(x=>/^(매수|매도)1/.test(x)).length,r2:rows.filter(x=>/^(매수|매도)2/.test(x)).length,lines:window._last[2].lines.map(o=>o.name.slice(0,3))}});
-  await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1>0&&x.r2>0&&x.lines.join()==='이평1,이평2','둘 다 켜면 이평1·이평2 체결과 두 이평선이 있음',x)}
-  await p.evaluate(()=>{document.getElementById('en1').checked=false;save()});await cmpSweep(p,'이평1 끔');{const x=await info();ok(x.r1===0&&x.lines.join()==='이평2','이평1 끔: 이평1 체결 없음·이평선은 이평2만(이평2는 매도가 없어 매수할 일이 없을 수 있음)',x)}
-  await p.evaluate(()=>{document.getElementById('en1').checked=true;document.getElementById('en2').checked=false;save()});await cmpSweep(p,'이평2 끔');{const x=await info();ok(x.r2===0&&x.r1>0&&x.lines.join()==='이평1','이평2 끔: 이평2 체결 없음·이평선은 이평1만',x)}
-  await p.evaluate(()=>{document.getElementById('en1').checked=false;save()});await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1===0&&x.r2===0&&x.lines.length===0,'둘 다 끔: 이평 체결·이평선 없음(보유만)',x)}
-  await p.reload();await p.waitForTimeout(800);{const v=await p.evaluate(()=>[document.getElementById('en1').checked,document.getElementById('en2').checked]);ok(v[0]===false&&v[1]===false,'새로고침 후에도 사용/끄기 상태가 유지됨',v)}
+  const info=()=>p.evaluate(()=>{const rows=[...document.querySelectorAll('#trd2 tr')].slice(1).map(r=>r.cells[4].textContent);return{r1:rows.filter(x=>/^이평1/.test(x)).length,r2:rows.filter(x=>/^이평2/.test(x)).length,lines:window._last[2].lines.map(o=>o.name.slice(0,3))}});
+  const tog=(k)=>p.click('#rulesBox [data-k="'+k+'"] [data-f="on"]');
+  await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1>0&&x.lines.join()==='이평1,이평2','둘 다 켜면 이평1 체결과 두 이평선이 있음',x)}
+  await tog(0);await cmpSweep(p,'이평1 끔');{const x=await info();ok(x.r1===0&&x.lines.join()==='이평2','이평1 끔: 이평1 체결 없음·이평선은 이평2만',x)}
+  await tog(0);await tog(1);await cmpSweep(p,'이평2 끔');{const x=await info();ok(x.r2===0&&x.r1>0&&x.lines.join()==='이평1','이평2 끔: 이평2 체결 없음·이평선은 이평1만',x)}
+  await tog(0);await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1===0&&x.r2===0&&x.lines.length===0,'둘 다 끔: 이평 체결·이평선 없음(보유만)',x)}
+  await p.reload();await p.waitForTimeout(800);{const v=await p.evaluate(()=>RULES.map(r=>r.on));ok(v[0]===false&&v[1]===false,'새로고침 후에도 사용/끄기 상태가 유지됨',v)}
+  await p.evaluate(()=>{RULES.forEach(r=>r.on=true);renderRules()});await p.click('#ruleAdd');ok(await p.evaluate(()=>document.querySelectorAll('#rulesBox .rule').length)===3&&await p.evaluate(()=>RULES.length)===3,'+ 이평선 추가 → 규칙 3개');
+  await p.click('#run');await wf(p,()=>window._last&&window._last[2].lines.length===3,30000);ok(await p.evaluate(()=>window._last[2].lines.length)===3,'이평 3개가 차트 선·체결에 반영됨');
+  await p.click('#rulesBox [data-del="2"]');ok(await p.evaluate(()=>RULES.length)===2,'삭제 → 규칙 2개');
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
- console.log('J) 이평2 하향 매수 x · 상향 매수 y 각자 칸 — 최적값 찾기에서 x·y 둘 다 스윕, 각 조합 결과 = 일반 실행');
- {const p=await mkPage();await base(p);await single(p);await p.fill('#rb2','0,30,100');await p.fill('#rs2','50,100');
-  ok(/6개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 6개(x 3 × y 2)');
+ console.log('J) 목표 비율 — 최적값 찾기에서 상향·하향 목표 %도 스윕, 각 조합 결과 = 일반 실행, 행 적용 시 값이 규칙 칸에 들어감');
+ {const p=await mkPage();await base(p);await single(p);await p.evaluate(()=>{RULES[1].us='50,100';RULES[1].ds='0,40,100';renderSwRules();estSweep();save()});
+  ok(/6개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 6개(이평2 상향 2 × 하향 3)');
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(500);
-  const rows=await p.evaluate(()=>window._swrows.map(r=>({x:Math.round(r.b2*100),y:Math.round(r.s2*100),cagr:r.cagr,mdd:r.mdd})));
-  ok(rows.length===6,'x·y 조합 6개 결과',rows.length);
-  let allSame=true;for(const x of [0,30,100])for(const y of [50,100]){await p.fill('#x2',''+x);await p.fill('#y2',''+y);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd]});const r=rows.find(q=>q.x===x&&q.y===y);if(!r||Math.abs(run[0]-r.cagr)>1e-12||Math.abs(run[1]-r.mdd)>1e-12){allSame=false;console.log('   x',x,'y',y,run,r)}}
-  ok(allSame,'모든 (x,y) 스윕 결과 = 그 값으로 일반 실행');
-  await p.evaluate(r=>applyRow(r),await p.evaluate(()=>window._swrows.find(r=>Math.round(r.b2*100)===30&&Math.round(r.s2*100)===50)));await p.waitForTimeout(1500);
-  const xy=await p.evaluate(()=>[document.getElementById('x2').value,document.getElementById('y2').value]);ok(xy[0]==='30'&&xy[1]==='50','결과 행을 누르면 x·y가 각자 칸에 적용됨',xy);
+  const rows=await p.evaluate(()=>window._swrows.map(r=>({u:Math.round(r.rules[1].up*100),d:Math.round(r.rules[1].dn*100),cagr:r.cagr,mdd:r.mdd})));
+  ok(rows.length===6,'상향·하향 조합 6개 결과',rows.length);
+  let allSame=true;for(const u of [50,100])for(const d of [0,40,100]){await p.evaluate(([u,d])=>{RULES[1].up=''+u;RULES[1].dn=''+d;renderRules()},[u,d]);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd]});const r=rows.find(q=>q.u===u&&q.d===d);if(!r||Math.abs(run[0]-r.cagr)>1e-12||Math.abs(run[1]-r.mdd)>1e-12){allSame=false;console.log('   up',u,'dn',d,run,r)}}
+  ok(allSame,'모든 (상향,하향) 스윕 결과 = 그 값으로 일반 실행');
+  await p.evaluate(r=>applyRow(r),await p.evaluate(()=>window._swrows.find(r=>Math.round(r.rules[1].up*100)===50&&Math.round(r.rules[1].dn*100)===40)));await p.waitForTimeout(1500);
+  const ud=await p.evaluate(()=>[RULES[1].up,RULES[1].dn]);ok(ud[0]==='50'&&ud[1]==='40','결과 행을 누르면 상향·하향 목표 %가 규칙 칸에 적용됨',ud);
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('K) 옛 설정(매수·매도 비율 방식) 자동 이전 + 목표 % 체결 표시');
+ {const p=await mkPage(()=>{if(!localStorage.getItem('__seeded')){localStorage.setItem('__seeded','1');localStorage.setItem('mabt_settings_v1',JSON.stringify({buy:[],sell:[],sig:'QQQ',trd:'TECL',mn1:'100',br1:'100',sr1:'100',mn2:'300',x2:'0',y2:'100',s:'2014-01-01',mode:'cross'}))}});
+  const r=await p.evaluate(()=>RULES.map(x=>[x.n,x.up,x.dn]));ok(JSON.stringify(r)==='[[100,"100","0"],[300,"100",""]]','옛 설정이 이평1(↑100% ↓0%)·이평2(↑100%)로 이전됨',r);
+  await SR(p,[{n:60,up:'50',dn:'0'},{n:200,up:'100',dn:''}]);await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#s','2014-01-01');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
+  ok(await p.evaluate(()=>window._last[2].trades.some(t=>/↑ → 50%/.test(t.rule||''))),'거래 내역에 목표 비율(→ 50%)이 표시됨');
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+
  console.log('H) 탭 화면: 요약 타일 · 설정 요약 · 설정 변경 경고 · 결과 적용 시 백테스트 탭으로');
  {const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));await p.goto(BASE);
   const vis=()=>p.evaluate(()=>[...document.querySelectorAll('.tab')].filter(x=>getComputedStyle(x).display!='none').map(x=>x.id).join(','));
   ok(await vis()==='tab-bt','처음엔 백테스트 탭만 보임',await vis());
-  ok(await p.evaluate(()=>{const c=document.getElementById('cfgBox'),n=document.getElementById('tabs');return c.contains(document.getElementById('mn1'))&&c.getBoundingClientRect().top<n.getBoundingClientRect().top}),'백테스트 설정이 탭 줄보다 위(모든 탭 공통)');
-  await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#s','2014-01-01');await p.fill('#mn1','60');await p.fill('#mn2','200');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(600);
+  ok(await p.evaluate(()=>{const c=document.getElementById('cfgBox'),n=document.getElementById('tabs');return c.contains(document.getElementById('rulesBox'))&&c.getBoundingClientRect().top<n.getBoundingClientRect().top}),'백테스트 설정이 탭 줄보다 위(모든 탭 공통)');
+  await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#s','2014-01-01');await SR(p,[{n:60,up:'100',dn:'0'},{n:200,up:'100',dn:''}]);await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(600);
   ok(await p.evaluate(()=>document.querySelectorAll('#kpi .kpi').length)===4,'요약 타일 4개(CAGR·MDD·누적·칼마)');
-  await p.click('#goSw');ok(await p.evaluate(()=>getComputedStyle(document.getElementById('mn1')).display!=='none'&&document.getElementById('mn1').offsetParent!==null),'다른 탭에서도 설정 입력이 보임');ok(await vis()==='tab-sw','"최적값 찾기" 버튼 → 스윕 탭',await vis());
+  await p.click('#goSw');ok(await p.evaluate(()=>getComputedStyle(document.getElementById('rulesBox')).display!=='none'&&document.getElementById('rulesBox').offsetParent!==null),'다른 탭에서도 설정 입력이 보임');ok(await vis()==='tab-sw','"최적값 찾기" 버튼 → 스윕 탭',await vis());
   ok(/QQQ/.test(await p.evaluate(()=>document.getElementById('ctx').textContent))&&/TECL/.test(await p.evaluate(()=>document.getElementById('ctx').textContent)),'맨 위 공통 설정 요약에 종목 표시');
-  for(const [k,v] of [['a1',60],['b1',80],['c1',20],['a2',200],['b2',200],['c2',1]])await p.fill('#'+k,''+v);
+  await p.evaluate(()=>{RULES[0].na='60';RULES[0].nb='80';RULES[0].nc='20';RULES[1].na='200';RULES[1].nb='200';RULES[1].nc='1';renderSwRules();save()});
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(400);
   ok(await p.evaluate(()=>getComputedStyle(document.getElementById('swstale')).display)==='none','방금 찾은 결과는 경고 없음');
   await p.click('#tabs button[data-t="bt"]');await p.fill('#fee','0.5');await p.dispatchEvent('#fee','change');await p.click('#tabs button[data-t="sw"]');
