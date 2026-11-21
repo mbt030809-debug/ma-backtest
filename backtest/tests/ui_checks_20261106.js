@@ -42,21 +42,21 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  {const p=await mkPage(()=>{const of=window.fetch;window.fetch=async(u,...a)=>{const m=/symbol=(LISTED)&start=([^&]+)&end=([^&]+)/.exec(String(u));if(!m)return of(u,...a);const[,,s,e]=m,rows=[];let d=new Date(Math.max(+new Date(s),+new Date('2012-06-01'))),x=100,i=0;const end=new Date(e);for(;d<=end;d.setUTCDate(d.getUTCDate()+1))if(d.getUTCDay()%6){i++;x*=1+Math.sin(i/9)*.01+.0004;rows.push([d.toISOString().slice(0,10),x])}return{json:async()=>rows,headers:{get:()=>'adj'}}}});
   await p.fill('#sig','LISTED');await p.fill('#trd','LISTED');await p.fill('#cmp','');await p.fill('#s','2012-01-02');await p.fill('#e','2016-01-04');await p.fill('#mn1','360');await p.fill('#mn2','100');await p.fill('#alt','');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
   const st=await p.evaluate(()=>window._last[1][0]);const exp=await p.evaluate(async()=>(await (await fetch('/api/prices?symbol=LISTED&start=2012-01-02&end=2016-01-04')).json())[359][0]);ok(st===exp,'시작일='+exp,st);await p.close()}
- console.log('F) 이평3(하향 돌파 전액 매수) — 일반 실행 = 스윕 = 스캔');
- {const p=await mkPage();await base(p);await single(p);await p.fill('#mn2','150');await p.fill('#a2','150');await p.fill('#b2','150');await p.fill('#mn3','300');await p.evaluate(()=>{document.getElementById('en3').checked=true;save()});
-  await cmpSweep(p,'이평3 사용');
-  const m3=await p.evaluate(()=>[...document.querySelectorAll('#trd2 tr')].slice(1).filter(r=>/매수3/.test(r.cells[4].textContent)).length);ok(m3>0,'이평3 매수 체결이 있음',m3);
+ console.log('F) 바닥 신호(MACD·VIX 조건 충족 시 전액 매수) — 일반 실행 = 스윕 = 스캔');
+ {const p=await mkPage();await base(p);await single(p);await p.fill('#mn2','150');await p.fill('#a2','150');await p.fill('#b2','150');await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{document.getElementById('en3').checked=true;save()});
+  await cmpSweep(p,'바닥 신호 사용');
+  const m3=await p.evaluate(()=>[...document.querySelectorAll('#trd2 tr')].slice(1).filter(r=>/매수3/.test(r.cells[4].textContent)).length);ok(m3>0,'바닥 신호 매수 체결이 있음',m3);
   await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
-  ok(w.cnt===10&&w.m<1e-12,'이평3 사용: 스캔 = 일반 실행',w);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
- console.log('G) 이평3 스윕(고급도구) — 조합 수·이평3 열·1위 행 적용 시 일반 실행과 일치');
+  ok(w.cnt===10&&w.m<1e-12,'바닥 신호 사용: 스캔 = 일반 실행',w);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('G) 바닥 신호 스윕(고급도구) — 조합 수·바닥신호 열·1위 행 적용 시 일반 실행과 일치');
  {const p=await mkPage();await base(p);await p.fill('#s','2012-01-02');
-  for(const [a,b,c,x,y,z] of [['a1','b1','c1',50,90,20],['a2','b2','c2',150,250,50],['a3','b3','c3',300,700,200]])for(const [k,v] of [[a,x],[b,y],[c,z]])await p.fill('#'+k,''+v);
-  await p.evaluate(()=>{const e=document.getElementById('en3');e.checked=true;e.dispatchEvent(new Event('change'))});
-  ok(/27개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 27개(3×3×3)');
+  for(const [a,b,c,x,y,z] of [['a1','b1','c1',50,90,20],['a2','b2','c2',150,250,50]])for(const [k,v] of [[a,x],[b,y],[c,z]])await p.fill('#'+k,''+v);
+  await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{const e=document.getElementById('en3');e.checked=true;e.dispatchEvent(new Event('change'))});
+  ok(/9개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 9개(3×3, 바닥 신호는 고정)');
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),90000);await p.waitForTimeout(500);
   const info=await p.evaluate(()=>({n:window._swrows.length,n3:[...new Set(window._swrows.map(r=>r.n3))].sort().join(','),hdr:[...document.getElementById('swt').rows[0].cells].map(c=>c.textContent).join('|')}));
-  ok(info.n===27&&info.n3==='300,500,700'&&/이평3/.test(info.hdr),'27개 결과, 이평3 값 300/500/700, 표에 이평3 열',info);
+  ok(info.n===9&&info.n3==='1'&&/바닥신호/.test(info.hdr),'9개 결과, 바닥 신호 사용 표시, 표에 바닥신호 열',info);
   const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>a.comp-b.comp)[0];return{n1:r.n1,n2:r.n2,n3:r.n3,cagr:r.cagr,mdd:r.mdd,so:r.so,b1:r.b1,s1:r.s1,b2:r.b2}});
   await p.evaluate(r=>applyRow(r),top);await p.waitForTimeout(2000);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
   ok(Math.abs(run[0]-top.cagr)<1e-12&&Math.abs(run[1]-top.mdd)<1e-12&&Math.abs(run[2]-top.so)<1e-12,'1위 행 적용 → 일반 실행과 같은 값',{run,top});ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}

@@ -136,7 +136,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
         else if (r.r > 0 && od.n < r.n) od.dead = true;
         else if (r.r > 0 && od.n > r.n) sup = true;
       });
-      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (r.a || (s ? '↓' : '↑')) }); };
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
       buys.forEach((r, k) => add(false, r, k, r.f[i]));
@@ -247,6 +247,21 @@ function stats(e, dates) {
 
 // ---- 돌파/이탈 이벤트 방식 (이평선 백테스터 아티팩트와 동일 규칙) ----
 // 가격이 이평선을 위로 돌파한 날(up)/아래로 이탈한 날(dn) 신호. 전일 <= 이평 && 당일 > 이평 (이탈은 반대).
+// 바닥 신호(이평 3 대체): QQQ 등 신호 종목의 MACD/가격 < mTh 이고 VIX − 실현변동성(21일) > gTh 인 날 true.
+//  MACD = EMA12 − EMA26(첫 값으로 시작), 실현변동성 = 최근 21일 일간 로그수익률의 표준편차(모집단)×√252, VIX 는 /100 로 맞춤.
+//  px, vix: 같은 날짜로 맞춘 종가 배열(vix 빈 값은 직전 값 유지). 값이 없는 날은 false.
+function bottomFlags(px, vix, mTh, gTh) {
+  const n = px.length, ema = (a, k) => { const o = new Array(n), al = 2 / (k + 1); let p = NaN; for (let i = 0; i < n; i++) { p = Number.isFinite(p) ? a[i] * al + p * (1 - al) : a[i]; o[i] = p; } return o; };
+  const e12 = ema(px, 12), e26 = ema(px, 26), lr = px.map((v, i) => i ? Math.log(v / px[i - 1]) : 0), K = 21, f = new Array(n).fill(false);
+  let v = NaN; const vx = vix.map(x => (Number.isFinite(x) ? (v = x) : v));
+  for (let i = K - 1; i < n; i++) {
+    let m = 0; for (let j = i - K + 1; j <= i; j++) m += lr[j]; m /= K;
+    let q = 0; for (let j = i - K + 1; j <= i; j++) q += (lr[j] - m) ** 2;
+    const rv = Math.sqrt(q / K) * Math.sqrt(252), macd = (e12[i] - e26[i]) / px[i], gap = vx[i] / 100 - rv;
+    f[i] = Number.isFinite(macd) && Number.isFinite(gap) && macd < mTh && gap > gTh;
+  }
+  return f;
+}
 function crossFlags(px, n) {
   const m = ma(px, n, false), up = [], dn = [];
   for (let i = 0; i < px.length; i++) {
@@ -297,7 +312,7 @@ function simulateEvents(dates, px, buys, sells, o) {
         else if (r.r > 0 && od.n < r.n) od.dead = true;
         else if (r.r > 0 && od.n > r.n) sup = true;
       });
-      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.n || '') + '일' + (r.a || (s ? '↓' : '↑')) }); };
+      if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
       buys.forEach((r, k) => add(false, r, k, r.f[i]));
@@ -322,4 +337,4 @@ function simulateEvents(dates, px, buys, sells, o) {
   return { eq, eqL, eqP: eqPay(eq, eqL), pd, taxY: tx.yearTax(), paid, trades, w, list, pnl: { x: ssum - bsum + sh * px[n - 1], y: [], int: intr, tax: paid, fee: fees, unreal: eq[n - 1] - eqL[n - 1] } };
 }
 
-if (typeof module !== 'undefined') module.exports = { makeTaxer, yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };
+if (typeof module !== 'undefined') module.exports = { bottomFlags, makeTaxer, yearlyPnl, simulateEventsAlt, simulateAlt, interestFactors, yearsOf, statsLite, crossFlags, simulateEvents, ma, series, evalConds, targets, applied, simulate, buyHold, stats };

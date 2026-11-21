@@ -34,6 +34,20 @@ object AlertJob {
         return t / n
     }
 
+    /** 바닥 신호(이평 3 대체): MACD(12·26)/가격 < mTh 이고 VIX/100 − 21일 실현변동성(연환산) > gTh 인 마지막 날이면 true. 앱 화면(engine.bottomFlags)과 같은 계산. */
+    private fun bottom(px: DoubleArray, vx: DoubleArray, mTh: Double, gTh: Double): Triple<Boolean, Double, Double> {
+        val n = px.size; val last = n - 1
+        if (n < 22) return Triple(false, Double.NaN, Double.NaN)
+        fun ema(k: Int): Double { val al = 2.0 / (k + 1); var p = px[0]; for (i in 1 until n) p = px[i] * al + p * (1 - al); return p }
+        val macd = (ema(12) - ema(26)) / px[last]
+        val lr = DoubleArray(n) { if (it == 0) 0.0 else Math.log(px[it] / px[it - 1]) }
+        var m = 0.0; for (j in last - 20..last) m += lr[j]; m /= 21
+        var q = 0.0; for (j in last - 20..last) q += (lr[j] - m) * (lr[j] - m)
+        val rv = Math.sqrt(q / 21) * Math.sqrt(252.0)
+        val gap = vx[last] / 100 - rv
+        return Triple(macd < mTh && gap > gTh, macd, gap)
+    }
+
     /** test=true: 날짜·시간 상관없이 지금 있는 마지막 종가로 계산하고 신호 없어도 알림. */
     fun run(ctx: Context, test: Boolean): R {
         val c = cfg(ctx) ?: return R.DONE
@@ -45,7 +59,8 @@ object AlertJob {
             var maxN = 2
             for (i in 0 until rules.length()) maxN = max(maxN, rules.getJSONObject(i).getInt("n"))
             val today = LocalDate.now(ET)
-            val (body, _) = Yahoo.prices(sig, today.minusDays((maxN * 1.6).toLong() + 30).toString(), today.toString())
+            val from = today.minusDays((maxN * 1.6).toLong() + 30).toString()
+            val (body, _) = Yahoo.prices(sig, from, today.toString())
             val arr = JSONArray(body); val n = arr.length()
             if (n < 3) return R.ERROR
             val dates = Array(n) { arr.getJSONArray(it).getString(0) }
@@ -57,6 +72,16 @@ object AlertJob {
             for (i in 0 until rules.length()) {
                 val r = rules.getJSONObject(i); val k = r.getInt("n"); val b = r.getInt("b"); val s = r.getInt("s")
                 val rdB = r.optInt("db", 0).let { if (it > 0) it else delay }; val rdS = r.optInt("ds", 0).let { if (it > 0) it else delayS }
+                if (r.optBoolean("bottom", false)) { // 바닥 신호: 전액 매수
+                    val vb = JSONArray(Yahoo.prices("^VIX", from, today.toString()).first)
+                    val vm = HashMap<String, Double>(); for (j in 0 until vb.length()) vm[vb.getJSONArray(j).getString(0)] = vb.getJSONArray(j).getDouble(1)
+                    var lastV = Double.NaN; val vx = DoubleArray(n) { vm[dates[it]]?.also { v -> lastV = v } ?: lastV }
+                    val mTh = r.optDouble("bm", -0.027); val gTh = r.optDouble("bg", 0.043)
+                    val (hit, macd, gap) = bottom(px, vx, mTh, gTh)
+                    val st = "MACD/가격 ${f2(macd * 100)}% (기준 ${f2(mTh * 100)}% 미만) · VIX−실현변동성 ${f2(gap * 100)}%p (기준 ${f2(gTh * 100)}%p 초과)"
+                    if (hit) { buy = true; lines.add("📈 바닥 신호 충족 → 매수 100% (현금 전액) · ${rdB}거래일 뒤 체결\n   $st") } else lines.add("바닥 신호 없음\n   $st")
+                    continue
+                }
                 if (k < 2 || last - 1 - k + 1 < 0) { lines.add("${k}일선: 데이터 부족"); continue }
                 val m = ma(px, last, k); val pm = ma(px, last - 1, k)
                 val buyDn = r.optBoolean("buyDn", false) // 매수 전용: 하향 돌파 시 매수(매도 없음)
