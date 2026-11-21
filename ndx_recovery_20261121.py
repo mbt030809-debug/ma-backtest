@@ -15,7 +15,7 @@ for i in range(n):
     pk_idx[i] = cur
 now = dd[-1]; BAND = 0.05
 match = [t for t in range(n - 1) if abs(dd[t] - now) <= BAND and dd[t] < -0.01]
-HZ = [126, 252, 504, 756]; FURTHER = [-0.10, -0.20, -0.30]
+HZ = [21, 63, 126, 252, 504, 756]; FURTHER = [-0.10, -0.20, -0.30]; FH = [21, 63, 126, 252]
 
 # 회복일: t 이후 처음 c >= peak[t]
 def recov_day(t):
@@ -26,7 +26,7 @@ eps = {}
 for t in match: eps.setdefault(pk_idx[t], []).append(t)
 w = {t: 1.0 / len(v) for v in eps.values() for t in v}
 rows = []; res = {h: [0.0, 0.0] for h in HZ}            # [회복 가중합, 가중 표본합]
-fur = {x: [0.0, 0.0] for x in FURTHER}; days_rec = []
+fur = {fh: {x: [0.0, 0.0] for x in FURTHER} for fh in FH}; days_rec = []
 for pk, ts in sorted(eps.items()):
     rd = [recov_day(t) for t in ts]
     rec_days = [r - t for r, t in zip(rd, ts) if r is not None]
@@ -38,19 +38,19 @@ for pk, ts in sorted(eps.items()):
             if known:
                 res[h][0] += w[t] * (r is not None and r - t <= h); res[h][1] += w[t]
         if r is not None: days_rec.append((r - t, w[t]))
-        if t + 252 <= n - 1 or (c[t + 1:t + 253].min() / c[t] - 1 <= -0.10):
-            mn = c[t + 1:min(n, t + 253)].min() / c[t] - 1
+        for fh in FH:
+            mn = c[t + 1:min(n, t + fh + 1)].min() / c[t] - 1
             for x in FURTHER:
-                if t + 252 <= n - 1 or mn <= x: fur[x][0] += w[t] * (mn <= x); fur[x][1] += w[t]
+                if t + fh <= n - 1 or mn <= x: fur[fh][x][0] += w[t] * (mn <= x); fur[fh][x][1] += w[t]
 rec_p = {h: res[h][0] / res[h][1] if res[h][1] else None for h in HZ}
-fur_p = {x: fur[x][0] / fur[x][1] if fur[x][1] else None for x in FURTHER}
+fur_p = {fh: {x: fur[fh][x][0] / fur[fh][x][1] for x in FURTHER} for fh in FH}
 E = pd.DataFrame(rows)
 md = [f"# 낙폭 회복 분석 ({TAG})\n", f"- 현재(2026-11-20): 전고점 대비 {now*100:.1f}%, 비교 구간 {(now-BAND)*100:.1f}% ~ {(now+BAND)*100:.1f}%",
       f"- 해당 상태였던 에피소드(전고점 단위) {len(eps)}개, 해당 일수 {len(match)}일 (에피소드당 동일 가중)\n",
       "## 전고점 회복 확률 (이후 N개월 내)\n", "| 기간 | 회복 확률 |\n|---|---|"]
 for h in HZ: md.append(f"| {h//21}개월 | {rec_p[h]*100:.0f}% |")
-md += ["\n## 이후 1년 내 현재가 대비 추가 하락 도달 확률\n", "| 추가 하락 | 확률 |\n|---|---|"]
-for x in FURTHER: md.append(f"| {x*100:.0f}% 이하 | {fur_p[x]*100:.0f}% |")
+md += ["\n## 기간 내 현재가 대비 추가 하락 도달 확률 (한 번이라도)\n", "| 추가 하락 | 1개월 | 3개월 | 6개월 | 1년 |\n|---|---|---|---|---|"]
+for x in FURTHER: md.append(f"| {x*100:.0f}% 이하 | " + " | ".join(f"{fur_p[fh][x]*100:.0f}%" for fh in FH) + " |")
 md += ["\n## 에피소드별 (비슷한 낙폭이었던 사건)\n", E.to_markdown(index=False, floatfmt=".0f") + "\n",
        "주의: 독립 에피소드 수가 적어 확률의 불확실성이 큼 (표본 수 자체가 한계)"]
 open(OUT + f"ndx_recovery_{TAG}.md", "w").write("\n".join(md))
@@ -64,6 +64,6 @@ for h in [126, 252, 756]:
     ys = md_ + z * sig[-1] * np.sqrt(h / 252); s = np.exp(ys) - 1
     cur[h] = dict(q=[float(np.exp(np.quantile(ys, q)) - 1) for q in QS], pLoss=float((s < 0).mean()), pLtM10=float((s < -.1).mean()),
                   pGt10=float((s > .1).mean()), pGt20=float((s > .2).mean()))
-json.dump({"sigma_now": float(sig[-1]), "recovery": {str(k): v for k, v in rec_p.items()}, "further": {str(k): v for k, v in fur_p.items()},
+json.dump({"sigma_now": float(sig[-1]), "recovery": {str(k): v for k, v in rec_p.items()}, "further": {str(fh): {str(x): v for x, v in d.items()} for fh, d in fur_p.items()},
            "episodes": len(eps), "vol_scaled_current": cur}, open(OUT + f"ndx_recovery_{TAG}.json", "w"), indent=1)
 print("\n".join(md)); print(json.dumps(cur, indent=1)); print("sigma_now", sig[-1])

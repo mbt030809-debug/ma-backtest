@@ -97,8 +97,9 @@
     for (i = 0; i < n; i++) { if (c[i] > mx) mx = c[i]; peak[i] = mx; dd[i] = c[i] / mx - 1; if (c[i] >= mx - 1e-12) cur = i; pk[i] = cur; }
     var now = dd[n - 1], eps = {}, matched = 0;
     for (t = 0; t < n - 1; t++) if (Math.abs(dd[t] - now) <= 0.05 && dd[t] < -0.01) { (eps[pk[t]] = eps[pk[t]] || []).push(t); matched++; }
-    var HZR = [126, 252, 504, 756], FUR = [-0.10, -0.20, -0.30], res = {}, fur = {};
-    HZR.forEach(function (h) { res[h] = [0, 0]; }); FUR.forEach(function (x) { fur[x] = [0, 0]; });
+    var HZR = [21, 63, 126, 252, 504, 756], FUR = [-0.10, -0.20, -0.30], FH = [21, 63, 126, 252], res = {}, fur = {};
+    HZR.forEach(function (h) { res[h] = [0, 0]; });
+    FH.forEach(function (fh) { fur[fh] = {}; FUR.forEach(function (x) { fur[fh][x] = [0, 0]; }); });
     var keys = Object.keys(eps);
     keys.forEach(function (k) {
       var ts = eps[k], w = 1 / ts.length;
@@ -108,16 +109,18 @@
           var ok = (r >= 0 && r - t <= h);
           if (ok || t + h <= n - 1) { res[h][0] += w * (ok ? 1 : 0); res[h][1] += w; }
         });
-        var mn = Infinity; for (u = t + 1; u < Math.min(n, t + 253); u++) if (c[u] < mn) mn = c[u];
-        mn = mn / c[t] - 1;
-        if (t + 252 <= n - 1 || mn <= -0.10) FUR.forEach(function (x) {
-          if (t + 252 <= n - 1 || mn <= x) { fur[x][0] += w * (mn <= x ? 1 : 0); fur[x][1] += w; }
+        FH.forEach(function (fh) {   // 이후 fh일 내 현재가 대비 최저 수익률
+          var mn = Infinity; for (u = t + 1; u < Math.min(n, t + fh + 1); u++) if (c[u] < mn) mn = c[u];
+          mn = mn / c[t] - 1;
+          FUR.forEach(function (x) {
+            if (t + fh <= n - 1 || mn <= x) { fur[fh][x][0] += w * (mn <= x ? 1 : 0); fur[fh][x][1] += w; }
+          });
         });
       });
     });
     var rec = {}, further = {};
     HZR.forEach(function (h) { rec[h] = res[h][1] ? res[h][0] / res[h][1] : null; });
-    FUR.forEach(function (x) { further[x] = fur[x][1] ? fur[x][0] / fur[x][1] : null; });
+    FH.forEach(function (fh) { further[fh] = {}; FUR.forEach(function (x) { further[fh][x] = fur[fh][x][1] ? fur[fh][x][0] / fur[fh][x][1] : null; }); });
     return { now: now, episodes: keys.length, matched: matched, rec: rec, further: further };
   }
   root.NDXModel = { forecast: forecast, features: features, recovery: recovery, QS: QS, KEY: KEY, GRID: GRID };

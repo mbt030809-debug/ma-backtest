@@ -137,10 +137,13 @@ th{color:var(--mute);font-weight:500}
 
   function renderRecovery(){
     $('recTitle').textContent='현재 낙폭 '+pct(RC.now)+'와 비슷했던 '+RC.episodes+'개 사건';
-    var h='<tr><th>항목</th><th>6개월</th><th>1년</th><th>2년</th></tr>';
-    h+='<tr><td>전고점 회복 확률</td><td>'+pct(RC.rec[126],0)+'</td><td>'+pct(RC.rec[252],0)+'</td><td>'+pct(RC.rec[504],0)+'</td></tr>';
-    h+='<tr><td colspan="4" style="padding-top:10px;color:var(--mute)">이후 1년 내 현재가 대비 추가 하락 도달 확률</td></tr>';
-    h+='<tr><td>-10% 이하 / -20% 이하 / -30% 이하</td><td class="dn">'+pct(RC.further[-0.1],0)+'</td><td class="dn">'+pct(RC.further[-0.2],0)+'</td><td class="dn">'+pct(RC.further[-0.3],0)+'</td></tr>';
+    var HS=[21,63,126,252], nm={21:'1개월',63:'3개월',126:'6개월',252:'1년',504:'2년'}, h='<tr><th>기간 내</th>';
+    [21,63,126,252,504].forEach(function(x){h+='<th>'+nm[x]+'</th>'}); h+='</tr>';
+    h+='<tr><td>전고점 회복 확률</td>'+[21,63,126,252,504].map(function(x){return '<td>'+pct(RC.rec[x],0)+'</td>'}).join('')+'</tr>';
+    h+='<tr><td colspan="6" style="padding-top:10px;color:var(--mute)">현재가 대비 추가 하락 도달 확률 (그 기간 안에 한 번이라도)</td></tr>';
+    [-0.1,-0.2,-0.3].forEach(function(x){
+      h+='<tr><td>'+(x*100)+'% 이하</td>'+[21,63,126,252,504].map(function(k){return HS.indexOf(k)<0?'<td>-</td>':'<td class="dn">'+pct(RC.further[k][x],0)+'</td>'}).join('')+'</tr>';
+    });
     $('rec').innerHTML=h;
   }
 
