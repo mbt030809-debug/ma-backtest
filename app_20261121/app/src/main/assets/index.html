@@ -86,11 +86,11 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card warn">
-  <b>검증 결과 요약 (가격 데이터만 사용, 미래 정보 없이 과거 시점마다 예측해 확인)</b><br>
+  <b>검증 결과 요약 (가격 데이터만 사용, 미래 정보 없이 과거 시점마다 예측해 확인 · 2000·2008 포함, 이상치 제외 없음)</b><br>
   · <b>수익률 구간</b>: 변동성 보정이 기준선보다 정확 (튜닝·검증 구간 모두 pinball 3~12% 개선). 중앙값(방향) 예측력은 없음<br>
-  · <b>바닥(최저점)</b>: 유사 낙폭 사건 방식이 시뮬레이션(변동성 부트스트랩·로그정규)보다 정확 — 75% 수준 적중 81%(이상 75%), pinball 0.018 대 0.025~0.027<br>
-  · <b>전고점 탈환 기간</b>: 유사 사건 방식이 시뮬레이션보다 정확 — 6개월 내 탈환 확률 Brier 0.15 대 0.18~0.20<br>
-  · 검증 표본은 49개 시점(29개 하락 사건)으로 작음. 2000·2008 같은 폭락은 구간 밖으로 벗어난 사례가 있음<br>
+  · <b>바닥(최저점)</b>: 유사 낙폭 사건 방식이 시뮬레이션(변동성 부트스트랩·로그정규)과 같거나 약간 더 정확 (pinball 0.026 대 0.029~0.030, 75% 수준 적중 0.76~0.86)<br>
+  · <b>고점 탈환 기간</b>: 유사 사건 방식이 시뮬레이션보다 정확 — 6개월 내 탈환 확률 Brier 0.18 대 0.24~0.26, 1년 0.09 대 0.13<br>
+  · 2000·2008처럼 연속 폭락한 사건은 바닥을 크게 과소평가했음 (예: 2000년 4월 예측 90% 수준 -12%, 실제 -80%)<br>
   · 투자 조언 아님
 </div>
 
@@ -136,7 +136,7 @@ th{color:var(--mute);font-weight:500}
   function renderBottom(){
     var U=AN.until, HZ=AN.hz, nm='';
     $('btTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건';
-    var h='<tr><th>최저점이 이 가격 위일 확률</th><th>1개월</th><th>3개월</th><th>6개월</th><th>회복 전까지</th></tr>', cell=function(l,pr){return '<td><span class="dn">'+sg(l)+'</span><br><span class="sub">'+fmt(pr)+'</span></td>'};
+    var h='<tr><th>확률(최저점이 위)</th><th>1개월</th><th>3개월</th><th>6개월</th><th>회복전</th></tr>', cell=function(l,pr){return '<td><span class="dn">'+sg(l)+'</span><br><span class="sub">'+fmt(pr)+'</span></td>'};
     [0.5,0.75,0.9].forEach(function(p){
       h+='<tr><td>'+pct(p,0)+'</td>'+[21,63,126].map(function(k){return cell(HZ[k].levels[p],HZ[k].prices[p])}).join('')+cell(U.levels[p],U.prices[p])+'</tr>';
     });
@@ -145,7 +145,7 @@ th{color:var(--mute);font-weight:500}
       h+='<tr><td>'+(x*100)+'% 이하</td>'+[21,63,126].map(function(k){return '<td class="dn">'+pct(HZ[k].exceed[x],0)+'</td>'}).join('')+'<td class="dn">'+pct(U.exceed[x],0)+'</td></tr>';
     });
     $('bt').innerHTML=h;
-    $('btNote').innerHTML='초록 점선(그래프)은 회복 전까지의 바닥 가격대. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요. 2000년 닷컴(-80%)처럼 훨씬 더 빠진 사례가 일부 있음.';
+    $('btNote').innerHTML='초록 점선(그래프)은 회복 전까지의 바닥 가격대. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요. 2000·2008 폭락 사건도 예외 없이 모두 포함해 계산함 (90% 수준이 깊은 이유).';
   }
 
   function renderRecovery(){
@@ -153,7 +153,7 @@ th{color:var(--mute);font-weight:500}
     $('recTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건';
     var h='<tr><th>기간 내 탈환 확률</th>'+HS.map(function(k){return '<th>'+nm[k]+'</th>'}).join('')+'</tr>';
     h+='<tr><td>전고점 탈환</td>'+HS.map(function(k){return '<td>'+pct(U.rec[k],0)+'</td>'}).join('')+'</tr>';
-    var mo=function(d){return d>=AN.cap?'5년 이상':(d/21).toFixed(1)+'개월'};
+    var mo=function(d){return d<504?(d/21).toFixed(1)+'개월':(d/252).toFixed(1)+'년'};
     h+='<tr><td colspan="5" class="wrap" style="padding-top:10px;color:var(--mute)">탈환까지 걸린 기간 (과거 사건 기준)</td></tr>';
     h+='<tr><td colspan="5" class="wrap">25% 이내 <b>'+mo(U.dq[0.25])+'</b> · 50% 이내 <b>'+mo(U.dq[0.5])+'</b> · 75% 이내 <b>'+mo(U.dq[0.75])+'</b> · 90% 이내 <b>'+mo(U.dq[0.9])+'</b></td></tr>';
     $('rec').innerHTML=h;

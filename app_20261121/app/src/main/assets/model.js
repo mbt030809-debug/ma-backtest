@@ -65,18 +65,22 @@
     return out;
   }
 
-  // 유사 낙폭 사건 방식: 현재와 비슷한 낙폭(±5%p)이었던 과거 시점을 전고점(에피소드) 단위 동일 가중으로 모음
+  // 유사 낙폭 사건 방식 (검증 채택, 2000·2008 포함·예외/상한 없음):
+  // 낙폭 = 최근 1년(252거래일) 고점 대비. 현재와 비슷한 낙폭(±5%p)이면서 하락 중(최근 20일 최저 낙폭 +3%p 이내)이었던 과거 시점을
+  // 사건(연속 구간) 단위 동일 가중으로 모음 -> 고점 회복 전 최저점, 1/3/6개월 내 최저점, 고점 탈환 확률·기간
   function analogs(c) {
-    var n = c.length, peak = new Float64Array(n), pk = new Int32Array(n), dd = new Float64Array(n), mx = -Infinity, cur = 0, i, s;
-    for (i = 0; i < n; i++) { if (c[i] > mx) mx = c[i]; peak[i] = mx; dd[i] = c[i] / mx - 1; if (c[i] >= mx - 1e-12) cur = i; pk[i] = cur; }
-    var ups = []; for (i = 0; i < n; i++) if (pk[i] === i) ups.push(i);
-    var Rec = {}; for (i = 0; i + 1 < ups.length; i++) Rec[ups[i]] = ups[i + 1];   // 전고점 -> 회복(다음 신고가) 인덱스
-    var CAP = 1260, now = dd[n - 1], lastP = c[n - 1], cand = [];
-    for (s = 0; s < n - 1; s++) if (Math.abs(dd[s] - now) <= 0.05 && dd[s] < -0.01) cand.push(s);
-
-    function weights(list) {
-      var cnt = {}; list.forEach(function (s) { cnt[pk[s]] = (cnt[pk[s]] || 0) + 1; });
-      return { w: list.map(function (s) { return 1 / cnt[pk[s]]; }), ne: Object.keys(cnt).length };
+    var n = c.length, H = new Float64Array(n).fill(NaN), dd = new Float64Array(n).fill(NaN), i, s, u;
+    for (i = 251; i < n; i++) { var m = -Infinity; for (u = i - 251; u <= i; u++) if (c[u] > m) m = c[u]; H[i] = m; dd[i] = c[i] / m - 1; }
+    var now = dd[n - 1], lastP = c[n - 1], cache = {};
+    function rec(s) {   // s 시점 고점(H[s]) 탈환 인덱스, 없으면 -1
+      if (cache[s] === undefined) { var r = -1; for (var u = s + 1; u < n; u++) if (c[u] >= H[s]) { r = u; break; } cache[s] = r; }
+      return cache[s];
+    }
+    function clusters(idx, gap) {   // 시간순 시점을 사건(간격 gap 이하 연속 구간)으로 묶고 시점별 가중치(사건당 합 1) 반환
+      idx = idx.slice().sort(function (a, b) { return a - b; });
+      var cid = [], cur = -1, prev = null, cnt = {};
+      idx.forEach(function (s) { if (prev === null || s - prev > gap) cur++; cid.push(cur); prev = s; cnt[cur] = (cnt[cur] || 0) + 1; });
+      return { idx: idx, w: cid.map(function (k) { return 1 / cnt[k]; }), ne: cur + 1 };
     }
     function wq(v, w, q) {
       var a = v.map(function (x, k) { return [x, w[k]]; }).sort(function (p, r) { return p[0] - r[0]; }), tot = 0, k;
@@ -88,25 +92,28 @@
     function shareLE(v, w, x) { var a = 0, t = 0; v.forEach(function (y, k) { t += w[k]; if (y <= x) a += w[k]; }); return a / t; }
     function minOver(s, end) { var m = c[s]; for (var u = s; u <= end; u++) if (c[u] < m) m = c[u]; return m / c[s] - 1; }
 
-    // 전고점 회복 전 최저점 + 탈환 기간 (결과가 확정된 사건만)
-    var known = cand.filter(function (s) { return Rec[pk[s]] !== undefined; }), wk = weights(known);
-    var Fv = known.map(function (s) { return minOver(s, Math.min(Rec[pk[s]], s + CAP)); });
-    var Dv = known.map(function (s) { return Math.min(Rec[pk[s]] - s, CAP); });
+    var base = [];
+    for (s = 252; s < n - 1; s++) {
+      if (!(Math.abs(dd[s] - now) <= 0.05 && dd[s] < -0.01)) continue;
+      var mn = Infinity; for (u = Math.max(252, s - 20); u <= s; u++) if (dd[u] < mn) mn = dd[u];
+      if (dd[s] <= mn + 0.03) base.push(s);
+    }
+    var known = base.filter(function (s) { return rec(s) >= 0; }), K = clusters(known, 63);
+    var Fv = K.idx.map(function (s) { return minOver(s, rec(s)); }), Dv = K.idx.map(function (s) { return rec(s) - s; });
     var until = { levels: {}, prices: {}, exceed: {}, rec: {}, dq: {} };
-    [0.5, 0.75, 0.9].forEach(function (p) { var l = wq(Fv, wk.w, 1 - p); until.levels[p] = l; until.prices[p] = lastP * (1 + l); });
-    [-0.05, -0.10, -0.15, -0.20, -0.30].forEach(function (x) { until.exceed[x] = shareLE(Fv, wk.w, x); });
-    [21, 63, 126, 252].forEach(function (h) { until.rec[h] = shareLE(Dv, wk.w, h); });
-    [0.25, 0.5, 0.75, 0.9].forEach(function (q) { until.dq[q] = wq(Dv, wk.w, q); });
-    // 1/3/6개월 내 최저점
+    [0.5, 0.75, 0.9].forEach(function (p) { var l = wq(Fv, K.w, 1 - p); until.levels[p] = l; until.prices[p] = lastP * (1 + l); });
+    [-0.05, -0.10, -0.15, -0.20, -0.30].forEach(function (x) { until.exceed[x] = shareLE(Fv, K.w, x); });
+    [21, 63, 126, 252].forEach(function (h) { until.rec[h] = shareLE(Dv, K.w, h); });
+    [0.25, 0.5, 0.75, 0.9].forEach(function (q) { until.dq[q] = wq(Dv, K.w, q); });
     var hz = {};
     [21, 63, 126].forEach(function (h) {
-      var ss = cand.filter(function (s) { return s + h <= n - 1; }), wh = weights(ss);
-      var v = ss.map(function (s) { return minOver(s, s + h); }), o = { levels: {}, prices: {}, exceed: {}, episodes: wh.ne };
-      [0.5, 0.75, 0.9].forEach(function (p) { var l = wq(v, wh.w, 1 - p); o.levels[p] = l; o.prices[p] = lastP * (1 + l); });
-      [-0.05, -0.10, -0.20].forEach(function (x) { o.exceed[x] = shareLE(v, wh.w, x); });
+      var C = clusters(base.filter(function (s) { return s + h <= n - 1; }), 63), v = C.idx.map(function (s) { return minOver(s, s + h); });
+      var o = { levels: {}, prices: {}, exceed: {}, events: C.ne };
+      [0.5, 0.75, 0.9].forEach(function (p) { var l = wq(v, C.w, 1 - p); o.levels[p] = l; o.prices[p] = lastP * (1 + l); });
+      [-0.05, -0.10, -0.20].forEach(function (x) { o.exceed[x] = shareLE(v, C.w, x); });
       hz[h] = o;
     });
-    return { now: now, lastP: lastP, episodes: wk.ne, samples: known.length, cap: CAP, until: until, hz: hz };
+    return { now: now, lastP: lastP, episodes: K.ne, samples: K.idx.length, until: until, hz: hz };
   }
   root.NDXModel = { forecast: forecast, features: features, analogs: analogs, QS: QS, KEY: KEY, GRID: GRID };
   if (typeof module !== 'undefined') module.exports = root.NDXModel;
