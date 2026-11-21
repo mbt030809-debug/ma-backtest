@@ -144,6 +144,7 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  {const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));await p.goto(BASE);
   const vis=()=>p.evaluate(()=>[...document.querySelectorAll('.tab')].filter(x=>getComputedStyle(x).display!='none').map(x=>x.id).join(','));
   ok(await vis()==='tab-bt','처음엔 백테스트 탭만 보임',await vis());
+  {const st=await p.evaluate(()=>{const c=document.getElementById('cfgBox');c.open=false;const r=['ruleAdd','init','tax','delay','en3'].map(i=>document.getElementById(i).checkVisibility());c.open=true;return r});ok(st.every(v=>v===false),'설정을 접으면 이평선 추가·비용·체결까지 모두 접힘',st)}
   ok(await p.evaluate(()=>{const c=document.getElementById('cfgBox'),n=document.getElementById('tabs');return c.contains(document.getElementById('rulesBox'))&&c.getBoundingClientRect().top<n.getBoundingClientRect().top}),'백테스트 설정이 탭 줄보다 위(모든 탭 공통)');
   await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#s','2014-01-01');await SR(p,[{n:60,up:'100',dn:'0'},{n:200,up:'100',dn:''}]);await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(600);
   ok(await p.evaluate(()=>document.querySelectorAll('#kpi .kpi').length)===4,'요약 타일 4개(CAGR·MDD·누적·칼마)');
