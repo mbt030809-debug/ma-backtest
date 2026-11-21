@@ -14,7 +14,10 @@ for i in range(n):
     if c[i] >= peak[i] - 1e-12: cur = i
     pk_idx[i] = cur
 now = dd[-1]; BAND = 0.05
-match = [t for t in range(n - 1) if abs(dd[t] - now) <= BAND and dd[t] < -0.01]
+runmin = np.zeros(n)
+for i in range(n): runmin[i] = dd[i] if pk_idx[i] == i else min(runmin[i - 1], dd[i])
+TOL = 0.03   # 하락 중(그 사건의 최저점 +3%p 이내)인 시점만 사용
+match = [t for t in range(n - 1) if abs(dd[t] - now) <= BAND and dd[t] < -0.01 and dd[t] <= runmin[t] + TOL]
 HZ = [21, 63, 126, 252, 504, 756]; FURTHER = [-0.10, -0.20, -0.30]; FH = [21, 63, 126, 252]
 
 # 회복일: t 이후 처음 c >= peak[t]
@@ -46,7 +49,7 @@ rec_p = {h: res[h][0] / res[h][1] if res[h][1] else None for h in HZ}
 fur_p = {fh: {x: fur[fh][x][0] / fur[fh][x][1] for x in FURTHER} for fh in FH}
 E = pd.DataFrame(rows)
 md = [f"# 낙폭 회복 분석 ({TAG})\n", f"- 현재(2026-11-20): 전고점 대비 {now*100:.1f}%, 비교 구간 {(now-BAND)*100:.1f}% ~ {(now+BAND)*100:.1f}%",
-      f"- 해당 상태였던 에피소드(전고점 단위) {len(eps)}개, 해당 일수 {len(match)}일 (에피소드당 동일 가중)\n",
+      f"- 비슷한 낙폭이면서 하락 중(최저점 +3%p 이내)이었던 에피소드(전고점 단위) {len(eps)}개, 해당 일수 {len(match)}일 (에피소드당 동일 가중)\n",
       "## 전고점 회복 확률 (이후 N개월 내)\n", "| 기간 | 회복 확률 |\n|---|---|"]
 for h in HZ: md.append(f"| {h//21}개월 | {rec_p[h]*100:.0f}% |")
 md += ["\n## 기간 내 현재가 대비 추가 하락 도달 확률 (한 번이라도)\n", "| 추가 하락 | 1개월 | 3개월 | 6개월 | 1년 |\n|---|---|---|---|---|"]

@@ -95,8 +95,10 @@
   function recovery(c) {
     var n = c.length, peak = new Float64Array(n), pk = new Int32Array(n), dd = new Float64Array(n), mx = -Infinity, cur = 0, i, t;
     for (i = 0; i < n; i++) { if (c[i] > mx) mx = c[i]; peak[i] = mx; dd[i] = c[i] / mx - 1; if (c[i] >= mx - 1e-12) cur = i; pk[i] = cur; }
-    var now = dd[n - 1], eps = {}, matched = 0;
-    for (t = 0; t < n - 1; t++) if (Math.abs(dd[t] - now) <= 0.05 && dd[t] < -0.01) { (eps[pk[t]] = eps[pk[t]] || []).push(t); matched++; }
+    var now = dd[n - 1], eps = {}, matched = 0, rm = new Float64Array(n);
+    for (i = 0; i < n; i++) rm[i] = (pk[i] === i) ? dd[i] : Math.min(rm[i - 1], dd[i]);
+    // 하락 중(그 사건의 최저점 +3%p 이내)인 시점만: 반등 중인 날이 섞이면 회복·바닥이 낙관적으로 나옴
+    for (t = 0; t < n - 1; t++) if (Math.abs(dd[t] - now) <= 0.05 && dd[t] < -0.01 && dd[t] <= rm[t] + 0.03) { (eps[pk[t]] = eps[pk[t]] || []).push(t); matched++; }
     var HZR = [21, 63, 126, 252, 504, 756], FUR = [-0.10, -0.20, -0.30], FH = [21, 63, 126, 252], res = {}, fur = {};
     HZR.forEach(function (h) { res[h] = [0, 0]; });
     FH.forEach(function (fh) { fur[fh] = {}; FUR.forEach(function (x) { fur[fh][x] = [0, 0]; }); });
@@ -123,6 +125,35 @@
     FH.forEach(function (fh) { further[fh] = {}; FUR.forEach(function (x) { further[fh][x] = fur[fh][x][1] ? fur[fh][x][0] / fur[fh][x][1] : null; }); });
     return { now: now, episodes: keys.length, matched: matched, rec: rec, further: further };
   }
-  root.NDXModel = { forecast: forecast, features: features, recovery: recovery, QS: QS, KEY: KEY, GRID: GRID };
+  // 바닥 분석: 비슷한 낙폭·하락 중이었던 사건들의 '전고점 회복 전 최저점'(현재가 대비)과 바닥까지 걸린 기간
+  function bottom(c) {
+    var n = c.length, peak = new Float64Array(n), pk = new Int32Array(n), dd = new Float64Array(n), rm = new Float64Array(n), mx = -Infinity, cur = 0, i, t;
+    for (i = 0; i < n; i++) { if (c[i] > mx) mx = c[i]; peak[i] = mx; dd[i] = c[i] / mx - 1; if (c[i] >= mx - 1e-12) cur = i; pk[i] = cur; rm[i] = (pk[i] === i) ? dd[i] : Math.min(rm[i - 1], dd[i]); }
+    var now = dd[n - 1], eps = {};
+    for (t = 0; t < n - 1; t++) if (Math.abs(dd[t] - now) <= 0.05 && dd[t] < -0.01 && dd[t] <= rm[t] + 0.03) (eps[pk[t]] = eps[pk[t]] || []).push(t);
+    var S = [], used = 0;
+    Object.keys(eps).forEach(function (k) {
+      var ts = eps[k], w = 1 / ts.length, got = false;
+      ts.forEach(function (t) {
+        var r = -1, u; for (u = t + 1; u < n; u++) if (c[u] >= peak[t]) { r = u; break; }
+        if (r < 0) return;
+        var j = 0, m = c[t]; for (u = t; u <= r; u++) if (c[u] < m) { m = c[u]; j = u - t; }
+        S.push({ mn: m / c[t] - 1, d: j, w: w }); got = true;
+      });
+      if (got) used++;
+    });
+    var tot = 0; S.forEach(function (s) { tot += s.w; });
+    function wq(key, q) {
+      var a = S.slice().sort(function (x, y) { return x[key] - y[key]; }), cw = 0, target = q * tot;
+      for (var i = 0; i < a.length; i++) { cw += a[i].w; if (cw >= target - 1e-12) return a[i][key]; }
+      return a[a.length - 1][key];
+    }
+    var lastP = c[n - 1], levels = {}, prices = {}, dq = {}, ex = {};
+    [0.5, 0.75, 0.9].forEach(function (p) { levels[p] = wq('mn', 1 - p); prices[p] = lastP * (1 + levels[p]); });
+    [0.5, 0.75, 0.9].forEach(function (q) { dq[q] = wq('d', q); });
+    [-0.05, -0.10, -0.15, -0.20, -0.30].forEach(function (x) { var s = 0; S.forEach(function (e) { if (e.mn <= x) s += e.w; }); ex[x] = s / tot; });
+    return { episodes: used, samples: S.length, levels: levels, prices: prices, days: dq, exceed: ex, tail95: wq('mn', 0.05) };
+  }
+  root.NDXModel = { forecast: forecast, features: features, recovery: recovery, bottom: bottom, QS: QS, KEY: KEY, GRID: GRID };
   if (typeof module !== 'undefined') module.exports = root.NDXModel;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -25,6 +25,7 @@ canvas{width:100%;height:320px;display:block;touch-action:pan-y}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left;white-space:nowrap}
+td.wrap{white-space:normal;text-align:left}
 th{color:var(--mute);font-weight:500}
 .warn{font-size:12.5px;color:var(--mute)}
 .warn b{color:var(--ink)}
@@ -61,6 +62,7 @@ th{color:var(--mute);font-weight:500}
     <span><span class="sw" style="background:linear-gradient(90deg,rgba(var(--band),.1),rgba(var(--band),.9))"></span>진할수록 가능성 높은 가격대</span>
     <span>점선: 가장 가능성 높은 경로(최빈)</span>
     <span><span class="sw" style="background:var(--dn)"></span>최악 5% 경계</span>
+    <span><span class="sw" style="background:var(--up)"></span>바닥 가격대(초록 점선)</span>
     <span><span class="sw" style="background:var(--acc)"></span>중앙값(얇게)</span>
   </div>
 </div>
@@ -72,9 +74,15 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card">
+  <div class="k" style="margin-bottom:6px">바닥 예측 (<span id="btTitle"></span>)</div>
+  <table id="bt"></table>
+  <div class="warn" id="btNote" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
   <div class="k" style="margin-bottom:6px">전고점 회복 (<span id="recTitle"></span>)</div>
   <table id="rec"></table>
-  <div class="warn" style="margin-top:8px">현재 낙폭과 비슷했던 과거 사건(전고점 단위로 동일 가중) 기준. 사건 수가 적어 불확실성이 큼.</div>
+  <div class="warn" style="margin-top:8px">현재처럼 낙폭이 비슷하고 하락 중이던 과거 사건(전고점 단위로 동일 가중) 기준. 사건 수가 적어 불확실성이 큼.</div>
 </div>
 
 <div class="card">
@@ -100,14 +108,14 @@ th{color:var(--mute);font-weight:500}
   var data={d:window.NDX_BUNDLE.d.slice(),c:window.NDX_BUNDLE.c.slice()};
   var cache=null; try{cache=JSON.parse(localStorage.getItem('ndx_cache_v1')||'null')}catch(e){}
   if(cache&&cache.d&&cache.d.length&&cache.d[cache.d.length-1]>data.d[data.d.length-1]) data=cache;
-  var mode='vol', spanY=3, R=null, geo=null, RC=null, geoMode=null;
+  var mode='vol', spanY=3, R=null, geo=null, RC=null, BT=null, geoMode=null;
 
   function pct(x,dg){return (x*100).toFixed(dg==null?1:dg)+'%'}
   function sg(x){return (x>=0?'+':'')+(x*100).toFixed(1)+'%'}
   function fmt(x){return Math.round(x).toLocaleString('en-US')}
   function tms(s){return Date.parse(s+'T00:00:00Z')}
 
-  function compute(){ R=window.NDXModel.forecast(data.c); RC=window.NDXModel.recovery(data.c); renderAll(); }
+  function compute(){ R=window.NDXModel.forecast(data.c); RC=window.NDXModel.recovery(data.c); BT=window.NDXModel.bottom(data.c); renderAll(); }
 
   function renderAll(){
     var n=data.c.length, last=data.c[n-1];
@@ -117,7 +125,7 @@ th{color:var(--mute);font-weight:500}
     $('state').innerHTML=[['전고점 대비 낙폭',pct(s.dd),s.dd<-0.1?'dn':''],['200일선 이격',sg(s.z200),s.z200<0?'dn':'up'],
       ['최근 1년 수익률',sg(s.r252),s.r252<0?'dn':'up'],['변동성(63일, 연율)',pct(s.vol63)]]
       .map(function(a){return '<div><div class="k">'+a[0]+'</div><div class="v '+(a[2]||'')+'">'+a[1]+'</div></div>'}).join('');
-    renderTable(); renderRecovery(); draw();
+    renderTable(); renderBottom(); renderRecovery(); draw();
   }
 
   function renderTable(){
@@ -133,6 +141,19 @@ th{color:var(--mute);font-weight:500}
       :mode==='knn'
       ?'<b>비슷했던 때</b>: 지금처럼 떨어져 있던 과거 시점만 골라 그 뒤 결과를 본 것(떨어지면 오른다는 가설). 검증에서 가장 못 맞았고 사례가 적어(3년은 약 '+ep+'개) <b>참고만</b> 하세요.'
       :'<b>과거 평균</b>: 1986년 이후 모든 시점의 결과를 그대로 모은 단순 평균. 지금 상황은 반영하지 않음.';
+  }
+
+  function renderBottom(){
+    $('btTitle').textContent='현재 '+pct(RC.now)+' 하락 중 · 비슷했던 '+BT.episodes+'개 사건';
+    var m=function(d){return d<1?'지금 근처':(d/21<1?'약 '+Math.round(d)+'거래일':'약 '+(d/21).toFixed(1)+'개월')};
+    var h='<tr><th>확률(최저점이 이 가격 위)</th><th>추가 하락</th><th>가격</th></tr>';
+    [0.5,0.75,0.9].forEach(function(p){ h+='<tr><td>'+pct(p,0)+'</td><td class="dn">'+sg(BT.levels[p])+'</td><td>'+fmt(BT.prices[p])+'</td></tr>'; });
+    h+='<tr><td colspan="3" class="wrap" style="padding-top:10px;color:var(--mute)">이번 하락에서 추가 하락이 이 수준을 넘을 확률 (전고점 회복 전까지)</td></tr>';
+    h+='<tr><td colspan="3" class="wrap">'+[-0.05,-0.10,-0.15,-0.20,-0.30].map(function(x){return '<span style="display:inline-block;margin-right:10px">'+(x*100)+'% 이하 <b class="dn">'+pct(BT.exceed[x],0)+'</b></span>'}).join('')+'</td></tr>';
+    h+='<tr><td colspan="3" class="wrap" style="padding-top:10px;color:var(--mute)">바닥까지 걸린 기간 (과거 사건 기준)</td></tr>';
+    h+='<tr><td colspan="3" class="wrap">50% 이내 <b>'+m(BT.days[0.5])+'</b> · 75% 이내 <b>'+m(BT.days[0.75])+'</b> · 90% 이내 <b>'+m(BT.days[0.9])+'</b></td></tr>';
+    $('bt').innerHTML=h;
+    $('btNote').innerHTML='나머지 5%는 2000년 닷컴 붕괴급(추가 <b>'+sg(BT.tail95)+'</b>) 극단 사례로, 사건 1개에 의존함. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요.';
   }
 
   function renderRecovery(){
@@ -160,6 +181,7 @@ th{color:var(--mute);font-weight:500}
     var lo=Infinity, hi=-Infinity, i;
     for(i=i0;i<n;i++){lo=Math.min(lo,data.c[i]);hi=Math.max(hi,data.c[i]);}
     R.grid.forEach(function(h){lo=Math.min(lo,lastP*Math.exp(Q[h][0]));hi=Math.max(hi,lastP*Math.exp(Q[h][4]));});
+    if(BT) lo=Math.min(lo,BT.prices[0.9]);
     lo=Math.log(lo*0.93); hi=Math.log(hi*1.05);
     var L=44,Rr=8,T=8,B=22, pw=W-L-Rr, ph=H-T-B;
     function X(t){return L+(t-t0)/(t1-t0)*pw} function Y(p){return T+(hi-Math.log(p))/(hi-lo)*ph}
@@ -207,6 +229,14 @@ th{color:var(--mute);font-weight:500}
     g.setLineDash([]); g.strokeStyle=css.getPropertyValue('--dn').trim(); g.lineWidth=1.4; g.beginPath(); g.moveTo(x0,Y(lastP));
     R.grid.forEach(function(h){g.lineTo(X(lastT+h*HDAYS*DAY),Y(lastP*Math.exp(Q[h][0])));}); g.stroke(); g.lineWidth=1;
     g.setLineDash([4,3]); g.strokeStyle=ink;
+    // 바닥 가격대(이번 하락의 예상 최저점): 가로선
+    if(BT){ g.save(); g.setLineDash([6,4]); g.lineWidth=1.2; g.font='11px system-ui';
+      [[0.5,'바닥 50%'],[0.75,'바닥 75%'],[0.9,'바닥 90%']].forEach(function(a,ix){
+        var py=Y(BT.prices[a[0]]); if(py<T||py>T+ph) return;
+        g.strokeStyle=css.getPropertyValue('--up').trim(); g.fillStyle=css.getPropertyValue('--up').trim();
+        g.beginPath(); g.moveTo(L,py); g.lineTo(W-Rr,py); g.stroke();
+        g.textAlign='right'; g.fillText(a[1]+' '+fmt(BT.prices[a[0]]),W-Rr-4,py-3); g.textAlign='left';
+      }); g.restore(); }
     // 현재/키 지점 세로선
     g.strokeStyle=ink; [0,126,252,756].forEach(function(h){var x=X(lastT+h*HDAYS*DAY);g.beginPath();g.moveTo(x,T);g.lineTo(x,T+ph);g.stroke();
       if(h)g.fillText(h===126?'6M':h===252?'1Y':'3Y',h===252?x+2:x-(h===756?18:20),T+10);});
