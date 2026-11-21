@@ -14,8 +14,7 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   await cmpSweep(p,'기본');
   await p.fill('#db1','2');await p.fill('#ds1','1');await p.fill('#db2','4');await cmpSweep(p,'이평별 지연');
   await p.selectOption('#tr2','dn');await cmpSweep(p,'이평2 하향 돌파 매수');await p.selectOption('#tr2','up');
-  await p.evaluate(()=>{document.getElementById('stFirst').checked=false;save()});await cmpSweep(p,'상태 우선 끔');await p.evaluate(()=>{document.getElementById('stFirst').checked=true;save()});
-  await p.fill('#alt','XLV');await cmpSweep(p,'방어 ETF XLV');ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+    await p.fill('#alt','XLV');await cmpSweep(p,'방어 ETF XLV');ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('B) 방어 ETF 상장 전 = 현금, 스캔 = 일반 실행, 스윕 = 일반 실행');
  {const p=await mkPage(()=>{const of=window.fetch,L={LATE:'2014-03-03',MID:'2016-06-01',EARLY:'2009-01-02'};window.fetch=async(u,...a)=>{const m=/symbol=([^&]+)&start=([^&]+)&end=([^&]+)/.exec(String(u));if(!m||!(m[1] in L))return of(u,...a);const[,sym,s,e]=m,rows=[];let d=new Date(Math.max(+new Date(s),+new Date(L[sym]))),x=100,i=0;const end=new Date(e);for(;d<=end;d.setUTCDate(d.getUTCDate()+1))if(d.getUTCDay()%6){i++;x*=1+Math.sin(i/11)*.006+.0003;rows.push([d.toISOString().slice(0,10),x])}return{json:async()=>rows,headers:{get:()=>'adj'}}}});
   await base(p);await p.fill('#s','2012-01-02');await p.fill('#e','2019-12-31');await p.fill('#mn1','60');await p.fill('#mn2','200');await p.fill('#alt','LATE');await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);
