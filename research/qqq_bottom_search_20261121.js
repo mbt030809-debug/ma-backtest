@@ -66,6 +66,8 @@ for (const k of [21, 63]) { add(`소형주/S&P ${k}일 변화`, roc(rat(RUT, GS)
 for (const s of ['XLU', 'XLF']) for (const k of [21, 63]) add(`${s}/SPY ${k}일 변화`, roc(rat(col(s, 1), col('SPY', 1)), k));
 add('S&P 252일 고점 대비', rat(GS, rmax(GS, 252)).map(v => v - 1));
 
+// 지표 범위 제한: --exclude 정규식(빼기), --include 정규식(이것만)
+{ const ex = arg('--exclude'), inc = arg('--include'); for (const k of Object.keys(IND)) if ((ex && new RegExp(ex).test(k)) || (inc && !new RegExp(inc).test(k))) delete IND[k]; }
 // ---------- 조건(비트셋) ----------
 const NW = Math.ceil(n / 32);
 const Q = [.002, .004, .007, .01, .015, .02, .03, .05, .075, .1, .15, .2, .3, .5];
@@ -96,6 +98,34 @@ const NEED = ACT.filter(Boolean).length;
 const andInto = (o, a, b) => { for (let w = 0; w < NW; w++) o[w] = a[w] & b[w]; return o; };
 const days = b => { const o = []; for (let w = 0; w < NW; w++) { let x = b[w]; while (x) { const t = x & -x, j = 31 - Math.clz32(t); o.push(w * 32 + j); x ^= t; } } return o; };
 function score(b) { const ds = days(b); let s = 0, mx = 0; for (const i of ds) { const d = tgOf[i] >= 0 ? distOf[i] : 99; s += d; mx = Math.max(mx, d); } return { mean: s / ds.length, max: mx, ds }; }
+
+// ---------- 기법 비교(--compare rules.json): 각 기법의 신호일, 최저점과의 거래일·가격 차이, 매수 후 추가 하락, 이후 수익 ----------
+if (arg('--compare')) {
+  const L = JSON.parse(fs.readFileSync(arg('--compare'), 'utf8')), out = [];
+  const pct = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const fwd = (i, k) => i + k < n ? C[i + k] / C[i] - 1 : NaN;
+  for (const R of L) {
+    const sigd = []; for (let i = 0; i < n; i++) if (R.rule.every(p => { const v = IND[p.nm][i]; return fin(v) && (p.dir === '<' ? v < p.t : v > p.t); })) sigd.push(i);
+    const per = TG.map(t => {
+      const ds = sigd.filter(i => tgOf[i] >= 0 && TG[tgOf[i]] === t); if (!ds.length) return { nm: t.nm, miss: true };
+      const f = ds[0], after = Math.min(...Array.from({ length: n - f }, (_, j) => f + j).filter(i => dates[i] <= (t.nm === '2002' ? '2003-06-30' : t.nm === '2009' ? '2009-12-31' : t.nm === '2018' ? '2019-03-31' : t.nm === '2022' ? '2023-03-31' : '2025-08-31')).map(i => NDX[i]));
+      const best = ds.reduce((a, i) => NDX[i] < NDX[a] ? i : a);
+      const nz = t.zone.reduce((a, z) => Math.abs(f - z) < Math.abs(f - a) ? z : a); // 쌍바닥이면 가까운 바닥 기준
+      return { nm: t.nm, low: dates[t.low], near: dates[nz], dNear: f - nz, first: dates[f], dFirst: f - t.low, gapFirst: NDX[f] / t.lo - 1, more: after / NDX[f] - 1, best: dates[best], gapBest: NDX[best] / t.lo - 1, r63: fwd(f, 63), r252: fwd(f, 252), all: ds.map(i => ({ d: dates[i], gap: NDX[i] / t.lo - 1, dd: i - t.zone.reduce((a, z) => Math.abs(i - z) < Math.abs(i - a) ? z : a) })) };
+    });
+    const other = sigd.filter(i => tgOf[i] < 0).map(i => dates[i]);
+    out.push({ name: R.name, label: R.rule.map(p => `${p.nm} ${p.dir} ${fmt(p.nm, p.t)}`).join(' & '), cnt: sigd.length, other, per });
+    console.log(`\n■ ${R.name} — 신호 ${sigd.length}일${other.length ? ` (바닥 밖 ${other.length}일: ${other.join(', ')})` : ''}\n  ${out.at(-1).label}`);
+    console.log('  바닥 | 가까운 바닥일 | 첫 신호일 | 거래일 차이 | 첫 신호 가격(최저가 대비) | 매수 후 추가 하락 | 3개월 뒤 | 1년 뒤 | 신호 전체');
+    for (const x of per) console.log(x.miss ? `  ${x.nm} | 못 맞힘` : `  ${x.nm} | ${x.near} | ${x.first} | ${x.dNear >= 0 ? '+' : ''}${x.dNear} | ${pct(x.gapFirst)} | ${pct(x.more)} | ${pct(x.r63)} | ${pct(x.r252)} | ${x.all.map(a => `${a.d}(${pct(a.gap)})`).join(' ')}`);
+    const h = per.filter(x => !x.miss), av = f => h.reduce((a, x) => a + f(x), 0) / h.length;
+    console.log(`  평균: 거래일 차이 ${av(x => Math.abs(x.dNear)).toFixed(1)}일 · 첫 신호 가격 ${pct(av(x => x.gapFirst))} · 추가 하락 ${pct(av(x => x.more))} (최악 ${pct(Math.min(...h.map(x => x.more)))}) · 1년 뒤 ${pct(av(x => x.r252))}`);
+  }
+  // 차트용: 바닥 앞뒤 가격(최저가 대비 %)
+  const chart = TG.map(t => { const a = Math.max(0, Math.min(...t.zone) - 70), b = Math.min(n - 1, Math.max(...t.zone) + 70); return { nm: t.nm, low: dates[t.low], from: dates[a], to: dates[b], zone: t.zone.map(z => dates[z]), px: Array.from({ length: b - a + 1 }, (_, j) => [dates[a + j], NDX[a + j] / t.lo - 1]) }; });
+  if (arg('--json')) fs.writeFileSync(arg('--json'), JSON.stringify({ techniques: out, chart }));
+  process.exit(0);
+}
 
 // ---------- 탐색 ----------
 const t0 = Date.now(), log = (...a) => console.error(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
