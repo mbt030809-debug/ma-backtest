@@ -6,7 +6,7 @@
 // - 순위: 신호 날짜와 바닥 사이 거래일 차이(평균)가 작은 순
 const fs = require('fs');
 const ARGS = process.argv.slice(2), arg = k => { const i = ARGS.indexOf(k); return i >= 0 ? ARGS[i + 1] : null; };
-const MAXS = +(arg('--max') || 10), WIN = +(arg('--win') || 20), HOLD = arg('--hold'), TOPN = +(arg('--top') || 25);
+const MAXC = +(arg('--maxcond') || 4), MAXF = +(arg('--maxfal') || 0), MAXS = +(arg('--max') || 10), WIN = +(arg('--win') || 20), HOLD = arg('--hold'), TOPN = +(arg('--top') || 25);
 const raw = JSON.parse(fs.readFileSync(arg('--data'), 'utf8'));
 const dates = raw.QQQ.map(r => r[0]), n = dates.length, fin = Number.isFinite;
 const col = (s, k) => { const m = new Map(raw[s].map(r => [r[0], r])); let last = null; return dates.map(d => { const r = m.get(d) || last; last = r; return r ? r[k] : NaN; }); };
@@ -132,7 +132,7 @@ const t0 = Date.now(), log = (...a) => console.error(`[${((Date.now() - t0) / 10
 log(`기간 ${dates[0]} ~ ${dates[n - 1]} · 지표 ${Object.keys(IND).length}개 · 조건 ${CONDS.length}개 · 바닥 ${TG.map(t => t.nm + ' ' + dates[t.low]).join(', ')}${HOLD ? ` · ${HOLD}은 숨김(검증용)` : ''}`);
 const found = new Map(); // 최종 후보
 const sig = b => { let h = 2166136261; for (let w = 0; w < NW; w++) h = Math.imul(h ^ b[w], 16777619); return h >>> 0; };
-function consider(parts, b, e) { if (e.cov < NEED || e.fal > 0 || e.cnt > MAXS || e.cnt === 0) return false; const k = sig(b); if (found.has(k)) { const f = found.get(k); if (parts.length < f.parts.length) f.parts = parts; return true; } const s = score(b); found.set(k, { parts, ...e, ...s, b: Uint32Array.from(b) }); return true; }
+function consider(parts, b, e) { if (e.cov < NEED || e.fal > MAXF || e.cnt > MAXS || e.cnt === 0) return false; const k = sig(b); if (found.has(k)) { const f = found.get(k); if (parts.length < f.parts.length) f.parts = parts; return true; } const s = score(b); found.set(k, { parts, ...e, ...s, b: Uint32Array.from(b) }); return true; }
 // 1개
 const S1 = [];
 for (const c of CONDS) { const e = evalB(c.b); if (e.cov < NEED) continue; consider([c], c.b, e); S1.push({ parts: [c], b: c.b, ...e }); }
@@ -145,6 +145,7 @@ for (let a = 0; a < S1.length; a++) for (let c = a + 1; c < S1.length; c++) {
   if (!consider([A.parts[0], B.parts[0]], tmp, e)) S2.push({ parts: [A.parts[0], B.parts[0]], b: Uint32Array.from(tmp), ...e });
 }
 log(`2개 조건: 이어갈 후보 ${S2.length}개 · 최종 후보 ${found.size}`);
+if (MAXC >= 3) {
 // 3개: 바닥 밖 신호가 적은 상위 2개 조합 × 모든 바닥 맞히는 조건
 const rank = x => x.fal * 3 + x.cnt;
 S2.sort((x, y) => rank(x) - rank(y));
@@ -154,10 +155,11 @@ log(`3개 조건: 이어갈 후보 ${S3.length}개 · 최종 후보 ${found.size
 S3.sort((x, y) => rank(x) - rank(y));
 for (const A of S3.slice(0, +(arg('--beam') || 4000) / 2)) for (const c of S1) { const p = c.parts[0]; if (A.parts.some(q => q.nm === p.nm)) continue; andInto(tmp, A.b, p.b); const e = evalB(tmp); if (e.cov < NEED) continue; consider([...A.parts, p], tmp, e); }
 log(`4개 조건까지 · 최종 후보 ${found.size}`);
+}
 
 // ---------- 결과 ----------
-const res = [...found.values()].sort((x, y) => x.mean - y.mean || x.parts.length - y.parts.length || x.max - y.max);
-console.log(`QQQ 폭락장 바닥 신호 탐색 · ${dates[0]} ~ ${dates[n - 1]} · 지표 ${Object.keys(IND).length}개 · 조건 ${CONDS.length}개 · 신호 ≤ ${MAXS}일 · 바닥 ±${WIN}거래일 밖 신호 0개${HOLD ? ` · ${HOLD} 바닥은 정답에서 숨기고 탐색` : ''}`);
+const res = [...found.values()].sort((x, y) => x.fal - y.fal || x.mean - y.mean || x.parts.length - y.parts.length || x.max - y.max);
+console.log(`QQQ 폭락장 바닥 신호 탐색 · ${dates[0]} ~ ${dates[n - 1]} · 지표 ${Object.keys(IND).length}개 · 조건 ${CONDS.length}개 · 신호 ≤ ${MAXS}일 · 바닥 ±${WIN}거래일 밖 신호 ≤ ${MAXF}개${HOLD ? ` · ${HOLD} 바닥은 정답에서 숨기고 탐색` : ''}`);
 console.log('바닥(나스닥100 종가 최저): ' + TG.map(t => `${t.nm}=${dates[t.low]}${t.zone.length > 1 ? `(쌍바닥 ${t.zone.filter(z => z !== t.low).map(z => dates[z]).join('·')})` : ''}`).join(', '));
 console.log(`후보 ${res.length}개 · 평균 거리(거래일) 순`);
 const showDay = i => { const t = tgOf[i] >= 0 ? TG[tgOf[i]] : null; const lowP = t ? (NDX[i] / t.lo - 1) * 100 : NaN; const d = t ? i - t.zone.reduce((a, z) => Math.abs(i - z) < Math.abs(i - a) ? z : a) : NaN; return `${dates[i]}(${t ? t.nm : '바닥 밖'}${t ? ` ${d >= 0 ? '+' : ''}${d}일, 최저가 +${lowP.toFixed(1)}%` : ''})`; };
