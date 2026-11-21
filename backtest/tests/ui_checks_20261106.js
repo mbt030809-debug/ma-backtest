@@ -108,6 +108,18 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
   ok(w.cnt===10&&w.m<1e-12,'시가 체결 사용: 스캔 = 일반 실행',w);
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('M) 체결 가격(종가·시가 둘 다)도 최적값 찾기에서 스윕 — 조합 수, 각 조합 = 일반 실행, 행 적용');
+ {const p=await mkPage();await base(p);await single(p);await p.evaluate(()=>{RULES[0].fus='co';RULES[0].fds='co';RULES[1].fus='co';renderSwRules();estSweep();save()});
+  ok(/8개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 8개(이평1 상향 2 × 하향 2 × 이평2 상향 2, 이평2 하향은 비어 있어 고정)');
+  await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(500);
+  const rows=await p.evaluate(()=>window._swrows.map(r=>({k:r.rules.map(x=>(x.fu||'')+(x.fd||'')).join('|'),cagr:r.cagr,mdd:r.mdd})));
+  ok(rows.length===8,'체결 가격 조합 8개 결과가 나옴',rows.length);
+  const combos=await p.evaluate(()=>[...new Set(window._swrows.map(r=>r.rules.map(x=>x.fu+x.fd).join('|')))].sort());ok(combos.length===8,'모든 조합의 체결 가격 구성이 서로 다름(8가지)',combos);
+  let allSame=true;for(const r of await p.evaluate(()=>window._swrows.map(r=>r.rules.map(x=>[x.fu,x.fd])))){await p.evaluate(rs=>{RULES[0].fu=rs[0][0];RULES[0].fd=rs[0][1];RULES[1].fu=rs[1][0];RULES[1].fd=rs[1][1];renderRules()},r);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd]});const key=r.map(x=>x.join('')).join('|'),hit=await p.evaluate(k=>window._swrows.find(q=>q.rules.map(x=>x.fu+x.fd).join('|')===k),key);if(Math.abs(run[0]-hit.cagr)>1e-12||Math.abs(run[1]-hit.mdd)>1e-12){allSame=false;console.log('   ',key,run,[hit.cagr,hit.mdd])}}
+  ok(allSame,'모든 체결 가격 조합: 스윕 결과 = 그 설정으로 일반 실행');
+  await p.evaluate(()=>applyRow(window._swrows.find(r=>r.rules[0].fu==='o'&&r.rules[0].fd==='c')));await p.waitForTimeout(1500);
+  const f=await p.evaluate(()=>[RULES[0].fu,RULES[0].fd]);ok(f[0]==='o'&&f[1]==='c','결과 행을 누르면 체결 가격이 규칙 칸에 적용됨',f);
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('K) 옛 설정(매수·매도 비율 방식) 자동 이전 + 목표 % 체결 표시');
  {const p=await mkPage(()=>{if(!localStorage.getItem('__seeded')){localStorage.setItem('__seeded','1');localStorage.setItem('mabt_settings_v1',JSON.stringify({buy:[],sell:[],sig:'QQQ',trd:'TECL',mn1:'100',br1:'100',sr1:'100',mn2:'300',x2:'0',y2:'100',s:'2014-01-01',mode:'cross'}))}});
   const r=await p.evaluate(()=>RULES.map(x=>[x.n,x.up,x.dn]));ok(JSON.stringify(r)==='[[100,"100","0"],[300,"100",""]]','옛 설정이 이평1(↑100% ↓0%)·이평2(↑100%)로 이전됨',r);

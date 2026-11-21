@@ -85,7 +85,7 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 <section class="tab" id="tab-sw">
 <div class="warn" id="swstale" style="display:none"></div>
 <div class="card"><h2>이평 일수 최적값 찾기</h2>
-<div class="mut" style="margin-bottom:6px">규칙마다 이평 기간 범위와 상향·하향 목표 %를 함께 바꿔 가며 찾습니다. 칸을 비우면 현재 값으로 고정. 목표 %는 목록(0,50,100) 또는 범위(0-100/25)로 입력.</div>
+<div class="mut" style="margin-bottom:6px">규칙마다 이평 기간 범위, 상향·하향 목표 %, 체결 가격(종가·시가·둘 다)을 함께 바꿔 가며 찾습니다. 칸을 비우면 현재 값으로 고정. 목표 %는 목록(0,50,100) 또는 범위(0-100/25)로 입력.</div>
 <div id="swRulesBox"></div>
 <div class="rule"><b>바닥 신호</b><span class="mut" id="sw3hint"></span></div>
 <div class="row"><button id="r10" type="button">목표 %를 0·50·100으로 채우기</button><button id="r0" type="button">목표 % 비우기(현재값 고정)</button></div>
@@ -153,7 +153,7 @@ document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'
 const rdl=id=>{const el=$(id);if(!el)return null;const x=(el.value||'').trim();return x===''?null:Math.max(1,Math.floor(+x||1))};
 // ---- 이평 규칙 목록: 상향·하향 돌파마다 목표 주식비율(%) ----
 const RCOL=['#9c36b5','#1098ad','#d9480f','#5c7cfa','#2b8a3e','#c2255c','#f08c00','#495057'];
-const newRule=(n,up,dn,na='',nb='',nc='')=>({on:true,n,up,dn,du:'',dd:'',fu:'c',fd:'c',na,nb,nc,us:'',ds:''});
+const newRule=(n,up,dn,na='',nb='',nc='')=>({on:true,n,up,dn,du:'',dd:'',fu:'c',fd:'c',na,nb,nc,us:'',ds:'',fus:'',fds:''});
 let RULES=[newRule(137,'100','0','50','300','25'),newRule(512,'100','','200','600','50')];
 const pctOrNull=v=>{v=String(v==null?'':v).trim();if(v==='')return null;const x=+v;return isFinite(x)?Math.min(100,Math.max(0,x)):null};
 const dlOrNull=v=>{v=String(v==null?'':v).trim();return v===''?null:Math.max(1,Math.floor(+v||1))};
@@ -173,7 +173,8 @@ const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','de
 // ---- 규칙 목록 화면 ----
 const ea=v=>String(v==null?'':v).replace(/"/g,'&quot;');
 function renderRules(){const box=$('rulesBox');if(!box)return;box.innerHTML=RULES.map((r,k)=>`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b><label class="nw"><input type="checkbox" data-f="on"${r.on?' checked':''}> 사용</label><span class="nw"><input data-f="n" type="number" min="2" value="${ea(r.n)}" style="width:70px">일선</span><span class="nw">상향 돌파 → 주식 <input data-f="up" class="pc" type="number" min="0" max="100" value="${ea(r.up)}" placeholder="무시">%</span><span class="nw">하향 돌파 → 주식 <input data-f="dn" class="pc" type="number" min="0" max="100" value="${ea(r.dn)}" placeholder="무시">%</span><span class="nw mut">지연 ↑<input data-f="du" type="number" min="1" value="${ea(r.du)}" style="width:44px"> ↓<input data-f="dd" type="number" min="1" value="${ea(r.dd)}" style="width:44px"></span><span class="nw mut">체결 ↑<select data-f="fu"><option value="c"${r.fu==='o'?'':' selected'}>종가</option><option value="o"${r.fu==='o'?' selected':''}>시가</option></select> ↓<select data-f="fd"><option value="c"${r.fd==='o'?'':' selected'}>종가</option><option value="o"${r.fd==='o'?' selected':''}>시가</option></select></span>${RULES.length>1?`<button type="button" data-del="${k}">삭제</button>`:''}</div>`).join('');renderSwRules()}
-function renderSwRules(){const box=$('swRulesBox');if(!box)return;const act=RULES.map((r,k)=>r.on?`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b> 기간 <input data-f="na" type="number" min="2" value="${ea(r.na)}" placeholder="현재"> ~ <input data-f="nb" type="number" min="2" value="${ea(r.nb)}"> 간격 <input data-f="nc" type="number" min="1" value="${ea(r.nc)}"> · 상향 → 주식 <input data-f="us" type="text" value="${ea(r.us)}" placeholder="현재값" style="width:96px">% · 하향 → 주식 <input data-f="ds" type="text" value="${ea(r.ds)}" placeholder="현재값" style="width:96px">%</div>`:'').join('');box.innerHTML=act||'<div class="mut">사용 중인 이평 규칙이 없습니다.</div>'}
+const fsel=v=>[['','현재값'],['c','종가'],['o','시가'],['co','종가·시가 둘 다']].map(([k,t])=>`<option value="${k}"${(v||'')===k?' selected':''}>${t}</option>`).join('');
+function renderSwRules(){const box=$('swRulesBox');if(!box)return;const act=RULES.map((r,k)=>r.on?`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b> 기간 <input data-f="na" type="number" min="2" value="${ea(r.na)}" placeholder="현재"> ~ <input data-f="nb" type="number" min="2" value="${ea(r.nb)}"> 간격 <input data-f="nc" type="number" min="1" value="${ea(r.nc)}"> · 상향 → 주식 <input data-f="us" type="text" value="${ea(r.us)}" placeholder="현재값" style="width:96px">% · 하향 → 주식 <input data-f="ds" type="text" value="${ea(r.ds)}" placeholder="현재값" style="width:96px">% · 체결 ↑<select data-f="fus">${fsel(r.fus)}</select> ↓<select data-f="fds">${fsel(r.fds)}</select></div>`:'').join('');box.innerHTML=act||'<div class="mut">사용 중인 이평 규칙이 없습니다.</div>'}
 function bindRules(){$('rulesBox').addEventListener('input',e=>{const t=e.target,row=t.closest('[data-k]');if(!row||!t.dataset.f)return;RULES[+row.dataset.k][t.dataset.f]=t.type=='checkbox'?t.checked:t.value;try{estSweep();syncCtx()}catch(x){}});
 $('rulesBox').addEventListener('change',e=>{const t=e.target,row=t.closest('[data-k]');if(!row||t.dataset.f!='on')return;RULES[+row.dataset.k].on=t.checked;renderSwRules();try{estSweep()}catch(x){}});
 $('rulesBox').addEventListener('click',e=>{const d=e.target.dataset&&e.target.dataset.del;if(d==null||d==='')return;RULES.splice(+d,1);renderRules();try{estSweep()}catch(x){}save()});
@@ -308,14 +309,14 @@ ctx.trades.forEach(t=>{if(!sigIgnore(t)&&e0[t.i]!=null&&!HID['mk:'+sigKey(t)])mk
 // 5/1 세금 납부용 매도는 신호 매도가 아니므로 작은 회색 점으로만 표시
 ctx.trades.forEach(t=>{if(t.side=='S'&&/세금/.test(t.rule||'')&&t.asset!='Y'&&e0[t.i]!=null){g.fillStyle='#868e96';g.beginPath();g.arc(X(t.i),Y(e0[t.i]),3,0,6.3);g.fill()}})}g.restore()}
 
-const rsx=r=>(r.rules||[]).map(x=>`이평${x.k} ${x.n}일 ↑${pctTxt(x.up)} ↓${pctTxt(x.dn)}`).join(' · '),rcell=r=>(r.rules||[]).map(x=>`<td>${x.n}<br><span class="mut">↑${pctTxt(x.up)} ↓${pctTxt(x.dn)}</span></td>`).join(''),rhead=()=>((swMeta&&swMeta.rk)||[1,2]).map(k=>`<th>이평${k}</th>`).join('');
-function applyRow(r){(r.rules||[]).forEach(x=>{const q=RULES[x.k-1];if(!q)return;q.n=x.n;q.up=x.up==null?'':String(+(x.up*100).toFixed(2));q.dn=x.dn==null?'':String(+(x.dn*100).toFixed(2))});$('mode').value='cross';renderRules();save();showTab('bt');$('tabs').scrollIntoView();run()}
+const rsx=r=>(r.rules||[]).map(x=>`이평${x.k} ${x.n}일 ↑${pctTxt(x.up)}${x.fu==='o'?'(시가)':''} ↓${pctTxt(x.dn)}${x.fd==='o'?'(시가)':''}`).join(' · '),rcell=r=>(r.rules||[]).map(x=>`<td>${x.n}<br><span class="mut">↑${pctTxt(x.up)}${x.fu==='o'?'(시가)':''} ↓${pctTxt(x.dn)}${x.fd==='o'?'(시가)':''}</span></td>`).join(''),rhead=()=>((swMeta&&swMeta.rk)||[1,2]).map(k=>`<th>이평${k}</th>`).join('');
+function applyRow(r){(r.rules||[]).forEach(x=>{const q=RULES[x.k-1];if(!q)return;q.n=x.n;q.up=x.up==null?'':String(+(x.up*100).toFixed(2));q.dn=x.dn==null?'':String(+(x.dn*100).toFixed(2));if(x.fu)q.fu=x.fu;if(x.fd)q.fd=x.fd});$('mode').value='cross';renderRules();save();showTab('bt');$('tabs').scrollIntoView();run()}
 const WK=`self.onmessage=e=>{const{fpx,pos,px,py,dates,LS,o,bev,lo,hi,wid}=e.data;o.ig=interestFactors(dates,o.cashRate);const yrs=yearsOf(dates),cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
-const K=LS.length,sz=[];LS.forEach(r=>{sz.push(r.n.length,r.up.length,r.dn.length)});const D=sz.length,N=hi-lo;
+const K=LS.length,sz=[];LS.forEach(r=>{sz.push(r.n.length,r.up.length,r.dn.length,r.fu.length,r.fd.length)});const D=sz.length,N=hi-lo;
 const cid=new Uint32Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N),SO=new Float64Array(N),CA=new Float64Array(N);
 let cnt=0,last=0;const ix=new Array(D);
 for(let r=lo;r<hi;r++){let q=r;for(let d=D-1;d>=0;d--){ix[d]=q%sz[d];q=(q-ix[d])/sz[d]}
-const rs=[];for(let k=0;k<K;k++){const L=LS[k];rs.push({n:L.n[ix[3*k]],up:L.up[ix[3*k+1]],dn:L.dn[ix[3*k+2]],du:L.du,dd:L.dd,fu:L.fu,fd:L.fd,k:L.k})}
+const rs=[];for(let k=0;k<K;k++){const L=LS[k];rs.push({n:L.n[ix[5*k]],up:L.up[ix[5*k+1]],dn:L.dn[ix[5*k+2]],du:L.du,dd:L.dd,fu:L.fu[ix[5*k+3]],fd:L.fd[ix[5*k+4]],k:L.k})}
 rs.sort((a,b)=>a.n-b.n||a.k-b.k);const evs=[];if(bev)evs.push({f:bev.f,t:bev.t,d:bev.d,fill:bev.fill});
 for(const x of rs){if(x.up!=null)evs.push({f:fl(x.n,'up'),t:x.up,d:x.du,fill:x.fu});if(x.dn!=null)evs.push({f:fl(x.n,'dn'),t:x.dn,d:x.dd,fill:x.fd})}
 const sim=simulateTargets(dates,px,py,evs,o),st=statsLite(sim.eqP,yrs),i=cnt++;cid[i]=r;tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;SO[i]=st.so;CA[i]=st.ca;
@@ -323,14 +324,14 @@ const now=performance.now();if(now-last>150){last=now;self.postMessage({t:'p',wi
 self.postMessage({t:'d',wid,cnt:N,cid,tr,T,C,M,S,SO,CA},[cid.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer,SO.buffer,CA.buffer])}`;
 // 정리 워커: 전체 결과를 보관하고, MDD 제한·정렬 기준이 바뀔 때마다 다시 순위/요약을 계산 (재계산 없이)
 const AWSRC=`let D=null,LS=null;
-const rowOf=(q,j)=>{const oj=q.vi?q.vi[j]:j,rules=[];for(let k=0;k<D.K;k++)rules.push({k:D.LL[k].k,n:D.LL[k].n[D.ix[3*k][oj]],up:D.LL[k].up[D.ix[3*k+1][oj]],dn:D.LL[k].dn[D.ix[3*k+2][oj]]});return{n1:D.n1a[oj],n2:D.n2a[oj],rules,tot:q.T[j],cagr:q.C[j],mdd:q.M[j],sh:q.S[j],so:q.SO[j],ca:q.CA[j],trades:q.tr[j]}};
+const rowOf=(q,j)=>{const oj=q.vi?q.vi[j]:j,rules=[];for(let k=0;k<D.K;k++)rules.push({k:D.LL[k].k,n:D.LL[k].n[D.ix[5*k][oj]],up:D.LL[k].up[D.ix[5*k+1][oj]],dn:D.LL[k].dn[D.ix[5*k+2][oj]],fu:D.LL[k].fu[D.ix[5*k+3][oj]],fd:D.LL[k].fd[D.ix[5*k+4][oj]]});return{n1:D.n1a[oj],n2:D.n2a[oj],rules,tot:q.T[j],cagr:q.C[j],mdd:q.M[j],sh:q.S[j],so:q.SO[j],ca:q.CA[j],trades:q.tr[j]}};
 self.onmessage=e=>{const m=e.data;
 if(m.t=='load'){let N=0;for(const p of m.parts)N+=p.cnt;const mk=(Ty)=>new Ty(N),cid=mk(Uint32Array),tr=mk(Uint16Array),T=mk(Float64Array),C=mk(Float64Array),M=mk(Float64Array),S=mk(Float64Array),SO=mk(Float64Array),CA=mk(Float64Array);
 let o=0;for(const p of m.parts){cid.set(p.cid,o);tr.set(p.tr,o);T.set(p.T,o);C.set(p.C,o);M.set(p.M,o);S.set(p.S,o);SO.set(p.SO,o);CA.set(p.CA,o);o+=p.cnt}
-const LL=m.LS,K=LL.length,sz=[];LL.forEach(r=>sz.push(r.n.length,r.up.length,r.dn.length));const Dm=sz.length,ix=Array.from({length:Dm},()=>new Uint16Array(N));
+const LL=m.LS,K=LL.length,sz=[];LL.forEach(r=>sz.push(r.n.length,r.up.length,r.dn.length,r.fu.length,r.fd.length));const Dm=sz.length,ix=Array.from({length:Dm},()=>new Uint16Array(N));
 for(let i=0;i<N;i++){let q=cid[i];for(let d=Dm-1;d>=0;d--){const v=q%sz[d];ix[d][i]=v;q=(q-v)/sz[d]}}
 const n1a=new Uint16Array(N),n2a=new Uint16Array(N),hold=new Uint8Array(N);
-for(let i=0;i<N;i++){n1a[i]=K>0?LL[0].n[ix[0][i]]:0;n2a[i]=K>1?LL[1].n[ix[3][i]]:0;let h=1;for(let k=0;k<K;k++){const dn=LL[k].dn[ix[3*k+2][i]];if(!(dn==null||dn>=1))h=0}hold[i]=h}
+for(let i=0;i<N;i++){n1a[i]=K>0?LL[0].n[ix[0][i]]:0;n2a[i]=K>1?LL[1].n[ix[5][i]]:0;let h=1;for(let k=0;k<K;k++){const dn=LL[k].dn[ix[5*k+2][i]];if(!(dn==null||dn>=1))h=0}hold[i]=h}
 D={N,cid,ix,n1a,n2a,hold,LL,K,sz,tr,T,C,M,S,SO,CA};self.postMessage({t:'ready',N});return}
 if(m.t=='page'){if(!LS)return;const o=[],q=LS;for(let i=m.from;i<Math.min(m.to,q.byK.length);i++)o.push(rowOf(q,q.byK[i]));self.postMessage({t:'page',pid:m.pid,rows:o,total:q.byK.length});return}
 if(!D)return;const{id,lim,key,bh,c1,c2,noHold}=m,tried=D.N;let V=0;const vi0=new Uint32Array(tried);for(let i=0;i<tried;i++)if((lim==null||D.M[i]>=lim)&&!(noHold&&D.hold[i]))vi0[V++]=i;
@@ -346,7 +347,7 @@ LS={byK,vi,tr,T,C,M,S,SO,CA};const sel=new Set();for(let i=0;i<Math.min(N,2000);
 const cell=new Map();for(let i=0;i<N;i++){const k=n1s[i]*65536+n2s[i],b=cell.get(k);if(b===undefined||cp[i]<cp[b]||(cp[i]==cp[b]&&S[i]>S[b]))cell.set(k,i)}cell.forEach(v=>sel.add(v));
 for(let i=0;i<N;i++)if(rT[i]<=20||rM[i]<=20||rS[i]<=20||rSo[i]<=20||rCa[i]<=20)sel.add(i);
 const bst=byC[0],ob=vi?vi[bst]:bst;let tied=0;for(let i=0;i<N;i++)if(T[i]==T[bst]&&M[i]==M[bst]&&S[i]==S[bst])tied++;let nbN=0,nbS=0;
-for(let i=0;i<N;i++){if(i==bst)continue;if(!(Math.abs(n1s[i]-n1s[bst])<=c1&&Math.abs(n2s[i]-n2s[bst])<=c2))continue;const oi=vi?vi[i]:i;let ok=true;for(let d=0;d<D.sz.length&&ok;d++){const rkk=d%3,kk=(d-rkk)/3;if(rkk==0&&kk<2)continue;if(D.ix[d][oi]!=D.ix[d][ob])ok=false}if(ok){nbN++;nbS+=S[i]}}
+for(let i=0;i<N;i++){if(i==bst)continue;if(!(Math.abs(n1s[i]-n1s[bst])<=c1&&Math.abs(n2s[i]-n2s[bst])<=c2))continue;const oi=vi?vi[i]:i;let ok=true;for(let d=0;d<D.sz.length&&ok;d++){const rkk=d%5,kk=(d-rkk)/5;if(rkk==0&&kk<2)continue;if(D.ix[d][oi]!=D.ix[d][ob])ok=false}if(ok){nbN++;nbS+=S[i]}}
 const rows=[...sel].map(i=>Object.assign(rowOf(LS,i),{r_tot:rT[i],r_mdd:rM[i],r_sh:rS[i],comp:cp[i],comp2:cp2[i]}));
 self.postMessage({t:'res',id,rows,agg:{n:N,tried,tied,avgTot:sT/N,avgMdd:sM/N,avgSh:sS/N,avgSo:sSo/N,avgCa:sCa/N,beatCagr:bC,beatMdd:bM,beatSh:bS,beatSo:bSo,beatCa:bCa,beatAll:bA,nbN,nbSh:nbN?nbS/nbN:NaN}})}`;
 let swWorkers=[],swAW=null,swEngine=null,swEl=0,swSeq=0,swMeta=null;
@@ -466,8 +467,8 @@ const MAXC=1000000;
 const rgv=(a,b,c)=>{a=+a;b=+b;c=+c;if(!(Number.isInteger(a)&&Number.isInteger(b)&&Number.isInteger(c)&&a>=2&&b>=a&&c>=1))throw Error('스윕 범위를 확인하세요 (정수, 시작≥2, 끝≥시작, 간격≥1)');const o=[];for(let v=a;v<=b;v+=c)o.push(v);return o};
 const prT=(t,cur)=>{t=String(t==null?'':t).trim();if(!t)return[cur];const out=[];for(const tok of t.split(',').map(x=>x.trim()).filter(Boolean)){const m=tok.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);if(m){const a=+m[1],b=+m[2],c=+m[3];if(!(c>0&&b>=a))throw Error('비율 범위를 확인하세요: '+tok);for(let v=a;v<=b+1e-9;v+=c)out.push(v)}else{if(!(tok!==''&&isFinite(+tok)))throw Error('비율 값을 확인하세요: '+tok);out.push(+tok)}}
 if(!out.length||out.some(v=>v<0||v>100))throw Error('비율은 0~100 사이여야 합니다');return[...new Set(out.map(v=>Math.round(v*100)/100))].map(v=>v/100)};
-function swLists(){return activeRules().map(a=>{const r=RULES[a.k-1],has=String(r.na).trim()!==''&&String(r.nb).trim()!=='';return{k:a.k,n:has?rgv(r.na,r.nb,String(r.nc).trim()===''?1:r.nc):[a.n],up:prT(r.us,a.up),dn:prT(r.ds,a.dn),du:a.du,dd:a.dd,fu:a.fu,fd:a.fd}})}
-const totOf=L=>L.reduce((t,r)=>t*r.n.length*r.up.length*r.dn.length,1);
+function swLists(){return activeRules().map(a=>{const r=RULES[a.k-1],has=String(r.na).trim()!==''&&String(r.nb).trim()!=='';const up=prT(r.us,a.up),dn=prT(r.ds,a.dn),fl=(sel,cur,t)=>t.every(v=>v==null)?[cur]:sel==='co'?['c','o']:(sel==='c'||sel==='o')?[sel]:[cur];return{k:a.k,n:has?rgv(r.na,r.nb,String(r.nc).trim()===''?1:r.nc):[a.n],up,dn,du:a.du,dd:a.dd,fu:fl(r.fus,a.fu,up),fd:fl(r.fds,a.fd,dn)}})}
+const totOf=L=>L.reduce((t,r)=>t*r.n.length*r.up.length*r.dn.length*r.fu.length*r.fd.length,1);
 function estSweep(){try{const L=swLists(),n=L.length?totOf(L):0;
 let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
 $('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
@@ -494,7 +495,7 @@ showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[align
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d)),py=altS.length?mA.map(m=>alignAlt(m,dates)):null;if(py){const none=altS.filter((a,k)=>!py[k].some(Number.isFinite));if(none.length)throw Error(`${none.join(', ')} 방어 ETF 데이터가 백테스트 기간에 없습니다`)}
 const bfAll=useB?await bottomF(full,fpx,xs,e):null,btT=pctOrNull($('bt3').value),bev=bfAll?{f:pos.map(i=>bfAll[i]),t:(btT==null?100:btT)/100,d:rdl('db3'),fill:$('fb3').value==='o'?'o':'c'}:null;
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
-if(LSw.some(r=>r.fu==='o'||r.fd==='o')||(bev&&bev.fill==='o'))o.ox=openArr([{fill:'o'}],ds[1],dates);
+if(LSw.some(r=>r.fu.includes('o')||r.fd.includes('o'))||(bev&&bev.fill==='o'))o.ox=openArr([{fill:'o'}],ds[1],dates);
 const bhE=buyHold(px).map((v,i,a)=>i==a.length-1?v-Math.max(0,v-100)*o.tax:v),bh=stats(bhE,dates);
 const meta={lim:null,rk:LSw.map(r=>r.k),c1:Math.max(1,+RULES[LSw[0].k-1].nc||1),c2:LSw[1]?Math.max(1,+RULES[LSw[1].k-1].nc||1):1,sig,trd,fp:baseFp(),n3on:useB,alt:altS.join('+'),delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,so:bh.so,ca:bh.ca,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
