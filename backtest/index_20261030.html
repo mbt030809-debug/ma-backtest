@@ -6,37 +6,37 @@
 @media(prefers-color-scheme:dark){:root{--bg:#10131a;--fg:#e6e9f0;--mut:#8f98ad;--card:#1a1f2d;--bd:#2c3347;--ac:#6d9bff;--acs:#1f2a44}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif}
 main{max-width:980px;margin:0 auto;padding:0 12px 40px}
-.top{display:flex;align-items:baseline;justify-content:space-between;padding:12px 2px 6px}h1{font-size:18px;margin:0}h2{font-size:15px;margin:0 0 10px}h3{font-size:13px;margin:12px 0 6px;color:var(--mut);font-weight:600}
-.tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--bg);padding:6px 0 8px}
-.tabs button{border:1px solid var(--bd);background:var(--card);border-radius:10px;padding:9px 2px;font-size:13px;font-weight:600;color:var(--mut)}
+.top{display:flex;align-items:baseline;justify-content:space-between;padding:8px 2px 4px}h1{font-size:18px;margin:0}h2{font-size:15px;margin:0 0 8px}h3{font-size:13px;margin:12px 0 6px;color:var(--mut);font-weight:600}
+.tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--bg);padding:4px 0 6px}
+.tabs button{border:1px solid var(--bd);background:var(--card);border-radius:10px;padding:7px 2px;font-size:13px;font-weight:600;color:var(--mut)}
 .tabs button.on{background:var(--ac);border-color:var(--ac);color:#fff}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin-bottom:8px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px}
-.f{display:flex;flex-direction:column;gap:3px}.f>span{color:var(--mut);font-size:12px}.f input,.f select{width:100%}
-label{color:var(--mut);font-size:12px}input,select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:7px 9px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:8px}.grid.g3{grid-template-columns:repeat(auto-fit,minmax(96px,1fr))}
+.f{display:flex;flex-direction:column;gap:2px}.f>span{color:var(--mut);font-size:12px}.f input,.f select{width:100%}
+label{color:var(--mut);font-size:12px}input,select,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:5px 8px}
 input[type=number]{width:72px}input[type=text]{width:120px}input[type=checkbox]{width:auto}button{cursor:pointer;background:var(--card)}
-button.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}button.big{width:100%;padding:12px;font-size:15px;border-radius:12px;margin-bottom:8px}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}button.big{width:100%;padding:10px;font-size:15px;border-radius:12px;margin-bottom:6px}
 button.lnk{border:0;background:none;color:var(--ac);padding:2px 4px;text-decoration:underline}
 .rule{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:9px 0;border-top:1px solid var(--bd)}.rule:first-of-type{border-top:0;padding-top:0}.rule b{min-width:44px}.nw{white-space:nowrap;display:inline-flex;align-items:center;gap:5px}input.pc{width:54px}.rule input[type=number]{width:62px;padding:7px 6px}.rule input.pc{width:52px}
 .tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}th{color:var(--mut);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
-.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:340px;display:block}canvas.hm{margin-bottom:8px;cursor:pointer}
+.pos{color:#d6336c}.neg{color:#1c7ed6}canvas{width:100%;height:300px;display:block}canvas.hm{margin-bottom:8px;cursor:pointer}
 .lg{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:12px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
 #err{color:#e03131;margin:4px 0 8px}.mut{color:var(--mut);font-size:12px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
-.kpi{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px}.kpi span{display:block;color:var(--mut);font-size:11px}.kpi b{font-size:19px}.kpi small{display:block;color:var(--mut);font-size:11px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;margin-bottom:8px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:6px 10px}.kpi span{display:block;color:var(--mut);font-size:11px}.kpi b{font-size:19px}.kpi small{display:block;color:var(--mut);font-size:11px}
 .ctx{background:var(--acs);border:1px solid var(--bd);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12px}
 .warn{background:#fff4e6;color:#b35c00;border:1px solid #ffd8a8;border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:12px;font-weight:600}
 @media(prefers-color-scheme:dark){.warn{background:#3a2a12;color:#ffc078;border-color:#5c4420}}
-details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid var(--bd);margin-top:10px;padding-top:8px}
+details>summary{cursor:pointer;padding:2px 0}details.sub{border-top:1px solid var(--bd);margin-top:10px;padding-top:8px}
 .tab{display:none}.tab.on{display:block}
-.cfg{margin-bottom:6px}.cfg>summary{list-style:none;background:var(--acs);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin-bottom:10px}.cfg>summary::-webkit-details-marker{display:none}.cfg>summary>b::after{content:' ▾'}.cfg:not([open])>summary>b::after{content:' ▸'}.ctxl{font-size:12px;margin-top:4px}.cfg[open] .ctxl{display:none}
-.rc{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px}.rc.off{opacity:.55}
-.rch{display:flex;align-items:center;gap:10px;margin-bottom:8px}.rch b{flex:1;font-size:14px}.rch .nw{font-size:13px}.rch button{padding:4px 9px;color:var(--mut)}
-.rcg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rcc{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px}.rcc>span{display:block;color:var(--mut);font-size:12px;margin-bottom:4px}
-.rcc.up>span{color:#2f9e44}.rcc.dn>span{color:#e03131}.rcc input,.rcc select{width:100%}.rcc .sm{width:64px}
-.rcd{margin-top:8px}.rcd>summary{color:var(--mut);font-size:12px;cursor:pointer}.rcd .rcg{margin-top:6px}.rcd>.mut{margin-top:6px;font-size:12px}
-.runbar{position:sticky;bottom:0;z-index:4;padding:10px 0 4px;background:linear-gradient(rgba(0,0,0,0),var(--bg) 38%)}.runbar .big{margin-bottom:0;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.cfg{margin-bottom:6px}.cfg>summary{list-style:none;background:var(--acs);border:1px solid var(--bd);border-radius:12px;padding:7px 12px;margin-bottom:8px}.cfg>summary::-webkit-details-marker{display:none}.cfg>summary>b::after{content:' ▾'}.cfg:not([open])>summary>b::after{content:' ▸'}.ctxl{font-size:12px;margin-top:4px}.cfg[open] .ctxl{display:none}
+.rc{border:1px solid var(--bd);border-radius:10px;padding:8px 10px;margin-bottom:8px}.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px;margin-bottom:8px}.rgrid .rc{margin-bottom:0}.rc.off{opacity:.55}
+.rch{display:flex;align-items:center;gap:8px;margin-bottom:6px}.rch b{flex:1;font-size:14px}.rch .nw{font-size:13px}.rch button{padding:2px 8px;color:var(--mut)}
+.rcg{display:grid;grid-template-columns:1fr 1fr;gap:6px}.rcc{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:5px 8px}.rcc>span{display:block;color:var(--mut);font-size:12px;margin-bottom:2px}.rcc.h{display:flex;align-items:center;gap:6px}.rcc.h>span{margin:0;white-space:nowrap}.rcc.h input{flex:1;min-width:0;width:auto;background:var(--card)}.rcc.h input.pc{width:auto}.rcc.h{min-width:0}
+.rcc.up>span:first-child{color:#2f9e44}.rcc.dn>span:first-child{color:#e03131}.rcc input,.rcc select{width:100%}.rcc .sm{width:64px}
+.rcd{margin-top:4px}.rcd>summary{color:var(--mut);font-size:12px;cursor:pointer}.rcd .rcg{margin-top:4px}.rcd>.mut{margin-top:6px;font-size:12px}
+.runbar{position:sticky;bottom:0;z-index:4;padding:6px 0 4px;background:linear-gradient(rgba(0,0,0,0),var(--bg) 38%)}.runbar .big{margin-bottom:0;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 </style></head><body><main>
 <div class="top"><h1>ETF 백테스터</h1><span class="mut" id="appVer"></span></div>
 <details id="cfgBox" class="cfg" open><summary><b>⚙ 백테스트 설정</b> <span class="mut">모든 탭에 공통 적용</span><div class="ctxl" id="ctx"></div></summary>
@@ -55,22 +55,22 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 <div class="card"><h2>② 이평선 규칙</h2>
 <div class="mut" style="margin-bottom:8px">이평선을 돌파할 때마다 <b>주식 비율(%)</b>을 정합니다. 0% = 전액 매도, 100% = 전액 매수, 칸 비움 = 그 신호 무시.
 <details class="rcd"><summary>사용법 자세히</summary><div class="mut">50%처럼 중간 값은 총자산의 50%를 주식으로 맞춥니다(적으면 그만큼 매수, 많으면 그만큼 매도). 여러 신호가 겹치거나 지연 중 새 신호가 나오면 <b>마지막 신호만</b> 따릅니다(같은 날이면 기간이 긴 이평선 → 바닥 신호 순으로 약한 쪽이 양보). 비율은 신호가 체결되는 날 총자산 기준으로 맞추고, 그 뒤 가격이 변해도 다음 신호까지 그대로 둡니다. 지연·체결 가격(종가/시가)은 각 규칙의 "체결 옵션"에서 정합니다(비우면 기본 지연·종가).</div></details></div>
-<div id="rulesBox"></div>
-<div class="row"><button type="button" id="ruleAdd">+ 이평선 추가</button></div>
+<div class="rgrid"><div id="rulesBox" style="display:contents"></div>
 <div class="rc"><div class="rch"><b>바닥 신호</b><label class="nw"><input type="checkbox" id="en3"> 사용</label></div>
 <div class="rcg"><div class="rcc" title="신호 종목의 MACD(12·26)를 가격으로 나눈 값"><span>MACD/가격 &lt; (%)</span><input id="bm3" type="number" step="0.1" value="-2.7"></div><div class="rcc" title="VIX/100 에서 신호 종목의 최근 21일 실현변동성(연환산)을 뺀 값"><span>VIX−실현변동성 &gt; (%p)</span><input id="bv3" type="number" step="0.1" value="4.3"></div></div>
-<div class="rcg" style="margin-top:8px"><div class="rcc up"><span>둘 다 맞는 날 → 주식 %</span><input id="bt3" class="pc" type="number" min="0" max="100" value="100"></div></div>
+<div class="rcg" style="margin-top:6px;grid-template-columns:1fr"><div class="rcc h up" title="두 조건이 같은 날 모두 맞을 때 목표 주식 비율"><span>둘 다 맞는 날 →</span><input id="bt3" class="pc" type="number" min="0" max="100" value="100"><span>%</span></div></div>
 <details class="rcd"><summary>체결 옵션 (지연·체결 가격)</summary><div class="rcg"><div class="rcc"><span>지연(거래일)</span><input id="db3" class="sm" type="number" min="1" placeholder="기본"></div><div class="rcc"><span>체결 가격</span><select id="fb3"><option value="c">종가</option><option value="o">시가</option></select></div></div></div></details></div></div>
+<div class="row"><button type="button" id="ruleAdd">+ 이평선 추가</button></div></div>
 
 <div class="card"><h2>③ 비용 · 체결</h2>
-<div class="grid">
+<div class="grid g3">
 <label class="f"><span>초기 주식 비율 %</span><input id="init" type="number" min="0" max="100" value="100"></label>
 <label class="f"><span>현금 이자 연 %</span><input id="cash" type="number" step="0.1" min="0" value="4"></label>
 <label class="f"><span>수수료 %</span><input id="fee" type="number" step="0.01" min="0" value="0"></label>
 <label class="f"><span>양도세율 % (연 1회 정산)</span><input id="tax" type="number" step="0.1" min="0" value="22"></label>
 <label class="f"><span>기본 지연 (거래일)</span><input id="delay" type="number" min="1" value="1"></label>
 </div>
-<div class="mut" style="margin-top:6px">세금: 한 해 매도 손익을 합산해 다음 해 5/1 납부(현금 이자 제외), 마지막 날은 전량 매도로 계산. 기본 지연 = 신호 후 몇 거래일 뒤에 체결할지(규칙별로는 체결 옵션에서).</div></div>
+<details class="rcd"><summary>세금·지연 설명</summary><div class="mut">세금: 한 해 매도 손익을 합산해 다음 해 5/1 납부(현금 이자 제외), 마지막 날은 전량 매도로 계산. 기본 지연 = 신호 후 몇 거래일 뒤에 체결할지(규칙별로는 체결 옵션에서).</div></details></div>
 
 </details>
 <nav class="tabs" id="tabs"><button type="button" data-t="bt" class="on">백테스트 결과</button><button type="button" data-t="sw">최적값 찾기</button><button type="button" data-t="def">방어 ETF</button><button type="button" data-t="set">알림·설정</button></nav>
@@ -185,7 +185,7 @@ const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','de
 const ea=v=>String(v==null?'':v).replace(/"/g,'&quot;');
 function renderRules(){const box=$('rulesBox');if(!box)return;const sel=(f,v)=>`<select data-f="${f}"><option value="c"${v==='o'?'':' selected'}>종가</option><option value="o"${v==='o'?' selected':''}>시가</option></select>`;
 box.innerHTML=RULES.map((r,k)=>{const adv=r.du||r.dd||r.fu==='o'||r.fd==='o';return `<div class="rc${r.on?'':' off'}" data-k="${k}"><div class="rch"><b>이평 ${k+1}</b><label class="nw"><input type="checkbox" data-f="on"${r.on?' checked':''}> 사용</label><span class="nw"><input data-f="n" type="number" min="2" value="${ea(r.n)}" style="width:72px">일선</span>${RULES.length>1?`<button type="button" data-del="${k}" title="이 이평선 삭제">✕</button>`:''}</div>
-<div class="rcg"><div class="rcc up"><span>▲ 상향 돌파 → 주식 %</span><input data-f="up" class="pc" type="number" min="0" max="100" value="${ea(r.up)}" placeholder="무시"></div><div class="rcc dn"><span>▼ 하향 돌파 → 주식 %</span><input data-f="dn" class="pc" type="number" min="0" max="100" value="${ea(r.dn)}" placeholder="무시"></div></div>
+<div class="rcg"><div class="rcc h up" title="상향 돌파 시 목표 주식 비율(%)"><span>▲ 상향 →</span><input data-f="up" class="pc" type="number" min="0" max="100" value="${ea(r.up)}" placeholder="무시"><span>%</span></div><div class="rcc h dn" title="하향 돌파 시 목표 주식 비율(%)"><span>▼ 하향 →</span><input data-f="dn" class="pc" type="number" min="0" max="100" value="${ea(r.dn)}" placeholder="무시"><span>%</span></div></div>
 <details class="rcd"${adv?' open':''}><summary>체결 옵션 (지연·체결 가격)</summary><div class="rcg"><div class="rcc"><span>상향: 지연(일) · 체결</span><div class="nw"><input data-f="du" class="sm" type="number" min="1" value="${ea(r.du)}" placeholder="기본">${sel('fu',r.fu)}</div></div><div class="rcc"><span>하향: 지연(일) · 체결</span><div class="nw"><input data-f="dd" class="sm" type="number" min="1" value="${ea(r.dd)}" placeholder="기본">${sel('fd',r.fd)}</div></div></div></details></div>`}).join('');renderSwRules()}
 const fsel=v=>[['','현재값'],['c','종가'],['o','시가'],['co','종가·시가 둘 다']].map(([k,t])=>`<option value="${k}"${(v||'')===k?' selected':''}>${t}</option>`).join('');
 function renderSwRules(){const box=$('swRulesBox');if(!box)return;const act=RULES.map((r,k)=>r.on?`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b> 기간 <input data-f="na" type="number" min="2" value="${ea(r.na)}" placeholder="현재"> ~ <input data-f="nb" type="number" min="2" value="${ea(r.nb)}"> 간격 <input data-f="nc" type="number" min="1" value="${ea(r.nc)}"> · 상향 → 주식 <input data-f="us" type="text" value="${ea(r.us)}" placeholder="현재값" style="width:96px">% · 하향 → 주식 <input data-f="ds" type="text" value="${ea(r.ds)}" placeholder="현재값" style="width:96px">% · 체결 ↑<select data-f="fus">${fsel(r.fus)}</select> ↓<select data-f="fds">${fsel(r.fds)}</select></div>`:'').join('');box.innerHTML=act||'<div class="mut">사용 중인 이평 규칙이 없습니다.</div>'}
@@ -735,5 +735,8 @@ $('alTest').onclick=()=>{if(typeof AndroidApp==='undefined'||!AndroidApp.testAle
 $('appUp').onclick=()=>{if(typeof AndroidApp==='undefined'||!AndroidApp.checkUpdate){$('pxinfo').textContent='앱(APK)에서만 동작';return}AndroidApp.checkUpdate()};
 try{if(typeof AndroidApp!=='undefined'&&AndroidApp.appVersion)$('appVer').textContent=AndroidApp.appVersion()}catch(x){}
 alPush();
+// 하루 한 번: 앱(페이지)을 열면 오늘 날짜(종료일=오늘)로 백테스트를 자동 실행
+(async()=>{const K='mabt_auto_day',day=new Date().toISOString().slice(0,10);try{if(localStorage.getItem(K)===day)return}catch(x){}
+try{delete VIEW.cv;await run();if(!$('err').textContent)try{localStorage.setItem(K,day)}catch(x){}}catch(x){}})();
 $('run').onclick=()=>{delete VIEW.cv;return run()};$('log').onchange=()=>{window._last&&draw(...window._last);const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)};addEventListener('resize',()=>window._last&&draw(...window._last));
 </script></body></html>

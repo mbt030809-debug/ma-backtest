@@ -147,7 +147,7 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   ok(await p.evaluate(()=>{const c=document.getElementById('cfgBox'),n=document.getElementById('tabs');return c.contains(document.getElementById('rulesBox'))&&c.getBoundingClientRect().top<n.getBoundingClientRect().top}),'백테스트 설정이 탭 줄보다 위(모든 탭 공통)');
   await p.fill('#sig','QQQ');await p.fill('#trd','TECL');await p.fill('#s','2014-01-01');await SR(p,[{n:60,up:'100',dn:'0'},{n:200,up:'100',dn:''}]);await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(600);
   ok(await p.evaluate(()=>document.querySelectorAll('#kpi .kpi').length)===4,'요약 타일 4개(CAGR·MDD·누적·칼마)');
-  await p.click('#goSw');ok(await p.evaluate(()=>getComputedStyle(document.getElementById('rulesBox')).display!=='none'&&document.getElementById('rulesBox').offsetParent!==null),'다른 탭에서도 설정 입력이 보임');ok(await vis()==='tab-sw','"최적값 찾기" 버튼 → 스윕 탭',await vis());
+  await p.click('#goSw');ok(await p.evaluate(()=>document.querySelector('#rulesBox .rc').offsetParent!==null),'다른 탭에서도 설정 입력이 보임');ok(await vis()==='tab-sw','"최적값 찾기" 버튼 → 스윕 탭',await vis());
   ok(/QQQ/.test(await p.evaluate(()=>document.getElementById('ctx').textContent))&&/TECL/.test(await p.evaluate(()=>document.getElementById('ctx').textContent)),'맨 위 공통 설정 요약에 종목 표시');
   await p.evaluate(()=>{RULES[0].na='60';RULES[0].nb='80';RULES[0].nc='20';RULES[1].na='200';RULES[1].nb='200';RULES[1].nc='1';renderSwRules();save()});
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(400);
