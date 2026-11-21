@@ -13,8 +13,8 @@ const col = (s, k) => { const m = new Map(raw[s].map(r => [r[0], r])); let last 
 const C = col('QQQ', 1), O = col('QQQ', 2), Hh = col('QQQ', 3), L = col('QQQ', 4), V = col('QQQ', 5), NDX = col('^NDX', 1);
 
 // ---------- 바닥(목표) ----------
-const TG = [['2002', '2001-09-01', '2003-06-30'], ['2009', '2008-06-01', '2009-12-31'], ['2018', '2018-09-01', '2019-03-31'], ['2022', '2022-01-01', '2023-03-31'], ['2025', '2025-01-01', '2025-08-31']]
-  .map(([nm, a, b]) => { const ix = []; for (let i = 0; i < n; i++) if (dates[i] >= a && dates[i] <= b) ix.push(i); const lo = Math.min(...ix.map(i => NDX[i])); const zone = ix.filter(i => NDX[i] <= lo * 1.01); const low = ix.find(i => NDX[i] === lo); return { nm, zone, low, lo }; });
+const TG = [['2002', '2001-09-01', '2003-06-30'], ['2009', '2008-06-01', '2009-12-31'], ['2018', '2018-09-01', '2019-03-31'], ...(ARGS.includes('--with2020') ? [['2020', '2020-02-01', '2020-06-30']] : []), ['2022', '2022-01-01', '2023-03-31'], ['2025', '2025-01-01', '2025-08-31']]
+  .map(([nm, a, b]) => { const end = b; const ix = []; for (let i = 0; i < n; i++) if (dates[i] >= a && dates[i] <= b) ix.push(i); const lo = Math.min(...ix.map(i => NDX[i])); const zone = ix.filter(i => NDX[i] <= lo * 1.01); const low = ix.find(i => NDX[i] === lo); return { nm, zone, low, lo, end }; });
 const tgOf = new Int8Array(n).fill(-1), distOf = new Float64Array(n).fill(Infinity);
 TG.forEach((t, k) => { for (let i = 0; i < n; i++) { const d = Math.min(...t.zone.map(z => Math.abs(i - z))); if (d <= WIN && d < distOf[i]) { distOf[i] = d; tgOf[i] = k; } } });
 const ACT = TG.map((t, k) => HOLD !== t.nm); // --hold 연도: 그 바닥은 탐색에서 빼고(정답 숨김) 나중에 맞히는지 확인
@@ -108,7 +108,7 @@ if (arg('--compare')) {
     const sigd = []; for (let i = 0; i < n; i++) if (R.rule.every(p => { const v = IND[p.nm][i]; return fin(v) && (p.dir === '<' ? v < p.t : v > p.t); })) sigd.push(i);
     const per = TG.map(t => {
       const ds = sigd.filter(i => tgOf[i] >= 0 && TG[tgOf[i]] === t); if (!ds.length) return { nm: t.nm, miss: true };
-      const f = ds[0], after = Math.min(...Array.from({ length: n - f }, (_, j) => f + j).filter(i => dates[i] <= (t.nm === '2002' ? '2003-06-30' : t.nm === '2009' ? '2009-12-31' : t.nm === '2018' ? '2019-03-31' : t.nm === '2022' ? '2023-03-31' : '2025-08-31')).map(i => NDX[i]));
+      const f = ds[0], after = Math.min(...Array.from({ length: n - f }, (_, j) => f + j).filter(i => dates[i] <= t.end).map(i => NDX[i]));
       const best = ds.reduce((a, i) => NDX[i] < NDX[a] ? i : a);
       const nz = t.zone.reduce((a, z) => Math.abs(f - z) < Math.abs(f - a) ? z : a); // 쌍바닥이면 가까운 바닥 기준
       return { nm: t.nm, low: dates[t.low], near: dates[nz], dNear: f - nz, first: dates[f], dFirst: f - t.low, gapFirst: NDX[f] / t.lo - 1, more: after / NDX[f] - 1, best: dates[best], gapBest: NDX[best] / t.lo - 1, r63: fwd(f, 63), r252: fwd(f, 252), all: ds.map(i => ({ d: dates[i], gap: NDX[i] / t.lo - 1, dd: i - t.zone.reduce((a, z) => Math.abs(i - z) < Math.abs(i - a) ? z : a) })) };
