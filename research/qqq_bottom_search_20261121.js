@@ -99,6 +99,90 @@ const andInto = (o, a, b) => { for (let w = 0; w < NW; w++) o[w] = a[w] & b[w]; 
 const days = b => { const o = []; for (let w = 0; w < NW; w++) { let x = b[w]; while (x) { const t = x & -x, j = 31 - Math.clz32(t); o.push(w * 32 + j); x ^= t; } } return o; };
 function score(b) { const ds = days(b); let s = 0, mx = 0; for (const i of ds) { const d = tgOf[i] >= 0 ? distOf[i] : 99; s += d; mx = Math.max(mx, d); } return { mean: s / ds.length, max: mx, ds }; }
 
+// ---------- 안정성 검증 ----------
+// --stab "지표|<,지표|>,...": 지표 구조는 고정, 기준값을 촘촘한 격자(상·하위 0.2%~QMAX 분위, 로그 간격)로 전부 바꿔 가며
+//   ① 통과 조합이 얼마나 넓은지 ② 이웃 칸(±1)도 같이 통과하는 안정한 값 ③ 바닥 하나씩 빼고 맞히는지
+// --scan K: 지표 구조까지 전부 바꿔 가며 '넓게 통과하는' 구조(K=2: 쌍, K=3: 상위 쌍 + 1개)를 찾는다
+const QMAX = +(arg('--qmax') || .6), F = +(arg('--F') || 0), CMAX = +(arg('--cmax') || 15), NB = TG.length, FULL = (1 << NB) - 1;
+function gridEval(spec, G) {
+  const K = spec.length;
+  const grids = spec.map(sp => { const a = IND[sp.nm], v = sp.v || (sp.v = Array.from(a).filter(fin).sort((x, y) => x - y)), ths = [];
+    for (let k = 0; k < G; k++) { const q = .002 * Math.pow(QMAX / .002, k / (G - 1)), t = v[Math.floor((sp.dir === '<' ? q : 1 - q) * (v.length - 1))]; if (!ths.includes(t)) ths.push(t); }
+    const key = sp.nm + sp.dir + G, bs = (gridEval.cache[key] = gridEval.cache[key] || ths.map(t => { const b = new Uint32Array(NW); for (let i = 0; i < n; i++) if (fin(a[i]) && (sp.dir === '<' ? a[i] < t : a[i] > t)) b[i >> 5] |= 1 << (i & 31); return b; }));
+    return { sp, ths, bs }; });
+  const sizes = grids.map(g => g.ths.length), total = sizes.reduce((a, b) => a * b, 1);
+  const covM = new Uint8Array(total), falA = new Uint16Array(total), cntA = new Uint16Array(total), meanA = new Float32Array(total).fill(NaN);
+  const lvl = Array.from({ length: K }, () => new Uint32Array(NW));
+  (function rec(d, base) {
+    for (let j = 0; j < sizes[d]; j++) {
+      const b = grids[d].bs[j], cur = lvl[d]; if (d === 0) cur.set(b); else { const pv = lvl[d - 1]; for (let w = 0; w < NW; w++) cur[w] = pv[w] & b[w]; }
+      const id = base * sizes[d] + j; if (d < K - 1) { rec(d + 1, id); continue; }
+      let cnt = 0, fal = 0, cm = 0;
+      for (let w = 0; w < NW; w++) { const x = cur[w]; if (!x) continue; cnt += pc(x); fal += pc(x & ~allowB[w]); for (let k = 0; k < NB; k++) if (x & tgB[k][w]) cm |= 1 << k; }
+      covM[id] = cm; falA[id] = Math.min(65535, fal); cntA[id] = Math.min(65535, cnt);
+      if (cnt > 0 && cnt <= 300 && (cm === FULL || (cm & (cm + 1)) !== 0 || true) && fal <= F + 2) { let sm = 0; for (let w = 0; w < NW; w++) { let x = cur[w]; while (x) { const t = x & -x, i = w * 32 + 31 - Math.clz32(t); sm += distOf[i] === Infinity ? 99 : distOf[i]; x ^= t; } } meanA[id] = sm / cnt; }
+    } })(0, 0);
+  const E = { spec, grids, sizes, total, covM, falA, cntA, meanA, K };
+  E.ok = (id, need) => (covM[id] & need) === need && falA[id] <= F && cntA[id] > 0 && cntA[id] <= CMAX;
+  E.coords = id => { const c = Array(K); for (let d = K - 1; d >= 0; d--) { c[d] = id % sizes[d]; id = Math.floor(id / sizes[d]); } return c; };
+  E.toId = c => c.reduce((a, v, d) => a * sizes[d] + v, 0);
+  E.offs = gridEval.offs[K] || (gridEval.offs[K] = (() => { const o = []; const r2 = (d, cur) => { if (d === K) { if (cur.some(v => v)) o.push(cur.slice()); return; } for (const q of [-1, 0, 1]) { cur.push(q); r2(d + 1, cur); cur.pop(); } }; r2(0, []); return o; })());
+  E.nbr = (id, need) => { const c = E.coords(id); let t = 0, g = 0; for (const o of E.offs) { const cc = c.map((v, d) => v + o[d]); if (cc.some((v, d) => v < 0 || v >= sizes[d])) continue; t++; if (E.ok(E.toId(cc), need)) g++; } return t ? g / t : 0; };
+  E.label = id => E.coords(id).map((j, d) => `${spec[d].nm} ${spec[d].dir} ${fmt(spec[d].nm, grids[d].ths[j])}`).join(' & ');
+  E.th = id => E.coords(id).map((j, d) => ({ nm: spec[d].nm, dir: spec[d].dir, t: grids[d].ths[j] }));
+  return E;
+}
+gridEval.cache = {}; gridEval.offs = {};
+function analyze(E, need = FULL, thr = .75) { // 합격 조합, 안정 조합(이웃 합격률 ≥ thr), 1위
+  const ps = []; for (let id = 0; id < E.total; id++) if (E.ok(id, need)) ps.push(id);
+  const cs = ps.map(id => ({ id, nb: E.nbr(id, need), mean: E.meanA[id] })).sort((x, y) => y.nb - x.nb || x.mean - y.mean);
+  return { ps, cs, stable: cs.filter(x => x.nb >= thr).length };
+}
+if (arg('--stab')) {
+  const spec = arg('--stab').split(',').map(x => { const [nm, dir] = x.split('|'); if (!IND[nm]) throw Error('지표 없음: ' + nm); return { nm, dir }; });
+  const E = gridEval(spec, +(arg('--grid') || 24)), { K, sizes, total, grids } = E;
+  console.log(`구조: ${spec.map(x => x.nm + ' ' + x.dir).join(' & ')}\n기준값 격자 ${sizes.join('×')} = ${total.toLocaleString()}조합 · 합격 = 바닥 ${NB}개 모두 맞힘 · 바닥 밖 신호 ≤ ${F}일 · 신호 ≤ ${CMAX}일`);
+  const A = analyze(E);
+  console.log(`합격 조합 ${A.ps.length}개 (격자의 ${(A.ps.length / total * 100).toFixed(3)}%) · 이웃 칸이 75% 이상 같이 합격하는 안정 조합 ${A.stable}개`);
+  if (arg('--orig')) { const ov = arg('--orig').split(',').map(Number), c = ov.map((t, d) => { let bj = 0; grids[d].ths.forEach((x, j) => { if (Math.abs(x - t) < Math.abs(grids[d].ths[bj] - t)) bj = j; }); return bj; }), id = E.toId(c);
+    console.log(`[기존 기준값] ${E.label(id)} (가장 가까운 격자) → ${E.ok(id, FULL) ? '합격' : '불합격'} · 이웃 합격률 ${(E.nbr(id, FULL) * 100).toFixed(0)}% · 신호 ${E.cntA[id]}일 · 바닥 밖 ${E.falA[id]}일`); }
+  if (A.ps.length) {
+    console.log('\n[가장 안정적인 기준값 TOP 5] (이웃 합격률 높은 순 → 바닥과 평균 거리 짧은 순)');
+    A.cs.slice(0, 5).forEach((x, k) => console.log(`${k + 1}. ${E.label(x.id)}\n    이웃 합격률 ${(x.nb * 100).toFixed(0)}% · 신호 ${E.cntA[x.id]}일 · 바닥 밖 ${E.falA[x.id]}일 · 바닥과 평균 거리 ${x.mean.toFixed(1)}일`));
+    const best = A.cs[0], bc = E.coords(best.id);
+    console.log('\n[1위 기준값을 하나씩 바꿔 볼 때 합격하는 범위] (다른 조건은 고정)');
+    spec.forEach((sp, d) => { const okj = []; for (let j = 0; j < sizes[d]; j++) { const c = bc.slice(); c[d] = j; if (E.ok(E.toId(c), FULL)) okj.push(j); } let lo = bc[d], hi = bc[d]; while (okj.includes(lo - 1)) lo--; while (okj.includes(hi + 1)) hi++;
+      console.log(`  ${sp.nm} ${sp.dir}: ${fmt(sp.nm, grids[d].ths[lo])} ~ ${fmt(sp.nm, grids[d].ths[hi])} 에서 합격 (격자 ${sizes[d]}칸 중 ${hi - lo + 1}칸 연속, 고른 값 ${fmt(sp.nm, grids[d].ths[bc[d]])})`); });
+    if (arg('--stab-out')) fs.writeFileSync(arg('--stab-out'), JSON.stringify([{ name: '안정 1위', rule: E.th(best.id) }, ...A.cs.slice(1, 3).map((x, k) => ({ name: `안정 ${k + 2}위`, rule: E.th(x.id) }))]));
+  }
+  console.log('\n[바닥 하나씩 빼고 고른 기준값이 빠진 바닥도 맞히는지]');
+  let hits = 0;
+  for (let h = 0; h < NB; h++) {
+    const need = FULL & ~(1 << h), B = analyze(E, need);
+    if (!B.ps.length) { console.log(`  ${TG[h].nm} 제외: 나머지 바닥을 모두 맞히는 값 없음`); continue; }
+    const b = B.cs[0], hit = (E.covM[b.id] >> h) & 1, share = B.ps.filter(id => (E.covM[id] >> h) & 1).length / B.ps.length; if (hit) hits++;
+    console.log(`  ${TG[h].nm} 제외: 합격 ${B.ps.length}개 → 고른 값(안정 1위) ${hit ? '맞힘' : '못 맞힘'} · 합격 조합 중 ${TG[h].nm}도 맞힌 비율 ${(share * 100).toFixed(0)}%`);
+  }
+  console.log(`  → 빼고 찾아도 맞힌 바닥 ${hits}/${NB}`);
+  process.exit(0);
+}
+if (arg('--scan')) {
+  const K = +arg('--scan'), G1 = +(arg('--grid') || 28), TOP = +(arg('--top') || 15), pool = [];
+  for (const nm of Object.keys(IND)) for (const dir of ['<', '>']) { const E = gridEval([{ nm, dir }], G1); let any = false; for (let id = 0; id < E.total; id++) if ((E.covM[id] & FULL) === FULL) { any = true; break; } if (any) pool.push({ nm, dir }); }
+  console.log(`단독으로 바닥 ${NB}개를 모두 덮는 조건 후보 ${pool.length}개`);
+  const res = [];
+  const evalSpec = (spec, G) => { const E = gridEval(spec, G), A = analyze(E); if (A.ps.length) res.push({ spec, G, E, A }); };
+  if (K === 2) { for (let a = 0; a < pool.length; a++) for (let b = a + 1; b < pool.length; b++) if (pool[a].nm !== pool[b].nm) evalSpec([pool[a], pool[b]], G1); }
+  else { const pairs = []; for (let a = 0; a < pool.length; a++) for (let b = a + 1; b < pool.length; b++) if (pool[a].nm !== pool[b].nm) { const E = gridEval([pool[a], pool[b]], 20), A = analyze(E, FULL); pairs.push({ spec: [pool[a], pool[b]], sc: A.ps.length }); }
+    pairs.sort((x, y) => y.sc - x.sc); const G3 = +(arg('--grid3') || 14);
+    for (const pr of pairs.slice(0, +(arg('--pairs') || 60))) for (const c of pool) if (!pr.spec.some(q => q.nm === c.nm)) evalSpec([...pr.spec, c], G3); }
+  res.sort((x, y) => y.A.stable - x.A.stable || (y.A.ps.length / y.E.total) - (x.A.ps.length / x.E.total));
+  console.log(`합격 조합이 있는 구조 ${res.length}개 · 안정 조합 수(이웃 75% 이상 합격) 순`);
+  res.slice(0, TOP).forEach((r, k) => { const b = r.A.cs[0]; console.log(`${k + 1}. ${r.spec.map(q => q.nm + ' ' + q.dir).join(' & ')}\n    격자 ${r.E.sizes.join('×')} 중 합격 ${r.A.ps.length}개 · 안정 ${r.A.stable}개 · 고른 값: ${r.E.label(b.id)} (이웃 합격률 ${(b.nb * 100).toFixed(0)}%, 신호 ${r.E.cntA[b.id]}일, 바닥 밖 ${r.E.falA[b.id]}일, 평균 거리 ${b.mean.toFixed(1)}일)`); });
+  if (arg('--scan-out')) fs.writeFileSync(arg('--scan-out'), JSON.stringify(res.slice(0, TOP).map((r, k) => ({ name: `구조${k + 1}`, rule: r.E.th(r.A.cs[0].id), spec: r.spec, stable: r.A.stable, pass: r.A.ps.length }))));
+  process.exit(0);
+}
+
 // ---------- 기법 비교(--compare rules.json): 각 기법의 신호일, 최저점과의 거래일·가격 차이, 매수 후 추가 하락, 이후 수익 ----------
 if (arg('--compare')) {
   const L = JSON.parse(fs.readFileSync(arg('--compare'), 'utf8')), out = [];
