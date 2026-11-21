@@ -1,0 +1,21 @@
+name: bottom-data
+# QQQ 폭락장 바닥 찾기용 장기 시세(1998~)를 받아 로그로 덤프(로컬에서 탐색)
+on:
+  push:
+    branches: [claude/backtest-app]
+    paths: ['research/qqq_bottom_fetch_*.js', '.github/workflows/bottom.yml']
+  workflow_dispatch:
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 시세 받기
+        run: node research/qqq_bottom_fetch_20261121.js bottom_prices.json
+      - name: 시세 덤프
+        run: |
+          echo "@@BEGIN"; gzip -9c bottom_prices.json | base64 -w 180 | sed 's/^/@@B /'; echo "@@END"
