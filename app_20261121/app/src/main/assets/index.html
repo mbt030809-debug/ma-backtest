@@ -47,9 +47,9 @@ th{color:var(--mute);font-weight:500}
 <div class="card">
   <div class="row" style="justify-content:space-between">
     <div class="seg" id="modeSeg">
-      <button data-m="vol" class="on">변동성 보정</button>
-      <button data-m="uncond">전체 역사</button>
-      <button data-m="knn">유사 상태</button>
+      <button data-m="vol" class="on">추천</button>
+      <button data-m="uncond">과거 평균</button>
+      <button data-m="knn">비슷했던 때</button>
     </div>
     <div class="seg" id="spanSeg">
       <button data-y="3" class="on">3년</button><button data-y="10">10년</button><button data-y="99">전체</button>
@@ -130,10 +130,10 @@ th{color:var(--mute);font-weight:500}
     $('tbl').innerHTML=html;
     var ep=R.keyStats[756].episodes;
     $('note').innerHTML=mode==='vol'
-      ?'<b>변동성 보정</b>: 과거 수익률 분포의 폭을 현재 변동성('+pct(R.state.vol63,0)+')에 맞춰 조정, 중앙값(기대수익)은 고정. 검증에서 기준선보다 구간 정확도가 높았던 방식.'
+      ?'<b>추천</b>: 과거 전체 기록을 쓰되, 지금 시장의 출렁임('+pct(R.state.vol63,0)+')에 맞춰 위아래 폭을 조정. 검증에서 가장 정확했음.'
       :mode==='knn'
-      ?'유사 상태: 낙폭·이격·1년수익률·변동성이 비슷했던 과거 250일 기준(독립 사례 약 '+R.keyStats[252].episodes+'개). 검증에서 기준선보다 나빴고 3년은 사례 ~'+ep+'개뿐이라 <b>과신 금물</b>.'
-      :'전체 역사: 1986년 이후 모든 시점의 이후 수익률 분포(무조건 분포).';
+      ?'<b>비슷했던 때</b>: 지금처럼 떨어져 있던 과거 시점만 골라 그 뒤 결과를 본 것(떨어지면 오른다는 가설). 검증에서 가장 못 맞았고 사례가 적어(3년은 약 '+ep+'개) <b>참고만</b> 하세요.'
+      :'<b>과거 평균</b>: 1986년 이후 모든 시점의 결과를 그대로 모은 단순 평균. 지금 상황은 반영하지 않음.';
   }
 
   function renderRecovery(){
