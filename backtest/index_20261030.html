@@ -173,10 +173,10 @@ function activeRules(){const out=[];RULES.forEach((r,k)=>{if(!r.on)return;const 
 const pctTxt=v=>v==null?'-':+(v*100).toFixed(2)+'%';
 // 규칙 목록 → 이벤트(엔진 입력). 우선순위 오름차순: 바닥 신호가 가장 약하고, 이평선은 기간이 길수록 같은 날 우선.
 async function buildEvs(full,fpx,pos,xs,e){const evs=[],ar=activeRules(),fl={},ff=n=>fl[n]||(fl[n]=crossFlags(fpx,n));
-if($('en3').checked){btm();const bf=await bottomF(full,fpx,xs,e),t=pctChk($('bt3').value,'바닥 신호');const fb=$('fb3').value==='o'?'o':'c';evs.push({f:pos.map(i=>bf[i]),t:(t==null?100:t)/100,d:rdl('db3'),fill:fb,label:'바닥 신호 → '+(t==null?100:+t.toFixed(2))+'%'+(fb==='o'?' (시가)':''),rk:0,dir:'bt'})}
+if($('en3').checked){btm();const bf=await bottomF(full,fpx,xs,e),t=pctChk($('bt3').value,'바닥 신호');const fb=$('fb3').value==='o'?'o':'c';evs.push({f:pos.map(i=>bf[i]),t:(t==null?100:t)/100,d:rdl('db3'),fill:fb,label:'바닥 신호 → '+(t==null?100:+t.toFixed(2))+'%'+(fb==='o'?' (시가)':' (종가)'),rk:0,dir:'bt'})}
 [...ar].sort((a,b)=>a.n-b.n||a.k-b.k).forEach(r=>{const c=ff(r.n);
-if(r.up!=null)evs.push({f:pos.map(i=>c.up[i]),t:r.up,d:r.du,fill:r.fu,label:`이평${r.k} ${r.n}일↑ → ${pctTxt(r.up)}${r.fu==='o'?' (시가)':''}`,rk:r.k,dir:'up'});
-if(r.dn!=null)evs.push({f:pos.map(i=>c.dn[i]),t:r.dn,d:r.dd,fill:r.fd,label:`이평${r.k} ${r.n}일↓ → ${pctTxt(r.dn)}${r.fd==='o'?' (시가)':''}`,rk:r.k,dir:'dn'})});
+if(r.up!=null)evs.push({f:pos.map(i=>c.up[i]),t:r.up,d:r.du,fill:r.fu,label:`이평${r.k} ${r.n}일↑ → ${pctTxt(r.up)}${r.fu==='o'?' (시가)':' (종가)'}`,rk:r.k,dir:'up'});
+if(r.dn!=null)evs.push({f:pos.map(i=>c.dn[i]),t:r.dn,d:r.dd,fill:r.fd,label:`이평${r.k} ${r.n}일↓ → ${pctTxt(r.dn)}${r.fd==='o'?' (시가)':' (종가)'}`,rk:r.k,dir:'dn'})});
 return evs}
 // 시가 체결을 쓰는 이벤트가 있으면 매매 종목의 수정 시가 배열(날짜 정렬)을 만든다. 시가가 없는 시세(예전 캐시)면 안내
 function openArr(evs,rows,dates){if(!evs.some(x=>x.fill==='o'))return null;const m=new Map();(rows||[]).forEach(r=>{if(r[2]>0)m.set(r[0],r[2])});const ox=dates.map(d=>m.get(d));if(ox.some(v=>!(v>0)))throw Error('시가 데이터가 없습니다. 알림·설정 탭의 "시세 캐시 지우기" 후 다시 실행하세요');return ox}
@@ -324,7 +324,7 @@ ctx.trades.forEach(t=>{if(!sigIgnore(t)&&e0[t.i]!=null&&!HID['mk:'+sigKey(t)])mk
 // 5/1 세금 납부용 매도는 신호 매도가 아니므로 작은 회색 점으로만 표시
 ctx.trades.forEach(t=>{if(t.side=='S'&&/세금/.test(t.rule||'')&&t.asset!='Y'&&e0[t.i]!=null){g.fillStyle='#868e96';g.beginPath();g.arc(X(t.i),Y(e0[t.i]),3,0,6.3);g.fill()}})}g.restore()}
 
-const rsx=r=>(r.rules||[]).map(x=>`이평${x.k} ${x.n}일 ↑${pctTxt(x.up)}${x.fu==='o'?'(시가)':''} ↓${pctTxt(x.dn)}${x.fd==='o'?'(시가)':''}`).join(' · '),rcell=r=>(r.rules||[]).map(x=>`<td>${x.n}<br><span class="mut">↑${pctTxt(x.up)}${x.fu==='o'?'(시가)':''} ↓${pctTxt(x.dn)}${x.fd==='o'?'(시가)':''}</span></td>`).join(''),rhead=()=>((swMeta&&swMeta.rk)||[1,2]).map(k=>`<th>이평${k}</th>`).join('');
+const rsx=r=>(r.rules||[]).map(x=>`이평${x.k} ${x.n}일 ↑${pctTxt(x.up)}${x.fu==='o'?'(시가)':'(종가)'} ↓${pctTxt(x.dn)}${x.fd==='o'?'(시가)':'(종가)'}`).join(' · '),rcell=r=>(r.rules||[]).map(x=>`<td>${x.n}<br><span class="mut">↑${pctTxt(x.up)}${x.fu==='o'?'(시가)':'(종가)'} ↓${pctTxt(x.dn)}${x.fd==='o'?'(시가)':'(종가)'}</span></td>`).join(''),rhead=()=>((swMeta&&swMeta.rk)||[1,2]).map(k=>`<th>이평${k}</th>`).join('');
 function applyRow(r){(r.rules||[]).forEach(x=>{const q=RULES[x.k-1];if(!q)return;q.n=x.n;q.up=x.up==null?'':String(+(x.up*100).toFixed(2));q.dn=x.dn==null?'':String(+(x.dn*100).toFixed(2));if(x.fu)q.fu=x.fu;if(x.fd)q.fd=x.fd});$('mode').value='cross';renderRules();save();showTab('bt');$('tabs').scrollIntoView();run()}
 const WK=`self.onmessage=e=>{const{fpx,pos,px,py,dates,LS,o,bev,lo,hi,wid}=e.data;o.ig=interestFactors(dates,o.cashRate);const yrs=yearsOf(dates),cache={},fl=(n,k)=>{const c=cache[n]||(cache[n]=crossFlags(fpx,n));return cache[n+k]||(cache[n+k]=pos.map(i=>c[k][i]))};
 const K=LS.length,sz=[];LS.forEach(r=>{sz.push(r.n.length,r.up.length,r.dn.length,r.fu.length,r.fd.length)});const D=sz.length,N=hi-lo;
