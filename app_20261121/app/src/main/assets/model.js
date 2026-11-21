@@ -63,7 +63,7 @@
     }
     var order = idx.map(function (_, i) { return i; }).sort(function (a, b) { return dist[a] - dist[b]; });
     var out = { n: n, last: last, state: { dd: state[0], z200: state[1], r252: state[2], vol63: state[3] },
-                grid: GRID, uncond: {}, knn: {}, vol: {}, keyStats: {} };
+                grid: GRID, uncond: {}, knn: {}, vol: {}, keyStats: {}, samp: { uncond: {}, knn: {}, vol: {} } };
     GRID.forEach(function (h) {
       var yu = [], yk = [], ts = [], t2;
       for (t2 = START; t2 + h <= last; t2++) yu.push(lp[t2 + h] - lp[t2]);
@@ -81,6 +81,7 @@
       var su = sortNum(yu), sk = sortNum(yk);
       out.uncond[h] = QS.map(function (q) { return quantile(su, q); });
       out.knn[h] = QS.map(function (q) { return quantile(sk, q); });
+      out.samp.uncond[h] = su; out.samp.knn[h] = sk; out.samp.vol[h] = sortNum(yvs);   // 히트맵(확률 밀도)용 표본
       if (KEY.indexOf(h) >= 0) {
         ts.sort(function (a, b) { return a - b; });
         var ep = 0; for (var i = 0; i < ts.length; i++) if (i === 0 || ts[i] - ts[i - 1] > 42) ep++;
