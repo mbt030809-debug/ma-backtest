@@ -69,6 +69,17 @@ add('장단기 금리차(30y-10y)', TYX.map((v, i) => v - TNX[i]));
 for (const k of [21, 63]) { add(`소형주/S&P ${k}일 변화`, roc(rat(RUT, GS), k)); add(`나스닥100/S&P ${k}일 변화`, roc(rat(NDX, GS), k)); }
 for (const s of ['XLU', 'XLF']) for (const k of [21, 63]) add(`${s}/SPY ${k}일 변화`, roc(rat(col(s, 1), col('SPY', 1)), k));
 add('S&P 252일 고점 대비', rat(GS, rmax(GS, 252)).map(v => v - 1));
+// ---- 확장 지표(--ext): 신용·안전자산·VIX 기간구조·반도체 등. HYG(2007~)·VIX3M(2006~)처럼 일찍 상장 안 된 것은 2002년 이전엔 값이 없음 → 그 바닥은 --hold 2002 로 정답에서 빼고 탐색 ----
+if (ARGS.includes('--ext')) {
+  const HY = col('HYG', 1), TL = col('TLT', 1), GL = col('GLD', 1), SP = col('SPY', 1), V3 = col('^VIX3M', 1), SM = col('SMH', 1), XK = col('XLK', 1), IW = col('IWM', 1), DI = col('DIA', 1);
+  for (const k of [10, 21, 63]) { add(`HYG ${k}일 수익률`, roc(HY, k)); add(`HYG/TLT ${k}일 변화`, roc(rat(HY, TL), k)); add(`HYG/SPY ${k}일 변화`, roc(rat(HY, SP), k)); add(`HYG ${k}일 고점 대비`, rat(HY, rmax(HY, k)).map(v => v - 1)); }
+  for (const k of [21, 63, 126]) { add(`TLT ${k}일 수익률`, roc(TL, k)); add(`GLD ${k}일 수익률`, roc(GL, k)); add(`TLT/SPY ${k}일 변화`, roc(rat(TL, SP), k)); add(`GLD/SPY ${k}일 변화`, roc(rat(GL, SP), k)); }
+  add('VIX/VIX3M', rat(VIX, V3)); for (const k of [5, 10]) add(`VIX/VIX3M ${k}일 변화`, roc(rat(VIX, V3), k)); add('VIX3M', V3); add('VIX3M/50일 평균', rat(V3, sma(V3, 50)));
+  { const r63 = rv(63); add('VIX3M − 실현변동성63', V3.map((v, i) => v / 100 - r63[i])); }
+  for (const k of [21, 63, 126]) { add(`반도체(SMH)/QQQ ${k}일 변화`, roc(rat(SM, C), k)); add(`기술주(XLK)/SPY ${k}일 변화`, roc(rat(XK, SP), k)); }
+  for (const k of [21, 63]) { add(`소형주(IWM)/SPY ${k}일 변화`, roc(rat(IW, SP), k)); add(`다우/SPY ${k}일 변화`, roc(rat(DI, SP), k)); }
+  for (const k of [10, 21, 63]) { add(`SMH ${k}일 고점 대비`, rat(SM, rmax(SM, k)).map(v => v - 1)); add(`TLT ${k}일 고점 대비`, rat(TL, rmax(TL, k)).map(v => v - 1)); }
+}
 
 // 지표 범위 제한: --exclude 정규식(빼기), --include 정규식(이것만)
 { const ex = arg('--exclude'), inc = arg('--include'); for (const k of Object.keys(IND)) if ((ex && new RegExp(ex).test(k)) || (inc && !new RegExp(inc).test(k))) delete IND[k]; }
@@ -107,7 +118,7 @@ function score(b) { const ds = days(b); let s = 0, mx = 0; for (const i of ds) {
 // --stab "지표|<,지표|>,...": 지표 구조는 고정, 기준값을 촘촘한 격자(상·하위 0.2%~QMAX 분위, 로그 간격)로 전부 바꿔 가며
 //   ① 통과 조합이 얼마나 넓은지 ② 이웃 칸(±1)도 같이 통과하는 안정한 값 ③ 바닥 하나씩 빼고 맞히는지
 // --scan K: 지표 구조까지 전부 바꿔 가며 '넓게 통과하는' 구조(K=2: 쌍, K=3: 상위 쌍 + 1개)를 찾는다
-const QMAX = +(arg('--qmax') || .6), F = +(arg('--F') || 0), CMAX = +(arg('--cmax') || 15), NB = TG.length, FULL = (1 << NB) - 1;
+const QMAX = +(arg('--qmax') || .6), F = +(arg('--F') || 0), CMAX = +(arg('--cmax') || 15), NB = TG.length, FULL = ACT.reduce((a, v, k) => v ? a | (1 << k) : a, 0);
 function gridEval(spec, G) {
   const K = spec.length;
   const grids = spec.map(sp => { const a = IND[sp.nm], v = sp.v || (sp.v = Array.from(a).filter(fin).sort((x, y) => x - y)), ths = [];
