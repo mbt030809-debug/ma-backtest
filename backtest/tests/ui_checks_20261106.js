@@ -8,8 +8,8 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  const SR=(p,arr)=>p.evaluate(a=>{RULES=a.map(x=>Object.assign(newRule(137,'',''),x));renderRules();save()},arr);
  const DEF=[{n:60,up:'100',dn:'0'},{n:200,up:'100',dn:''}];
  const single=async(p,r=DEF)=>SR(p,r.map(x=>({...x,na:''+x.n,nb:''+x.n,nc:'1',us:'',ds:''})));
- const cmpSweep=async(p,tag)=>{await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
-  await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(300);const sw=await p.evaluate(()=>[window._swrows[0].cagr,window._swrows[0].mdd,window._swrows[0].so]);
+ const cmpSweep=async(p,tag)=>{await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.tot,o.st.mdd,o.st.ca]});
+  await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(300);const sw=await p.evaluate(()=>[window._swrows[0].tot,window._swrows[0].mdd,window._swrows[0].ca]);
   ok(run.every((v,i)=>Math.abs(v-sw[i])<1e-12),tag+': 일반 실행 = 스윕',{run,sw})};
 
  console.log('A) 일반 실행 = 스윕 (공통/이평별 지연, 목표 비율, 방어 ETF)');
@@ -67,9 +67,9 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),90000);await p.waitForTimeout(500);
   const info=await p.evaluate(()=>({n:window._swrows.length,hdr:[...document.getElementById('swt').rows[0].cells].map(c=>c.textContent).join('|')}));
   ok(info.n===9&&/바닥신호/.test(info.hdr),'9개 결과, 바닥 신호 사용 표시, 표에 바닥신호 열',info);
-  const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>a.comp-b.comp)[0];return{rules:r.rules,cagr:r.cagr,mdd:r.mdd,so:r.so}});
-  await p.evaluate(r=>applyRow(r),top);await p.waitForTimeout(2000);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
-  ok(Math.abs(run[0]-top.cagr)<1e-12&&Math.abs(run[1]-top.mdd)<1e-12&&Math.abs(run[2]-top.so)<1e-12,'1위 행 적용 → 일반 실행과 같은 값',{run,top});ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+  const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>b.tot-a.tot)[0];return{rules:r.rules,tot:r.tot,mdd:r.mdd,ca:r.ca}});
+  await p.evaluate(r=>applyRow(r),top);await p.waitForTimeout(2000);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.tot,o.st.mdd,o.st.ca]});
+  ok(Math.abs(run[0]-top.tot)<1e-12&&Math.abs(run[1]-top.mdd)<1e-12&&Math.abs(run[2]-top.ca)<1e-12,'1위 행 적용 → 일반 실행과 같은 값',{run,top});{const tx=await p.evaluate(()=>document.getElementById('tab-sw').innerText+document.getElementById('sk').innerText);ok(!/CAGR|소르티노|종합/.test(tx)&&/수익률 1위/.test(tx)&&/MDD/.test(tx)&&/샤프/.test(tx)&&/칼마/.test(tx),'최적값 찾기 화면: 수익률 1위·MDD·샤프·칼마만 표시(CAGR·소르티노·종합 없음)',tx.match(/CAGR|소르티노|종합/g))};ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
 
  console.log('I) 이평 규칙 사용/끄기·추가/삭제 — 끈 규칙은 체결·차트선에서 빠지고, 일반 실행 = 스윕');
  {const p=await mkPage();await base(p);await single(p);
@@ -88,9 +88,9 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  {const p=await mkPage();await base(p);await single(p);await p.evaluate(()=>{RULES[1].us='50,100';RULES[1].ds='0,40,100';renderSwRules();estSweep();save()});
   ok(/6개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 6개(이평2 상향 2 × 하향 3)');
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(500);
-  const rows=await p.evaluate(()=>window._swrows.map(r=>({u:Math.round(r.rules[1].up*100),d:Math.round(r.rules[1].dn*100),cagr:r.cagr,mdd:r.mdd})));
+  const rows=await p.evaluate(()=>window._swrows.map(r=>({u:Math.round(r.rules[1].up*100),d:Math.round(r.rules[1].dn*100),tot:r.tot,mdd:r.mdd})));
   ok(rows.length===6,'상향·하향 조합 6개 결과',rows.length);
-  let allSame=true;for(const u of [50,100])for(const d of [0,40,100]){await p.evaluate(([u,d])=>{RULES[1].up=''+u;RULES[1].dn=''+d;renderRules()},[u,d]);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd]});const r=rows.find(q=>q.u===u&&q.d===d);if(!r||Math.abs(run[0]-r.cagr)>1e-12||Math.abs(run[1]-r.mdd)>1e-12){allSame=false;console.log('   up',u,'dn',d,run,r)}}
+  let allSame=true;for(const u of [50,100])for(const d of [0,40,100]){await p.evaluate(([u,d])=>{RULES[1].up=''+u;RULES[1].dn=''+d;renderRules()},[u,d]);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.tot,o.st.mdd]});const r=rows.find(q=>q.u===u&&q.d===d);if(!r||Math.abs(run[0]-r.tot)>1e-12||Math.abs(run[1]-r.mdd)>1e-12){allSame=false;console.log('   up',u,'dn',d,run,r)}}
   ok(allSame,'모든 (상향,하향) 스윕 결과 = 그 값으로 일반 실행');
   await p.evaluate(r=>applyRow(r),await p.evaluate(()=>window._swrows.find(r=>Math.round(r.rules[1].up*100)===50&&Math.round(r.rules[1].dn*100)===40)));await p.waitForTimeout(1500);
   const ud=await p.evaluate(()=>[RULES[1].up,RULES[1].dn]);ok(ud[0]==='50'&&ud[1]==='40','결과 행을 누르면 상향·하향 목표 %가 규칙 칸에 적용됨',ud);
@@ -112,10 +112,10 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  {const p=await mkPage();await base(p);await single(p);await p.evaluate(()=>{RULES[0].fus='co';RULES[0].fds='co';RULES[1].fus='co';renderSwRules();estSweep();save()});
   ok(/8개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 8개(이평1 상향 2 × 하향 2 × 이평2 상향 2, 이평2 하향은 비어 있어 고정)');
   await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(500);
-  const rows=await p.evaluate(()=>window._swrows.map(r=>({k:r.rules.map(x=>(x.fu||'')+(x.fd||'')).join('|'),cagr:r.cagr,mdd:r.mdd})));
+  const rows=await p.evaluate(()=>window._swrows.map(r=>({k:r.rules.map(x=>(x.fu||'')+(x.fd||'')).join('|'),tot:r.tot,mdd:r.mdd})));
   ok(rows.length===8,'체결 가격 조합 8개 결과가 나옴',rows.length);
   const combos=await p.evaluate(()=>[...new Set(window._swrows.map(r=>r.rules.map(x=>x.fu+x.fd).join('|')))].sort());ok(combos.length===8,'모든 조합의 체결 가격 구성이 서로 다름(8가지)',combos);
-  let allSame=true;for(const r of await p.evaluate(()=>window._swrows.map(r=>r.rules.map(x=>[x.fu,x.fd])))){await p.evaluate(rs=>{RULES[0].fu=rs[0][0];RULES[0].fd=rs[0][1];RULES[1].fu=rs[1][0];RULES[1].fd=rs[1][1];renderRules()},r);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd]});const key=r.map(x=>x.join('')).join('|'),hit=await p.evaluate(k=>window._swrows.find(q=>q.rules.map(x=>x.fu+x.fd).join('|')===k),key);if(Math.abs(run[0]-hit.cagr)>1e-12||Math.abs(run[1]-hit.mdd)>1e-12){allSame=false;console.log('   ',key,run,[hit.cagr,hit.mdd])}}
+  let allSame=true;for(const r of await p.evaluate(()=>window._swrows.map(r=>r.rules.map(x=>[x.fu,x.fd])))){await p.evaluate(rs=>{RULES[0].fu=rs[0][0];RULES[0].fd=rs[0][1];RULES[1].fu=rs[1][0];RULES[1].fd=rs[1][1];renderRules()},r);await p.click('#run');await p.waitForTimeout(1200);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.tot,o.st.mdd]});const key=r.map(x=>x.join('')).join('|'),hit=await p.evaluate(k=>window._swrows.find(q=>q.rules.map(x=>x.fu+x.fd).join('|')===k),key);if(Math.abs(run[0]-hit.tot)>1e-12||Math.abs(run[1]-hit.mdd)>1e-12){allSame=false;console.log('   ',key,run,[hit.tot,hit.mdd])}}
   ok(allSame,'모든 체결 가격 조합: 스윕 결과 = 그 설정으로 일반 실행');
   await p.evaluate(()=>applyRow(window._swrows.find(r=>r.rules[0].fu==='o'&&r.rules[0].fd==='c')));await p.waitForTimeout(1500);
   const f=await p.evaluate(()=>[RULES[0].fu,RULES[0].fd]);ok(f[0]==='o'&&f[1]==='c','결과 행을 누르면 체결 가격이 규칙 칸에 적용됨',f);
