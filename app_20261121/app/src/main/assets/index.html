@@ -121,8 +121,8 @@ th{color:var(--mute);font-weight:500}
   }
 
   function renderTable(){
-    var names={126:'6개월',252:'1년',756:'3년'}, html='<tr><th>기간</th><th class="dn">최악 5%</th><th>손실 확률</th><th>-10%↓ 확률</th><th>중앙값</th><th>상위 5%</th></tr>';
-    [126,252,756].forEach(function(h){
+    var names={21:'1개월',63:'3개월',126:'6개월',252:'1년',756:'3년'}, html='<tr><th>기간</th><th class="dn">최악 5%</th><th>손실 확률</th><th>-10%↓ 확률</th><th>중앙값</th><th>상위 5%</th></tr>';
+    [21,63,126,252,756].forEach(function(h){
       var m=R.keyStats[h][mode];
       html+='<tr><td>'+names[h]+'</td><td class="dn">'+sg(m.q[0])+'</td><td>'+pct(m.pLoss,0)+'</td><td>'+pct(m.pLtM10,0)+'</td><td>'+sg(m.q[2])+'</td><td>'+sg(m.q[4])+'</td></tr>';
     });
