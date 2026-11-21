@@ -3,6 +3,7 @@
   var QS = [0.05, 0.25, 0.5, 0.75, 0.95];
   var SC = [0.15, 0.10, 0.30, 0.10];     // 거리 스케일: 낙폭, 200일선 이격, 1년 상승률, 변동성
   var START = 252;                       // 1985년 데이터부터 사용(특성 계산 가능 시점)
+  var START_V = 300;                     // 변동성 보정 분포 표본 시작(검증 실험과 동일)
   var K = 250;
   var KEY = [126, 252, 756];
   var GRID = [];
@@ -62,10 +63,17 @@
     }
     var order = idx.map(function (_, i) { return i; }).sort(function (a, b) { return dist[a] - dist[b]; });
     var out = { n: n, last: last, state: { dd: state[0], z200: state[1], r252: state[2], vol63: state[3] },
-                grid: GRID, uncond: {}, knn: {}, keyStats: {} };
+                grid: GRID, uncond: {}, knn: {}, vol: {}, keyStats: {} };
     GRID.forEach(function (h) {
       var yu = [], yk = [], ts = [], t2;
       for (t2 = START; t2 + h <= last; t2++) yu.push(lp[t2 + h] - lp[t2]);
+      // 변동성 보정(드리프트 고정): y = 중앙값 + z * σ_now * sqrt(h/252), z = (y-중앙값)/(σ_t*sqrt(h/252))
+      var yv = [], zs = [], sc = Math.sqrt(h / 252);
+      for (t2 = START_V; t2 + h <= last; t2++) yv.push(lp[t2 + h] - lp[t2]);
+      var med = quantile(sortNum(yv), 0.5);
+      for (var a = 0, t3 = START_V; a < yv.length; a++, t3++) zs.push((yv[a] - med) / (F.v[t3] * sc));
+      var szs = sortNum(zs), yvs = zs.map(function (z) { return med + z * state[3] * sc; });
+      out.vol[h] = QS.map(function (q) { return med + quantile(szs, q) * state[3] * sc; });
       for (var o = 0; o < order.length && yk.length < K; o++) {
         t2 = idx[order[o]];
         if (t2 + h <= last) { yk.push(lp[t2 + h] - lp[t2]); ts.push(t2); }
@@ -76,11 +84,41 @@
       if (KEY.indexOf(h) >= 0) {
         ts.sort(function (a, b) { return a - b; });
         var ep = 0; for (var i = 0; i < ts.length; i++) if (i === 0 || ts[i] - ts[i - 1] > 42) ep++;
-        out.keyStats[h] = { uncond: stats(yu), knn: stats(yk), episodes: ep };
+        out.keyStats[h] = { uncond: stats(yu), knn: stats(yk), vol: stats(yvs), episodes: ep };
       }
     });
     return out;
   }
-  root.NDXModel = { forecast: forecast, features: features, QS: QS, KEY: KEY, GRID: GRID };
+
+  // 낙폭 회복 분석: 현재와 비슷한 낙폭(±5%p) 시점들, 전고점(에피소드) 단위 동일 가중
+  function recovery(c) {
+    var n = c.length, peak = new Float64Array(n), pk = new Int32Array(n), dd = new Float64Array(n), mx = -Infinity, cur = 0, i, t;
+    for (i = 0; i < n; i++) { if (c[i] > mx) mx = c[i]; peak[i] = mx; dd[i] = c[i] / mx - 1; if (c[i] >= mx - 1e-12) cur = i; pk[i] = cur; }
+    var now = dd[n - 1], eps = {}, matched = 0;
+    for (t = 0; t < n - 1; t++) if (Math.abs(dd[t] - now) <= 0.05 && dd[t] < -0.01) { (eps[pk[t]] = eps[pk[t]] || []).push(t); matched++; }
+    var HZR = [126, 252, 504, 756], FUR = [-0.10, -0.20, -0.30], res = {}, fur = {};
+    HZR.forEach(function (h) { res[h] = [0, 0]; }); FUR.forEach(function (x) { fur[x] = [0, 0]; });
+    var keys = Object.keys(eps);
+    keys.forEach(function (k) {
+      var ts = eps[k], w = 1 / ts.length;
+      ts.forEach(function (t) {
+        var r = -1, u; for (u = t + 1; u < n; u++) if (c[u] >= peak[t]) { r = u; break; }
+        HZR.forEach(function (h) {
+          var ok = (r >= 0 && r - t <= h);
+          if (ok || t + h <= n - 1) { res[h][0] += w * (ok ? 1 : 0); res[h][1] += w; }
+        });
+        var mn = Infinity; for (u = t + 1; u < Math.min(n, t + 253); u++) if (c[u] < mn) mn = c[u];
+        mn = mn / c[t] - 1;
+        if (t + 252 <= n - 1 || mn <= -0.10) FUR.forEach(function (x) {
+          if (t + 252 <= n - 1 || mn <= x) { fur[x][0] += w * (mn <= x ? 1 : 0); fur[x][1] += w; }
+        });
+      });
+    });
+    var rec = {}, further = {};
+    HZR.forEach(function (h) { rec[h] = res[h][1] ? res[h][0] / res[h][1] : null; });
+    FUR.forEach(function (x) { further[x] = fur[x][1] ? fur[x][0] / fur[x][1] : null; });
+    return { now: now, episodes: keys.length, matched: matched, rec: rec, further: further };
+  }
+  root.NDXModel = { forecast: forecast, features: features, recovery: recovery, QS: QS, KEY: KEY, GRID: GRID };
   if (typeof module !== 'undefined') module.exports = root.NDXModel;
 })(typeof window !== 'undefined' ? window : globalThis);
