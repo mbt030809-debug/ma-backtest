@@ -46,12 +46,7 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card">
-  <div class="row" style="justify-content:space-between">
-    <div class="seg" id="modeSeg">
-      <button data-m="vol" class="on">추천</button>
-      <button data-m="uncond">과거 평균</button>
-      <button data-m="knn">비슷했던 때</button>
-    </div>
+  <div class="row" style="justify-content:flex-end">
     <div class="seg" id="spanSeg">
       <button data-y="3" class="on">3년</button><button data-y="10">10년</button><button data-y="99">전체</button>
     </div>
@@ -80,9 +75,9 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card">
-  <div class="k" style="margin-bottom:6px">전고점 회복 (<span id="recTitle"></span>)</div>
+  <div class="k" style="margin-bottom:6px">전고점 탈환 예측 (<span id="recTitle"></span>)</div>
   <table id="rec"></table>
-  <div class="warn" style="margin-top:8px">현재처럼 낙폭이 비슷하고 하락 중이던 과거 사건(전고점 단위로 동일 가중) 기준. 사건 수가 적어 불확실성이 큼.</div>
+  <div class="warn" style="margin-top:8px">현재와 낙폭이 비슷했던 과거 시점을 전고점(사건) 단위로 동일 가중해 계산. 사건 수가 적어 불확실성이 큼.</div>
 </div>
 
 <div class="card">
@@ -91,11 +86,11 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card warn">
-  <b>검증 결과 요약 (가격 데이터만 사용)</b><br>
-  · 중앙값(방향) 예측력은 확인되지 않음: 평균회귀·신경망·GARCH·HMM 모두 기준선을 의미 있게 못 이김<br>
-  · 낙폭·과열과 이후 수익률의 상관은 약함 (p&gt;0.15)<br>
-  · <b>변동성 보정</b>은 구간 폭의 정확도를 높임: 튜닝(1997~2010)·검증(2011~2026) 모두 기준선 대비 pinball 4~14% 개선<br>
-  · 누적 3년 블록 백테스트: 2000·2008 같은 폭락은 어떤 모델도 예측 못함 → 구간은 참고용 위험 범위<br>
+  <b>검증 결과 요약 (가격 데이터만 사용, 미래 정보 없이 과거 시점마다 예측해 확인)</b><br>
+  · <b>수익률 구간</b>: 변동성 보정이 기준선보다 정확 (튜닝·검증 구간 모두 pinball 3~12% 개선). 중앙값(방향) 예측력은 없음<br>
+  · <b>바닥(최저점)</b>: 유사 낙폭 사건 방식이 시뮬레이션(변동성 부트스트랩·로그정규)보다 정확 — 75% 수준 적중 81%(이상 75%), pinball 0.018 대 0.025~0.027<br>
+  · <b>전고점 탈환 기간</b>: 유사 사건 방식이 시뮬레이션보다 정확 — 6개월 내 탈환 확률 Brier 0.15 대 0.18~0.20<br>
+  · 검증 표본은 49개 시점(29개 하락 사건)으로 작음. 2000·2008 같은 폭락은 구간 밖으로 벗어난 사례가 있음<br>
   · 투자 조언 아님
 </div>
 
@@ -108,14 +103,14 @@ th{color:var(--mute);font-weight:500}
   var data={d:window.NDX_BUNDLE.d.slice(),c:window.NDX_BUNDLE.c.slice()};
   var cache=null; try{cache=JSON.parse(localStorage.getItem('ndx_cache_v1')||'null')}catch(e){}
   if(cache&&cache.d&&cache.d.length&&cache.d[cache.d.length-1]>data.d[data.d.length-1]) data=cache;
-  var mode='vol', spanY=3, R=null, geo=null, RC=null, BT=null, geoMode=null;
+  var mode='vol', spanY=3, R=null, geo=null, AN=null, geoMode=null;
 
   function pct(x,dg){return (x*100).toFixed(dg==null?1:dg)+'%'}
   function sg(x){return (x>=0?'+':'')+(x*100).toFixed(1)+'%'}
   function fmt(x){return Math.round(x).toLocaleString('en-US')}
   function tms(s){return Date.parse(s+'T00:00:00Z')}
 
-  function compute(){ R=window.NDXModel.forecast(data.c); RC=window.NDXModel.recovery(data.c); BT=window.NDXModel.bottom(data.c); renderAll(); }
+  function compute(){ R=window.NDXModel.forecast(data.c); AN=window.NDXModel.analogs(data.c); renderAll(); }
 
   function renderAll(){
     var n=data.c.length, last=data.c[n-1];
@@ -135,36 +130,32 @@ th{color:var(--mute);font-weight:500}
       html+='<tr><td>'+names[h]+'</td><td class="dn">'+sg(m.q[0])+'</td><td>'+pct(m.pLoss,0)+'</td><td>'+pct(m.pLtM10,0)+'</td><td>'+sg(m.q[2])+'</td><td>'+sg(m.q[4])+'</td></tr>';
     });
     $('tbl').innerHTML=html;
-    var ep=R.keyStats[756].episodes;
-    $('note').innerHTML=mode==='vol'
-      ?'<b>추천</b>: 과거 전체 기록을 쓰되, 지금 시장의 출렁임('+pct(R.state.vol63,0)+')에 맞춰 위아래 폭을 조정. 검증에서 가장 정확했음.'
-      :mode==='knn'
-      ?'<b>비슷했던 때</b>: 지금처럼 떨어져 있던 과거 시점만 골라 그 뒤 결과를 본 것(떨어지면 오른다는 가설). 검증에서 가장 못 맞았고 사례가 적어(3년은 약 '+ep+'개) <b>참고만</b> 하세요.'
-      :'<b>과거 평균</b>: 1986년 이후 모든 시점의 결과를 그대로 모은 단순 평균. 지금 상황은 반영하지 않음.';
+    $('note').innerHTML='<b>변동성 보정</b>: 과거 전체 기록의 수익률 분포를 쓰되, 지금 시장의 출렁임('+pct(R.state.vol63,0)+')에 맞춰 위아래 폭을 조정(기대수익은 고정). 검증에서 기준선보다 구간 정확도가 높았음.';
   }
 
   function renderBottom(){
-    $('btTitle').textContent='현재 '+pct(RC.now)+' 하락 중 · 비슷했던 '+BT.episodes+'개 사건';
-    var m=function(d){return d<1?'지금 근처':(d/21<1?'약 '+Math.round(d)+'거래일':'약 '+(d/21).toFixed(1)+'개월')};
-    var h='<tr><th>확률(최저점이 이 가격 위)</th><th>추가 하락</th><th>가격</th></tr>';
-    [0.5,0.75,0.9].forEach(function(p){ h+='<tr><td>'+pct(p,0)+'</td><td class="dn">'+sg(BT.levels[p])+'</td><td>'+fmt(BT.prices[p])+'</td></tr>'; });
-    h+='<tr><td colspan="3" class="wrap" style="padding-top:10px;color:var(--mute)">이번 하락에서 추가 하락이 이 수준을 넘을 확률 (전고점 회복 전까지)</td></tr>';
-    h+='<tr><td colspan="3" class="wrap">'+[-0.05,-0.10,-0.15,-0.20,-0.30].map(function(x){return '<span style="display:inline-block;margin-right:10px">'+(x*100)+'% 이하 <b class="dn">'+pct(BT.exceed[x],0)+'</b></span>'}).join('')+'</td></tr>';
-    h+='<tr><td colspan="3" class="wrap" style="padding-top:10px;color:var(--mute)">바닥까지 걸린 기간 (과거 사건 기준)</td></tr>';
-    h+='<tr><td colspan="3" class="wrap">50% 이내 <b>'+m(BT.days[0.5])+'</b> · 75% 이내 <b>'+m(BT.days[0.75])+'</b> · 90% 이내 <b>'+m(BT.days[0.9])+'</b></td></tr>';
+    var U=AN.until, HZ=AN.hz, nm='';
+    $('btTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건';
+    var h='<tr><th>최저점이 이 가격 위일 확률</th><th>1개월</th><th>3개월</th><th>6개월</th><th>회복 전까지</th></tr>', cell=function(l,pr){return '<td><span class="dn">'+sg(l)+'</span><br><span class="sub">'+fmt(pr)+'</span></td>'};
+    [0.5,0.75,0.9].forEach(function(p){
+      h+='<tr><td>'+pct(p,0)+'</td>'+[21,63,126].map(function(k){return cell(HZ[k].levels[p],HZ[k].prices[p])}).join('')+cell(U.levels[p],U.prices[p])+'</tr>';
+    });
+    h+='<tr><td colspan="5" class="wrap" style="padding-top:10px;color:var(--mute)">추가 하락이 이 수준 이하로 갈 확률</td></tr>';
+    [-0.05,-0.10,-0.20].forEach(function(x){
+      h+='<tr><td>'+(x*100)+'% 이하</td>'+[21,63,126].map(function(k){return '<td class="dn">'+pct(HZ[k].exceed[x],0)+'</td>'}).join('')+'<td class="dn">'+pct(U.exceed[x],0)+'</td></tr>';
+    });
     $('bt').innerHTML=h;
-    $('btNote').innerHTML='나머지 5%는 2000년 닷컴 붕괴급(추가 <b>'+sg(BT.tail95)+'</b>) 극단 사례로, 사건 1개에 의존함. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요.';
+    $('btNote').innerHTML='초록 점선(그래프)은 회복 전까지의 바닥 가격대. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요. 2000년 닷컴(-80%)처럼 훨씬 더 빠진 사례가 일부 있음.';
   }
 
   function renderRecovery(){
-    $('recTitle').textContent='현재 낙폭 '+pct(RC.now)+'와 비슷했던 '+RC.episodes+'개 사건';
-    var HS=[21,63,126,252], nm={21:'1개월',63:'3개월',126:'6개월',252:'1년',504:'2년'}, h='<tr><th>기간 내</th>';
-    [21,63,126,252,504].forEach(function(x){h+='<th>'+nm[x]+'</th>'}); h+='</tr>';
-    h+='<tr><td>전고점 회복 확률</td>'+[21,63,126,252,504].map(function(x){return '<td>'+pct(RC.rec[x],0)+'</td>'}).join('')+'</tr>';
-    h+='<tr><td colspan="6" style="padding-top:10px;color:var(--mute)">현재가 대비 추가 하락 도달 확률 (그 기간 안에 한 번이라도)</td></tr>';
-    [-0.1,-0.2,-0.3].forEach(function(x){
-      h+='<tr><td>'+(x*100)+'% 이하</td>'+[21,63,126,252,504].map(function(k){return HS.indexOf(k)<0?'<td>-</td>':'<td class="dn">'+pct(RC.further[k][x],0)+'</td>'}).join('')+'</tr>';
-    });
+    var U=AN.until, HS=[21,63,126,252], nm={21:'1개월',63:'3개월',126:'6개월',252:'1년'};
+    $('recTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건';
+    var h='<tr><th>기간 내 탈환 확률</th>'+HS.map(function(k){return '<th>'+nm[k]+'</th>'}).join('')+'</tr>';
+    h+='<tr><td>전고점 탈환</td>'+HS.map(function(k){return '<td>'+pct(U.rec[k],0)+'</td>'}).join('')+'</tr>';
+    var mo=function(d){return d>=AN.cap?'5년 이상':(d/21).toFixed(1)+'개월'};
+    h+='<tr><td colspan="5" class="wrap" style="padding-top:10px;color:var(--mute)">탈환까지 걸린 기간 (과거 사건 기준)</td></tr>';
+    h+='<tr><td colspan="5" class="wrap">25% 이내 <b>'+mo(U.dq[0.25])+'</b> · 50% 이내 <b>'+mo(U.dq[0.5])+'</b> · 75% 이내 <b>'+mo(U.dq[0.75])+'</b> · 90% 이내 <b>'+mo(U.dq[0.9])+'</b></td></tr>';
     $('rec').innerHTML=h;
   }
 
@@ -177,11 +168,11 @@ th{color:var(--mute);font-weight:500}
     var n=data.c.length, lastT=tms(data.d[n-1]), lastP=data.c[n-1];
     var t0=spanY>=99?tms(data.d[0]):lastT-spanY*365*DAY, t1=lastT+3*365*DAY;
     var i0=0; while(i0<n-1&&tms(data.d[i0])<t0) i0++;
-    var Q=R[mode], Q2=R[mode==='vol'?'uncond':'vol'];
+    var Q=R[mode];
     var lo=Infinity, hi=-Infinity, i;
     for(i=i0;i<n;i++){lo=Math.min(lo,data.c[i]);hi=Math.max(hi,data.c[i]);}
     R.grid.forEach(function(h){lo=Math.min(lo,lastP*Math.exp(Q[h][0]));hi=Math.max(hi,lastP*Math.exp(Q[h][4]));});
-    if(BT) lo=Math.min(lo,BT.prices[0.9]);
+    if(AN) lo=Math.min(lo,AN.until.prices[0.9]);
     lo=Math.log(lo*0.93); hi=Math.log(hi*1.05);
     var L=44,Rr=8,T=8,B=22, pw=W-L-Rr, ph=H-T-B;
     function X(t){return L+(t-t0)/(t1-t0)*pw} function Y(p){return T+(hi-Math.log(p))/(hi-lo)*ph}
@@ -230,12 +221,12 @@ th{color:var(--mute);font-weight:500}
     R.grid.forEach(function(h){g.lineTo(X(lastT+h*HDAYS*DAY),Y(lastP*Math.exp(Q[h][0])));}); g.stroke(); g.lineWidth=1;
     g.setLineDash([4,3]); g.strokeStyle=ink;
     // 바닥 가격대(이번 하락의 예상 최저점): 가로선
-    if(BT){ g.save(); g.setLineDash([6,4]); g.lineWidth=1.2; g.font='11px system-ui';
+    if(AN){ g.save(); g.setLineDash([6,4]); g.lineWidth=1.2; g.font='11px system-ui';
       [[0.5,'바닥 50%'],[0.75,'바닥 75%'],[0.9,'바닥 90%']].forEach(function(a,ix){
-        var py=Y(BT.prices[a[0]]); if(py<T||py>T+ph) return;
+        var py=Y(AN.until.prices[a[0]]); if(py<T||py>T+ph) return;
         g.strokeStyle=css.getPropertyValue('--up').trim(); g.fillStyle=css.getPropertyValue('--up').trim();
         g.beginPath(); g.moveTo(L,py); g.lineTo(W-Rr,py); g.stroke();
-        g.textAlign='right'; g.fillText(a[1]+' '+fmt(BT.prices[a[0]]),W-Rr-4,py-3); g.textAlign='left';
+        g.textAlign='right'; g.fillText(a[1]+' '+fmt(AN.until.prices[a[0]]),W-Rr-4-(2-ix)*88,py-3); g.textAlign='left';
       }); g.restore(); }
     // 현재/키 지점 세로선
     g.strokeStyle=ink; [0,126,252,756].forEach(function(h){var x=X(lastT+h*HDAYS*DAY);g.beginPath();g.moveTo(x,T);g.lineTo(x,T+ph);g.stroke();
@@ -269,7 +260,6 @@ th{color:var(--mute);font-weight:500}
   // ---------- UI ----------
   function seg(id,key,fn){ $(id).addEventListener('click',function(e){var b=e.target.closest('button'); if(!b)return;
     Array.prototype.forEach.call($(id).children,function(x){x.classList.remove('on')}); b.classList.add('on'); fn(b.dataset[key]); }); }
-  seg('modeSeg','m',function(v){mode=v;renderTable();draw();});
   seg('spanSeg','y',function(v){spanY=+v;draw();});
   window.addEventListener('resize',function(){if(R)draw()});
 
