@@ -213,15 +213,17 @@ function simulateTargets(dates, px, py, evs, o) {
             list.push({ i, si: i, side: 'S', asset: 'Y', yi: k, rule: '세금 납부용 매도', price: ys[k][i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh: shy[k] }) } } }
       paid += tk; list.push({ i, si: i, side: 'T', rule: '세금 정산(전년도 순이익, 납부)', price: px[i], qty: 0, amt: tk, tax: tk, cash, sh }); }
     // 신호: 켜진 이벤트 중 마지막(우선순위 가장 높은) 것이 대기 주문이 됨. 새 신호는 이전 대기 주문을 대체한다.
-    for (const ev of evs) if (ev.f[i]) { const d = ev.d != null ? Math.max(1, ev.d | 0) : dflt; pend = i + d < n ? { day: i + d, t: ev.t, label: ev.label, si: i, rk: ev.rk, dir: ev.dir } : null; }
+    for (const ev of evs) if (ev.f[i]) { const d = ev.d != null ? Math.max(1, ev.d | 0) : dflt; pend = i + d < n ? { day: i + d, t: ev.t, label: ev.label, si: i, rk: ev.rk, dir: ev.dir, fill: ev.fill } : null; }
     if (pend && pend.day === i) {
       const od = pend; pend = null;
-      const vx0 = sh * px[i]; let vy0 = 0; for (let k = 0; k < K; k++) vy0 += shy[k] * ys[k][i];
+      // 체결 가격: 이벤트마다 종가(기본) 또는 시가(o.ox, 매매 종목에만 적용. 방어 ETF 매매는 같은 날 종가). 하루 평가는 항상 종가.
+      const pe = od.fill === 'o' && o.ox && o.ox[i] > 0 ? o.ox[i] : px[i];
+      const vx0 = sh * pe; let vy0 = 0; for (let k = 0; k < K; k++) vy0 += shy[k] * ys[k][i];
       const total = cash + vx0 + vy0, want = od.t * total, eps = 1e-9 * Math.max(total, 1);
       if (vx0 > want + eps) { // 주식 비중 줄이기: 매도 → 방어자산 또는 현금
-        const f = (vx0 - want) / vx0, q = sh * f, amt = q * px[i] * (1 - fee), cost = basis * f;
+        const f = (vx0 - want) / vx0, q = sh * f, amt = q * pe * (1 - fee), cost = basis * f;
         tx.rec(amt - cost); basis -= cost; sh -= q; sX += amt; fees += fee < 1 ? amt / (1 - fee) * fee : 0; trades++;
-        list.push({ i, si: od.si, side: 'S', asset: 'X', rule: od.label, rk: od.rk, dir: od.dir, tgt: od.t, price: px[i], qty: q, amt, gain: amt - cost, tax: 0, cash, sh });
+        list.push({ i, si: od.si, side: 'S', asset: 'X', rule: od.label, rk: od.rk, dir: od.dir, tgt: od.t, price: pe, qty: q, amt, gain: amt - cost, tax: 0, cash, sh });
         const AI = avail(i);
         if (!AI.length) cash += amt; // 방어 ETF 시세가 아직 없으면 현금으로 보유
         for (const k of AI) { const a = amt / AI.length, qy = a * (1 - fee) / ys[k][i]; shy[k] += qy; basy[k] += a; bY[k] += a; fees += a * fee; trades++;
@@ -233,8 +235,8 @@ function simulateTargets(dates, px, py, evs, o) {
             for (let k = 0; k < K; k++) { if (!(shy[k] > 0)) continue; const qy = shy[k] * f, amtY = qy * ys[k][i] * (1 - fee), costY = basy[k] * f;
               tx.rec(amtY - costY); basy[k] -= costY; shy[k] -= qy; sY[k] += amtY; fees += fee < 1 ? amtY / (1 - fee) * fee : 0; trades++; net += amtY;
               list.push({ i, si: od.si, side: 'S', asset: 'Y', yi: k, rule: od.label + ' 자금', price: ys[k][i], qty: qy, amt: amtY, gain: amtY - costY, tax: 0, cash, sh: shy[k] }); } } }
-        if (net > 0) { const q = net * (1 - fee) / px[i]; sh += q; basis += net; bX += net; fees += net * fee; trades++;
-          list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, rk: od.rk, dir: od.dir, tgt: od.t, price: px[i], qty: q, amt: net, tax: 0, cash, sh }); }
+        if (net > 0) { const q = net * (1 - fee) / pe; sh += q; basis += net; bX += net; fees += net * fee; trades++;
+          list.push({ i, si: od.si, side: 'B', asset: 'X', rule: od.label, rk: od.rk, dir: od.dir, tgt: od.t, price: pe, qty: q, amt: net, tax: 0, cash, sh }); }
       }
     }
     const vx = sh * px[i]; let vy = 0, ut = 0; for (let k = 0; k < K; k++) { const v = shy[k] * ys[k][i]; vy += v; ut += v - basy[k]; }

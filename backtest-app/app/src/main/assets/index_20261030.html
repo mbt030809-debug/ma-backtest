@@ -50,7 +50,7 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 <div class="mut" style="margin-bottom:6px">이평선을 위(상향)·아래(하향)로 돌파할 때마다 <b>주식 비율(%)</b>을 정합니다. 0% = 전액 매도, 50% = 총자산의 50%를 주식으로 맞춤(적으면 그만큼 매수, 많으면 그만큼 매도), 100% = 전액 매수. 칸을 비우면 그 신호는 무시합니다.</div>
 <div id="rulesBox"></div>
 <div class="row"><button type="button" id="ruleAdd">+ 이평선 추가</button></div>
-<div class="rule"><b>바닥 신호</b><label class="nw"><input type="checkbox" id="en3"> 사용</label><span class="nw" title="신호 종목의 MACD(12·26)를 가격으로 나눈 값">MACD/가격 &lt;<input id="bm3" type="number" step="0.1" value="-2.7" style="width:64px">%</span><span class="nw" title="VIX/100 에서 신호 종목의 최근 21일 실현변동성(연환산)을 뺀 값">VIX−실현변동성 &gt;<input id="bv3" type="number" step="0.1" value="4.3" style="width:64px">%p</span><span class="nw">둘 다 맞는 날 → 주식 <input id="bt3" class="pc" type="number" min="0" max="100" value="100">%</span><span class="nw mut">지연 <input id="db3" type="number" min="1" style="width:44px"></span></div>
+<div class="rule"><b>바닥 신호</b><label class="nw"><input type="checkbox" id="en3"> 사용</label><span class="nw" title="신호 종목의 MACD(12·26)를 가격으로 나눈 값">MACD/가격 &lt;<input id="bm3" type="number" step="0.1" value="-2.7" style="width:64px">%</span><span class="nw" title="VIX/100 에서 신호 종목의 최근 21일 실현변동성(연환산)을 뺀 값">VIX−실현변동성 &gt;<input id="bv3" type="number" step="0.1" value="4.3" style="width:64px">%p</span><span class="nw">둘 다 맞는 날 → 주식 <input id="bt3" class="pc" type="number" min="0" max="100" value="100">%</span><span class="nw mut">지연 <input id="db3" type="number" min="1" style="width:44px"></span><span class="nw mut">체결 <select id="fb3"><option value="c">종가</option><option value="o">시가</option></select></span></div>
 <div class="mut">여러 신호가 겹치거나 지연 중 새 신호가 나오면 <b>마지막 신호만</b> 따릅니다(같은 날이면 기간이 긴 이평선 → 바닥 신호 순으로 약한 쪽이 양보). 비율은 신호가 체결되는 날 총자산 기준으로 맞추고, 그 뒤 가격이 변해도 다음 신호까지 그대로 둡니다. 지연: 이평 줄의 ↑·↓ 칸(비우면 아래 기본 지연).</div></div>
 
 <div class="card"><h2>③ 비용 · 체결</h2>
@@ -153,24 +153,26 @@ document.querySelectorAll('.add').forEach(b=>b.onclick=()=>addCond(b.dataset.t,'
 const rdl=id=>{const el=$(id);if(!el)return null;const x=(el.value||'').trim();return x===''?null:Math.max(1,Math.floor(+x||1))};
 // ---- 이평 규칙 목록: 상향·하향 돌파마다 목표 주식비율(%) ----
 const RCOL=['#9c36b5','#1098ad','#d9480f','#5c7cfa','#2b8a3e','#c2255c','#f08c00','#495057'];
-const newRule=(n,up,dn,na='',nb='',nc='')=>({on:true,n,up,dn,du:'',dd:'',na,nb,nc,us:'',ds:''});
+const newRule=(n,up,dn,na='',nb='',nc='')=>({on:true,n,up,dn,du:'',dd:'',fu:'c',fd:'c',na,nb,nc,us:'',ds:''});
 let RULES=[newRule(137,'100','0','50','300','25'),newRule(512,'100','','200','600','50')];
 const pctOrNull=v=>{v=String(v==null?'':v).trim();if(v==='')return null;const x=+v;return isFinite(x)?Math.min(100,Math.max(0,x)):null};
 const dlOrNull=v=>{v=String(v==null?'':v).trim();return v===''?null:Math.max(1,Math.floor(+v||1))};
 // 사용 중인 이평 규칙(검증 포함) → [{k:규칙번호, n, up:0~1|null, dn:0~1|null, du, dd}]
-function activeRules(){const out=[];RULES.forEach((r,k)=>{if(!r.on)return;const n=+r.n;if(!(String(r.n).trim()!==''&&Number.isInteger(n)&&n>=2))throw Error(`이평 ${k+1} 기간은 2 이상의 정수여야 합니다`);const u=pctOrNull(r.up),d=pctOrNull(r.dn);out.push({k:k+1,n,up:u==null?null:u/100,dn:d==null?null:d/100,du:dlOrNull(r.du),dd:dlOrNull(r.dd)})});return out}
+function activeRules(){const out=[];RULES.forEach((r,k)=>{if(!r.on)return;const n=+r.n;if(!(String(r.n).trim()!==''&&Number.isInteger(n)&&n>=2))throw Error(`이평 ${k+1} 기간은 2 이상의 정수여야 합니다`);const u=pctOrNull(r.up),d=pctOrNull(r.dn);out.push({k:k+1,n,up:u==null?null:u/100,dn:d==null?null:d/100,du:dlOrNull(r.du),dd:dlOrNull(r.dd),fu:r.fu==='o'?'o':'c',fd:r.fd==='o'?'o':'c'})});return out}
 const pctTxt=v=>v==null?'-':+(v*100).toFixed(2)+'%';
 // 규칙 목록 → 이벤트(엔진 입력). 우선순위 오름차순: 바닥 신호가 가장 약하고, 이평선은 기간이 길수록 같은 날 우선.
 async function buildEvs(full,fpx,pos,xs,e){const evs=[],ar=activeRules(),fl={},ff=n=>fl[n]||(fl[n]=crossFlags(fpx,n));
-if($('en3').checked){btm();const bf=await bottomF(full,fpx,xs,e),t=pctOrNull($('bt3').value);evs.push({f:pos.map(i=>bf[i]),t:(t==null?100:t)/100,d:rdl('db3'),label:'바닥 신호 → '+(t==null?100:+t.toFixed(2))+'%',rk:0,dir:'bt'})}
+if($('en3').checked){btm();const bf=await bottomF(full,fpx,xs,e),t=pctOrNull($('bt3').value);const fb=$('fb3').value==='o'?'o':'c';evs.push({f:pos.map(i=>bf[i]),t:(t==null?100:t)/100,d:rdl('db3'),fill:fb,label:'바닥 신호 → '+(t==null?100:+t.toFixed(2))+'%'+(fb==='o'?' (시가)':''),rk:0,dir:'bt'})}
 [...ar].sort((a,b)=>a.n-b.n||a.k-b.k).forEach(r=>{const c=ff(r.n);
-if(r.up!=null)evs.push({f:pos.map(i=>c.up[i]),t:r.up,d:r.du,label:`이평${r.k} ${r.n}일↑ → ${pctTxt(r.up)}`,rk:r.k,dir:'up'});
-if(r.dn!=null)evs.push({f:pos.map(i=>c.dn[i]),t:r.dn,d:r.dd,label:`이평${r.k} ${r.n}일↓ → ${pctTxt(r.dn)}`,rk:r.k,dir:'dn'})});
+if(r.up!=null)evs.push({f:pos.map(i=>c.up[i]),t:r.up,d:r.du,fill:r.fu,label:`이평${r.k} ${r.n}일↑ → ${pctTxt(r.up)}${r.fu==='o'?' (시가)':''}`,rk:r.k,dir:'up'});
+if(r.dn!=null)evs.push({f:pos.map(i=>c.dn[i]),t:r.dn,d:r.dd,fill:r.fd,label:`이평${r.k} ${r.n}일↓ → ${pctTxt(r.dn)}${r.fd==='o'?' (시가)':''}`,rk:r.k,dir:'dn'})});
 return evs}
-const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','db3','bm3','bv3','bt3','tax','fee','sk','mddlim','alt','altsort','altref','altpin','altk2'];
+// 시가 체결을 쓰는 이벤트가 있으면 매매 종목의 수정 시가 배열(날짜 정렬)을 만든다. 시가가 없는 시세(예전 캐시)면 안내
+function openArr(evs,rows,dates){if(!evs.some(x=>x.fill==='o'))return null;const m=new Map();(rows||[]).forEach(r=>{if(r[2]>0)m.set(r[0],r[2])});const ox=dates.map(d=>m.get(d));if(ox.some(v=>!(v>0)))throw Error('시가 데이터가 없습니다. 알림·설정 탭의 "시세 캐시 지우기" 후 다시 실행하세요');return ox}
+const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','delay','db3','fb3','bm3','bv3','bt3','tax','fee','sk','mddlim','alt','altsort','altref','altpin','altk2'];
 // ---- 규칙 목록 화면 ----
 const ea=v=>String(v==null?'':v).replace(/"/g,'&quot;');
-function renderRules(){const box=$('rulesBox');if(!box)return;box.innerHTML=RULES.map((r,k)=>`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b><label class="nw"><input type="checkbox" data-f="on"${r.on?' checked':''}> 사용</label><span class="nw"><input data-f="n" type="number" min="2" value="${ea(r.n)}" style="width:70px">일선</span><span class="nw">상향 돌파 → 주식 <input data-f="up" class="pc" type="number" min="0" max="100" value="${ea(r.up)}" placeholder="무시">%</span><span class="nw">하향 돌파 → 주식 <input data-f="dn" class="pc" type="number" min="0" max="100" value="${ea(r.dn)}" placeholder="무시">%</span><span class="nw mut">지연 ↑<input data-f="du" type="number" min="1" value="${ea(r.du)}" style="width:44px"> ↓<input data-f="dd" type="number" min="1" value="${ea(r.dd)}" style="width:44px"></span>${RULES.length>1?`<button type="button" data-del="${k}">삭제</button>`:''}</div>`).join('');renderSwRules()}
+function renderRules(){const box=$('rulesBox');if(!box)return;box.innerHTML=RULES.map((r,k)=>`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b><label class="nw"><input type="checkbox" data-f="on"${r.on?' checked':''}> 사용</label><span class="nw"><input data-f="n" type="number" min="2" value="${ea(r.n)}" style="width:70px">일선</span><span class="nw">상향 돌파 → 주식 <input data-f="up" class="pc" type="number" min="0" max="100" value="${ea(r.up)}" placeholder="무시">%</span><span class="nw">하향 돌파 → 주식 <input data-f="dn" class="pc" type="number" min="0" max="100" value="${ea(r.dn)}" placeholder="무시">%</span><span class="nw mut">지연 ↑<input data-f="du" type="number" min="1" value="${ea(r.du)}" style="width:44px"> ↓<input data-f="dd" type="number" min="1" value="${ea(r.dd)}" style="width:44px"></span><span class="nw mut">체결 ↑<select data-f="fu"><option value="c"${r.fu==='o'?'':' selected'}>종가</option><option value="o"${r.fu==='o'?' selected':''}>시가</option></select> ↓<select data-f="fd"><option value="c"${r.fd==='o'?'':' selected'}>종가</option><option value="o"${r.fd==='o'?' selected':''}>시가</option></select></span>${RULES.length>1?`<button type="button" data-del="${k}">삭제</button>`:''}</div>`).join('');renderSwRules()}
 function renderSwRules(){const box=$('swRulesBox');if(!box)return;const act=RULES.map((r,k)=>r.on?`<div class="rule" data-k="${k}"><b>이평 ${k+1}</b> 기간 <input data-f="na" type="number" min="2" value="${ea(r.na)}" placeholder="현재"> ~ <input data-f="nb" type="number" min="2" value="${ea(r.nb)}"> 간격 <input data-f="nc" type="number" min="1" value="${ea(r.nc)}"> · 상향 → 주식 <input data-f="us" type="text" value="${ea(r.us)}" placeholder="현재값" style="width:96px">% · 하향 → 주식 <input data-f="ds" type="text" value="${ea(r.ds)}" placeholder="현재값" style="width:96px">%</div>`:'').join('');box.innerHTML=act||'<div class="mut">사용 중인 이평 규칙이 없습니다.</div>'}
 function bindRules(){$('rulesBox').addEventListener('input',e=>{const t=e.target,row=t.closest('[data-k]');if(!row||!t.dataset.f)return;RULES[+row.dataset.k][t.dataset.f]=t.type=='checkbox'?t.checked:t.value;try{estSweep();syncCtx()}catch(x){}});
 $('rulesBox').addEventListener('change',e=>{const t=e.target,row=t.closest('[data-k]');if(!row||t.dataset.f!='on')return;RULES[+row.dataset.k].on=t.checked;renderSwRules();try{estSweep()}catch(x){}});
@@ -193,7 +195,8 @@ $('pxclr').onclick=()=>{try{for(let i=localStorage.length-1;i>=0;i--){const n=lo
 addEventListener('change',save);addEventListener('click',()=>setTimeout(save,0));
 // 시세 캐시: 종목별로 2000-01-01~종료일 전체를 한 번 받아 저장(localStorage), 3일 뒤 자동 삭제. 같은 종목·기간은 API를 다시 부르지 않음
 const pxKind={},kindTxt=x=>pxKind[x]=='adj'?'배당 포함(수정종가)':pxKind[x]=='close'?'가격만·배당 미포함':'';
-const PXK='mabt_px_v1|',PXTTL=3*864e5,pxMem=new Map(),pxFly=new Map();
+try{for(let i=localStorage.length-1;i>=0;i--){const n=localStorage.key(i);if(n&&n.startsWith('mabt_px_v1|'))localStorage.removeItem(n)}}catch(x){}
+const PXK='mabt_px_v2|',PXTTL=3*864e5,pxMem=new Map(),pxFly=new Map();
 function pxRead(sym){let o=pxMem.get(sym);if(!o){try{o=JSON.parse(localStorage.getItem(PXK+sym)||'null')}catch(x){}if(o)pxMem.set(sym,o)}
 if(o&&Date.now()-o.t>PXTTL){pxMem.delete(sym);try{localStorage.removeItem(PXK+sym)}catch(x){}o=null}return o}
 function pxWrite(sym,o){pxMem.set(sym,o);const v=JSON.stringify(o);for(let k=0;k<20;k++){try{localStorage.setItem(PXK+sym,v);return}catch(x){const ks=[];for(let i=0;i<localStorage.length;i++){const n=localStorage.key(i);if(n.startsWith(PXK)&&n!=PXK+sym){try{ks.push([n,JSON.parse(localStorage.getItem(n)).t])}catch(y){ks.push([n,0])}}}
@@ -230,7 +233,7 @@ let altSyms=(Array.isArray(altIn)?altIn:String(altIn).split(',')).map(x=>String(
 if(altSyms.length==1&&altSyms[0]=='AUTO'){const list=[...new Set(($('altlist').value.trim()?$('altlist').value.split(','):(UNI||LC_ALL).slice(0,20)).map(x=>x.trim().toUpperCase()).filter(Boolean))];const okc=await Promise.all(list.map(async x=>{try{const r=await load(x,s,e);return r.length&&dday(s,r[0][0])<=5?x:null}catch(_){return null}}));altSyms=okc.filter(Boolean);if(!altSyms.length)throw Error('AUTO: 시작일에 데이터가 있는 방어자산 후보가 없습니다 (시작일을 늦추거나 후보를 바꾸세요)')}
 altSyms=[...new Set(altSyms)].filter(x=>x!=trd);const alt=altSyms.join('+');
 checkSyms([sig,trd,...cmp,...altSyms]);const tp=+$('tax').value||0,fp=+$('fee').value||0;if(!(tp>=0&&tp<=100))throw Error('세율은 0~100% 사이여야 합니다');if(!(fp>=0&&fp<=20))throw Error('수수료는 0~20% 사이여야 합니다');
-const syms=[...new Set([sig,trd,...cmp,...altSyms])],data={};await Promise.all(syms.map(async x=>data[x]=new Map(await load(x,x==sig?xs:s,e))));
+let trdRows=null;const syms=[...new Set([sig,trd,...cmp,...altSyms])],data={};await Promise.all(syms.map(async x=>{const r=await load(x,x==sig?xs:s,e);data[x]=new Map(r);if(x==trd)trdRows=r}));
 const full=[...data[sig].keys()].sort(),s2=readyStart(full,maxN,s);if(s2==null)throw Error(`${sig} 데이터(${full.length}일)가 이동평균 기간(${maxN}일)보다 짧아 신호를 만들 수 없습니다`);const dates=full.filter(d=>d>=s2&&data[trd].has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
 const altP=altSyms.map(a=>alignAlt(data[a],dates)),PB=x=>backfill(alignAlt(data[x],dates));{const none=altSyms.filter((a,k)=>!altP[k].some(Number.isFinite));if(none.length)throw Error(`${none.join(', ')} 방어 ETF 데이터가 백테스트 기간(${dates[0]}~${dates.at(-1)})에 없습니다`)}
 if(!silent)showChk([...[...new Set([sig,trd,...cmp,...altSyms])].map(x=>dataCheck(x+(kindTxt(x)?` [${kindTxt(x)}]`:''),rowsOf(data[x]))),...(sig!=trd?[alignCheck(data[sig],data[trd],sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(data[trd])[0][0]),...altSyms.filter(a=>rowsOf(data[a])[0][0]>dates[0]).map(a=>({name:`방어 ETF ${a}`,n:rowsOf(data[a]).length,from:rowsOf(data[a])[0][0],to:rowsOf(data[a]).at(-1)[0],warn:[`${a} 데이터가 ${rowsOf(data[a])[0][0]}부터라 그 전에는 현금으로 보유(이자만 받음), ${rowsOf(data[a])[0][0]}부터 ${a}로 보유`],info:''}))]);
@@ -238,7 +241,7 @@ if(!silent)showChk([...[...new Set([sig,trd,...cmp,...altSyms])].map(x=>dataChec
 const skipped=cmp.filter(x=>x!=sig&&x!=trd&&dates.some(d=>!data[x].has(d))),skippedTxt=skipped.map(x=>`${x}(데이터 ${rowsOf(data[x])[0]?.[0]||'없음'}~)`);cmp.splice(0,cmp.length,...cmp.filter(x=>!skipped.includes(x)));
 const fidx=new Map(full.map((d,i)=>[d,i])),P=x=>dates.map(d=>data[x].get(d)),fpx=full.map(d=>data[sig].get(d)),pos=dates.map(d=>fidx.get(d));
 let sim,w,cashSim=null;
-if(cross){const evs=await buildEvs(full,fpx,pos,xs,e),oo={delay,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100};
+if(cross){const evs=await buildEvs(full,fpx,pos,xs,e),oo={delay,init,cashRate,tax:taxRate,fee:(+$('fee').value||0)/100,ox:openArr(evs,trdRows,dates)};
 sim=simulateTargets(dates,P(trd),alt?altP:null,evs,oo);w=sim.w;if(alt&&!silent)cashSim=simulateTargets(dates,P(trd),null,evs,oo)}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};
 const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets(buy,sell,init),init,delay);
@@ -312,9 +315,9 @@ const K=LS.length,sz=[];LS.forEach(r=>{sz.push(r.n.length,r.up.length,r.dn.lengt
 const cid=new Uint32Array(N),tr=new Uint16Array(N),T=new Float64Array(N),C=new Float64Array(N),M=new Float64Array(N),S=new Float64Array(N),SO=new Float64Array(N),CA=new Float64Array(N);
 let cnt=0,last=0;const ix=new Array(D);
 for(let r=lo;r<hi;r++){let q=r;for(let d=D-1;d>=0;d--){ix[d]=q%sz[d];q=(q-ix[d])/sz[d]}
-const rs=[];for(let k=0;k<K;k++){const L=LS[k];rs.push({n:L.n[ix[3*k]],up:L.up[ix[3*k+1]],dn:L.dn[ix[3*k+2]],du:L.du,dd:L.dd,k:L.k})}
-rs.sort((a,b)=>a.n-b.n||a.k-b.k);const evs=[];if(bev)evs.push({f:bev.f,t:bev.t,d:bev.d});
-for(const x of rs){if(x.up!=null)evs.push({f:fl(x.n,'up'),t:x.up,d:x.du});if(x.dn!=null)evs.push({f:fl(x.n,'dn'),t:x.dn,d:x.dd})}
+const rs=[];for(let k=0;k<K;k++){const L=LS[k];rs.push({n:L.n[ix[3*k]],up:L.up[ix[3*k+1]],dn:L.dn[ix[3*k+2]],du:L.du,dd:L.dd,fu:L.fu,fd:L.fd,k:L.k})}
+rs.sort((a,b)=>a.n-b.n||a.k-b.k);const evs=[];if(bev)evs.push({f:bev.f,t:bev.t,d:bev.d,fill:bev.fill});
+for(const x of rs){if(x.up!=null)evs.push({f:fl(x.n,'up'),t:x.up,d:x.du,fill:x.fu});if(x.dn!=null)evs.push({f:fl(x.n,'dn'),t:x.dn,d:x.dd,fill:x.fd})}
 const sim=simulateTargets(dates,px,py,evs,o),st=statsLite(sim.eqP,yrs),i=cnt++;cid[i]=r;tr[i]=Math.min(65535,sim.trades);T[i]=st.tot;C[i]=st.cagr;M[i]=st.mdd;S[i]=st.sh;SO[i]=st.so;CA[i]=st.ca;
 const now=performance.now();if(now-last>150){last=now;self.postMessage({t:'p',wid,done:cnt,total:N})}}
 self.postMessage({t:'d',wid,cnt:N,cid,tr,T,C,M,S,SO,CA},[cid.buffer,tr.buffer,T.buffer,C.buffer,M.buffer,S.buffer,SO.buffer,CA.buffer])}`;
@@ -463,7 +466,7 @@ const MAXC=1000000;
 const rgv=(a,b,c)=>{a=+a;b=+b;c=+c;if(!(Number.isInteger(a)&&Number.isInteger(b)&&Number.isInteger(c)&&a>=2&&b>=a&&c>=1))throw Error('스윕 범위를 확인하세요 (정수, 시작≥2, 끝≥시작, 간격≥1)');const o=[];for(let v=a;v<=b;v+=c)o.push(v);return o};
 const prT=(t,cur)=>{t=String(t==null?'':t).trim();if(!t)return[cur];const out=[];for(const tok of t.split(',').map(x=>x.trim()).filter(Boolean)){const m=tok.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);if(m){const a=+m[1],b=+m[2],c=+m[3];if(!(c>0&&b>=a))throw Error('비율 범위를 확인하세요: '+tok);for(let v=a;v<=b+1e-9;v+=c)out.push(v)}else{if(!(tok!==''&&isFinite(+tok)))throw Error('비율 값을 확인하세요: '+tok);out.push(+tok)}}
 if(!out.length||out.some(v=>v<0||v>100))throw Error('비율은 0~100 사이여야 합니다');return[...new Set(out.map(v=>Math.round(v*100)/100))].map(v=>v/100)};
-function swLists(){return activeRules().map(a=>{const r=RULES[a.k-1],has=String(r.na).trim()!==''&&String(r.nb).trim()!=='';return{k:a.k,n:has?rgv(r.na,r.nb,String(r.nc).trim()===''?1:r.nc):[a.n],up:prT(r.us,a.up),dn:prT(r.ds,a.dn),du:a.du,dd:a.dd}})}
+function swLists(){return activeRules().map(a=>{const r=RULES[a.k-1],has=String(r.na).trim()!==''&&String(r.nb).trim()!=='';return{k:a.k,n:has?rgv(r.na,r.nb,String(r.nc).trim()===''?1:r.nc):[a.n],up:prT(r.us,a.up),dn:prT(r.ds,a.dn),du:a.du,dd:a.dd,fu:a.fu,fd:a.fd}})}
 const totOf=L=>L.reduce((t,r)=>t*r.n.length*r.up.length*r.dn.length,1);
 function estSweep(){try{const L=swLists(),n=L.length?totOf(L):0;
 let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
@@ -489,8 +492,9 @@ const maxN=Math.max(...LSw.map(r=>Math.max(...r.n)),useB?150:0),ext=new Date(s);
 el.textContent='시세 받는 중…';const ds=await Promise.all([load(sig,xs,e),load(trd,s,e),...altS.map(a=>load(a,s,e))]);const ms=new Map(ds[0]),mt=new Map(ds[1]),mA=altS.map((a,i)=>new Map(ds[2+i]));const full=[...ms.keys()].sort(),s2=readyStart(full,maxN,s);if(s2==null)throw Error(`${sig} 데이터(${full.length}일)가 이동평균 기간(${maxN}일)보다 짧아 신호를 만들 수 없습니다`);const dates=full.filter(d=>d>=s2&&mt.has(d));if(dates.length<3)throw Error('겹치는 데이터가 부족합니다');
 showChk([dataCheck(sig,rowsOf(ms)),dataCheck(trd,rowsOf(mt)),...(sig!=trd?[alignCheck(ms,mt,sig,trd)].filter(Boolean):[]),periodCheck(sig,trd,s,dates,full,maxN,rowsOf(mt)[0][0])]);
 const fpx=full.map(d=>ms.get(d)),idx=new Map(full.map((d,i)=>[d,i])),pos=dates.map(d=>idx.get(d)),px=dates.map(d=>mt.get(d)),py=altS.length?mA.map(m=>alignAlt(m,dates)):null;if(py){const none=altS.filter((a,k)=>!py[k].some(Number.isFinite));if(none.length)throw Error(`${none.join(', ')} 방어 ETF 데이터가 백테스트 기간에 없습니다`)}
-const bfAll=useB?await bottomF(full,fpx,xs,e):null,btT=pctOrNull($('bt3').value),bev=bfAll?{f:pos.map(i=>bfAll[i]),t:(btT==null?100:btT)/100,d:rdl('db3')}:null;
+const bfAll=useB?await bottomF(full,fpx,xs,e):null,btT=pctOrNull($('bt3').value),bev=bfAll?{f:pos.map(i=>bfAll[i]),t:(btT==null?100:btT)/100,d:rdl('db3'),fill:$('fb3').value==='o'?'o':'c'}:null;
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,o={delay:Math.max(1,Math.floor(+$('delay').value||1)),init,cashRate:(+$('cash').value||0)/100,tax:(+$('tax').value||0)/100,fee:(+$('fee').value||0)/100};
+if(LSw.some(r=>r.fu==='o'||r.fd==='o')||(bev&&bev.fill==='o'))o.ox=openArr([{fill:'o'}],ds[1],dates);
 const bhE=buyHold(px).map((v,i,a)=>i==a.length-1?v-Math.max(0,v-100)*o.tax:v),bh=stats(bhE,dates);
 const meta={lim:null,rk:LSw.map(r=>r.k),c1:Math.max(1,+RULES[LSw[0].k-1].nc||1),c2:LSw[1]?Math.max(1,+RULES[LSw[1].k-1].nc||1):1,sig,trd,fp:baseFp(),n3on:useB,alt:altS.join('+'),delay:o.delay,range:`${dates[0]}~${dates.at(-1)}`,bh:{tot:bh.tot,cagr:bh.cagr,mdd:bh.mdd,sh:bh.sh,so:bh.so,ca:bh.ca,taxed:o.tax>0}};
 if(!swEngine)swEngine=await (await fetch('/engine_20261030.js')).text();
@@ -586,13 +590,13 @@ let bc=[],sc=[],maxN=0,evs=null;
 if(cross){const ar=activeRules();maxN=Math.max(0,...ar.map(r=>r.n));if($('en3').checked){btm();maxN=Math.max(maxN,150)}}
 else{bc=readConds('buy');sc=readConds('sell');for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price')maxN=Math.max(maxN,n)}
 const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
-const sigM=new Map(await load(sig,xs,e)),trdM=new Map(await load(trd,s,e)),full=[...sigM.keys()].sort(),s2=readyStart(full,maxN,s),dates0=full.filter(d=>d>=(s2||s)&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
+const sigM=new Map(await load(sig,xs,e)),trdRows=await load(trd,s,e),trdM=new Map(trdRows),full=[...sigM.keys()].sort(),s2=readyStart(full,maxN,s),dates0=full.filter(d=>d>=(s2||s)&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
 let buy,sell;
-if(cross){evs=await buildEvs(full,fpx,pos,xs,e)}
+let ox0=null;if(cross){evs=await buildEvs(full,fpx,pos,xs,e);ox0=openArr(evs,trdRows,dates0)}
 else{const pick=r=>r&&{v:pos.map(i=>r.v[i]),ok:pos.map(i=>r.ok[i])};buy=pick(evalConds(fpx,bc));sell=pick(evalConds(fpx,sc))}
 return{one(c){const n0=dates0.length,py=new Array(n0);let j=0,last=NaN,fi=-1;for(let i=0;i<n0;i++){const di=d0i[i];while(j<c.d.length&&c.d[j]<=di){last=c.p[j];j++}py[i]=last;if(fi<0&&Number.isFinite(last))fi=i} // 상장 전은 NaN → 그 구간은 현금
 if(fi<0)return{error:'백테스트 기간에 데이터가 없습니다'};const dates=dates0,px=px0;let sim;
-if(cross){const oo={delay,init,cashRate,tax:taxRate,fee};sim=simulateTargets(dates,px,py,evs,oo)}
+if(cross){const oo={delay,init,cashRate,tax:taxRate,fee,ox:ox0};sim=simulateTargets(dates,px,py,evs,oo)}
 else{const w=applied(targets(buy,sell,init),init,delay);sim=simulateAlt(dates,px,py,w,{cashRate,taxRate,delay})}
 return{st:statsLite(sim.eqP,yearsOf(dates)),pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],etfFrom:dates0[fi],to:dates.at(-1),n:n0}}}}
 let altCancel=false;
@@ -707,7 +711,7 @@ $('goSw').onclick=()=>{showTab('sw');$('tabs').scrollIntoView()};$('goDef').oncl
 try{if(localStorage.getItem('mabt_cfg')==='0')$('cfgBox').open=false}catch(x){}$('cfgBox').addEventListener('toggle',()=>{try{localStorage.setItem('mabt_cfg',$('cfgBox').open?'1':'0')}catch(x){}});
 setTimeout(()=>{try{syncCtx()}catch(x){}},0);
 // ---- 매일 종가 신호 알림 (안드로이드 앱의 AndroidApp 브리지 사용) ----
-function alCfg(){const tp=v=>{const x=pctOrNull(v);return x==null?-1:Math.round(x)};return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),rules:[...RULES.filter(r=>r.on&&+r.n>=2).map(r=>({n:Math.floor(+r.n),up:tp(r.up),dn:tp(r.dn),du:dlOrNull(r.du)||0,dd:dlOrNull(r.dd)||0})),...($('en3').checked?[{n:150,bottom:true,t:tp($('bt3').value)<0?100:tp($('bt3').value),du:rdl('db3')||0,bm:(+$('bm3').value||0)/100,bg:(+$('bv3').value||0)/100}]:[])]}}
+function alCfg(){const tp=v=>{const x=pctOrNull(v);return x==null?-1:Math.round(x)};return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),rules:[...RULES.filter(r=>r.on&&+r.n>=2).map(r=>({n:Math.floor(+r.n),up:tp(r.up),dn:tp(r.dn),du:dlOrNull(r.du)||0,dd:dlOrNull(r.dd)||0,fu:r.fu==='o'?'o':'c',fd:r.fd==='o'?'o':'c'})),...($('en3').checked?[{n:150,bottom:true,t:tp($('bt3').value)<0?100:tp($('bt3').value),du:rdl('db3')||0,fu:$('fb3').value==='o'?'o':'c',bm:(+$('bm3').value||0)/100,bg:(+$('bv3').value||0)/100}]:[])]}}
 function alPush(){const st=$('alSt');if(!st)return;if(typeof AndroidApp==='undefined'||!AndroidApp.setAlert){st.textContent='· 앱(APK)에서만 동작';return}
 try{localStorage.setItem('mabt_alert',JSON.stringify({on:$('alOn').checked,all:$('alAll').checked}))}catch(x){}
 if($('mode').value!='cross'){st.textContent=$('alOn').checked?'· 돌파/이탈 방식에서만 동작':'';return}

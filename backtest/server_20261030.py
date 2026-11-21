@@ -27,7 +27,14 @@ def yahoo(symbol, start, end):
     ind = res["indicators"]
     kind = "adj" if ind.get("adjclose") else "close"  # adj=배당 재투자 반영 수정종가(총수익), close=가격만
     adj = ind["adjclose"][0]["adjclose"] if ind.get("adjclose") else ind["quote"][0]["close"]
-    return [[time.strftime("%Y-%m-%d", time.gmtime(t)), c] for t, c in zip(ts, adj) if c is not None], kind
+    q0 = ind["quote"][0]; opn = q0.get("open") or [None] * len(ts); cls = q0.get("close") or [None] * len(ts)
+    rows = []
+    for t, c, o, cl in zip(ts, adj, opn, cls):
+        if c is None:
+            continue
+        ao = o * c / cl if (o is not None and cl) else c  # 수정 시가 = 시가 × (수정종가 ÷ 종가). 시가 체결 옵션용 3번째 값
+        rows.append([time.strftime("%Y-%m-%d", time.gmtime(t)), c, ao])
+    return rows, kind
 
 
 def mock(symbol, start, end):
@@ -37,15 +44,16 @@ def mock(symbol, start, end):
         while d <= e:
             if d.weekday() < 5:
                 v = max(9.0, v + 0.1 * (20 - v) + rnd.gauss(0, 1.6))
-                out.append([d.isoformat(), v])
+                out.append([d.isoformat(), v, v])
             d += timedelta(days=1)
         return out, "close"
     lev = 3 if symbol[-1:] in "LX" and len(symbol) > 3 and not symbol.startswith("^") else 1
     d, e, px, out = date.fromisoformat(start), date.fromisoformat(end), 100.0, []
     while d <= e:
         if d.weekday() < 5:
+            prev = px
             px *= 1 + lev * rnd.gauss(0.0004, 0.012)
-            out.append([d.isoformat(), px])
+            out.append([d.isoformat(), px, prev * (1 + lev * rnd.gauss(0, 0.004))])  # 3번째 값: 시가(모의)
         d += timedelta(days=1)
     return out, ("close" if symbol.startswith("^") else "adj")
 

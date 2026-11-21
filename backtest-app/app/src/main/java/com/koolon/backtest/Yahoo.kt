@@ -33,11 +33,16 @@ object Yahoo {
         val adjArr = ind.optJSONArray("adjclose")?.getJSONObject(0)?.getJSONArray("adjclose")
         val adj = adjArr ?: ind.getJSONArray("quote").getJSONObject(0).getJSONArray("close")
         val kind = if (adjArr != null) "adj" else "close"
+        val q0 = ind.getJSONArray("quote").getJSONObject(0)
+        val opn = q0.optJSONArray("open"); val cls = q0.optJSONArray("close")
         val out = JSONArray()
         for (i in 0 until ts.length()) {
             if (adj.isNull(i)) continue
             val d = Instant.ofEpochSecond(ts.getLong(i)).atOffset(ZoneOffset.UTC).toLocalDate().toString()
-            out.put(JSONArray().put(d).put(adj.getDouble(i)))
+            // 3번째 값: 수정 시가 = 시가 × (수정종가 ÷ 종가) — 시가 체결 옵션용. 없으면 종가와 같게 둠
+            var o = adj.getDouble(i)
+            if (opn != null && cls != null && !opn.isNull(i) && !cls.isNull(i) && cls.getDouble(i) > 0) o = opn.getDouble(i) * adj.getDouble(i) / cls.getDouble(i)
+            out.put(JSONArray().put(d).put(adj.getDouble(i)).put(o))
         }
         return out.toString() to kind
     }

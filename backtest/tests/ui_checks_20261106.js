@@ -95,6 +95,19 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   await p.evaluate(r=>applyRow(r),await p.evaluate(()=>window._swrows.find(r=>Math.round(r.rules[1].up*100)===50&&Math.round(r.rules[1].dn*100)===40)));await p.waitForTimeout(1500);
   const ud=await p.evaluate(()=>[RULES[1].up,RULES[1].dn]);ok(ud[0]==='50'&&ud[1]==='40','결과 행을 누르면 상향·하향 목표 %가 규칙 칸에 적용됨',ud);
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('L) 체결 가격 시가/종가 — 상향·하향 각각, 일반 실행 = 스윕 = 스캔, 시가 체결가 = 그날 시가');
+ {const p=await mkPage();await base(p);
+  await single(p,[{n:60,up:'100',dn:'0',fu:'o',fd:'c'},{n:200,up:'100',dn:''}]);await cmpSweep(p,'이평1 상향 시가·하향 종가');
+  await single(p,[{n:60,up:'100',dn:'0',fu:'c',fd:'o'},{n:200,up:'100',dn:'',fu:'o'}]);await cmpSweep(p,'이평1 하향 시가·이평2 상향 시가');
+  await p.fill('#bm3','0');await p.fill('#bv3','-5');await p.evaluate(()=>{document.getElementById('en3').checked=true;document.getElementById('fb3').value='o';save()});await cmpSweep(p,'바닥 신호 시가');
+  const chk=await p.evaluate(async()=>{const[out,dates,ctx]=window._last,rows=await (await fetch('/api/prices?symbol=TECL&start=2000-01-01&end='+document.getElementById('e').value)).json(),om=new Map(rows.map(r=>[r[0],r[2]])),cm=new Map(rows.map(r=>[r[0],r[1]]));
+   let nOpen=0,bad=0,nClose=0,badC=0;for(const t of ctx.trades){if(t.asset==='Y'||t.side==='T'||/시작|세금/.test(t.rule||''))continue;const d=dates[t.i];if(/시가/.test(t.rule)){nOpen++;if(Math.abs(t.price-om.get(d))>1e-9)bad++}else{nClose++;if(Math.abs(t.price-cm.get(d))>1e-9)badC++}}return{nOpen,bad,nClose,badC}});
+  ok(chk.nOpen>0&&chk.bad===0&&chk.badC===0,'시가로 정한 체결은 그날 시가, 종가로 정한 체결은 종가로 체결됨',chk);
+  await p.fill('#alt','XLV');await cmpSweep(p,'방어 ETF + 시가 체결');
+  await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.fill('#alt','');await p.click('#run');await p.waitForTimeout(1500);await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
+  const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
+  ok(w.cnt===10&&w.m<1e-12,'시가 체결 사용: 스캔 = 일반 실행',w);
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('K) 옛 설정(매수·매도 비율 방식) 자동 이전 + 목표 % 체결 표시');
  {const p=await mkPage(()=>{if(!localStorage.getItem('__seeded')){localStorage.setItem('__seeded','1');localStorage.setItem('mabt_settings_v1',JSON.stringify({buy:[],sell:[],sig:'QQQ',trd:'TECL',mn1:'100',br1:'100',sr1:'100',mn2:'300',x2:'0',y2:'100',s:'2014-01-01',mode:'cross'}))}});
   const r=await p.evaluate(()=>RULES.map(x=>[x.n,x.up,x.dn]));ok(JSON.stringify(r)==='[[100,"100","0"],[300,"100",""]]','옛 설정이 이평1(↑100% ↓0%)·이평2(↑100%)로 이전됨',r);

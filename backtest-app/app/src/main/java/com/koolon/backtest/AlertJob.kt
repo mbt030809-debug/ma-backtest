@@ -72,6 +72,7 @@ object AlertJob {
             for (i in 0 until rules.length()) {
                 val r = rules.getJSONObject(i); val k = r.getInt("n")
                 val rdU = r.optInt("du", 0).let { if (it > 0) it else delay }; val rdD = r.optInt("dd", 0).let { if (it > 0) it else delay }
+                val fU = if (r.optString("fu", "c") == "o") "시가" else "종가"; val fD = if (r.optString("fd", "c") == "o") "시가" else "종가"
                 if (r.optBoolean("bottom", false)) { // 바닥 신호: 목표 주식 비중(t%)으로 조정
                     val vb = JSONArray(Yahoo.prices("^VIX", from, today.toString()).first)
                     val vm = HashMap<String, Double>(); for (j in 0 until vb.length()) vm[vb.getJSONArray(j).getString(0)] = vb.getJSONArray(j).getDouble(1)
@@ -79,7 +80,7 @@ object AlertJob {
                     val mTh = r.optDouble("bm", -0.027); val gTh = r.optDouble("bg", 0.043); val t = r.optInt("t", 100)
                     val (hit, macd, gap) = bottom(px, vx, mTh, gTh)
                     val st = "MACD/가격 ${f2(macd * 100)}% (기준 ${f2(mTh * 100)}% 미만) · VIX−실현변동성 ${f2(gap * 100)}%p (기준 ${f2(gTh * 100)}%p 초과)"
-                    if (hit) { act = true; lines.add("📈 바닥 신호 충족 → 주식 비중 ${t}%로 조정 · ${rdU}거래일 뒤 체결\n   $st") } else lines.add("바닥 신호 없음\n   $st")
+                    if (hit) { act = true; lines.add("📈 바닥 신호 충족 → 주식 비중 ${t}%로 조정 · ${rdU}거래일 뒤 ${fU} 체결\n   $st") } else lines.add("바닥 신호 없음\n   $st")
                     continue
                 }
                 if (k < 2 || last - 1 - k + 1 < 0) { lines.add("${k}일선: 데이터 부족"); continue }
@@ -89,16 +90,16 @@ object AlertJob {
                 val upT = r.optInt("up", -1); val dnT = r.optInt("dn", -1) // 돌파 때 목표 주식 비중(%), -1 이면 무시
                 val st = "종가 ${f2(px[last])} · ${k}일선 ${f2(m)} (${if (px[last] > m) "위 +" else "아래 -"}${f1(abs(px[last] / m - 1) * 100)}%)"
                 when {
-                    up && upT >= 0 -> { act = true; lines.add("📈 ${k}일선 상향 돌파 → 주식 비중 ${upT}%로 조정 · ${rdU}거래일 뒤 체결\n   $st") }
+                    up && upT >= 0 -> { act = true; lines.add("📈 ${k}일선 상향 돌파 → 주식 비중 ${upT}%로 조정 · ${rdU}거래일 뒤 ${fU} 체결\n   $st") }
                     up -> lines.add("${k}일선 상향 돌파 (목표 비율 칸이 비어 무시)\n   $st")
-                    dn && dnT >= 0 -> { act = true; lines.add("📉 ${k}일선 하향 돌파 → 주식 비중 ${dnT}%로 조정 · ${rdD}거래일 뒤 체결\n   $st") }
+                    dn && dnT >= 0 -> { act = true; lines.add("📉 ${k}일선 하향 돌파 → 주식 비중 ${dnT}%로 조정 · ${rdD}거래일 뒤 ${fD} 체결\n   $st") }
                     dn -> lines.add("${k}일선 하향 돌파 (목표 비율 칸이 비어 무시)\n   $st")
                     else -> lines.add("${k}일선 신호 없음\n   $st")
                 }
             }
             if (!act && !always) return R.DONE
             val title = if (act) "🔔 $trd 주식 비중 조정 신호" else "$trd 신호 없음"
-            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 위 표기한 거래일 뒤 종가, 총자산 대비 주식 비중을 목표 %로 맞춤(적으면 매수·많으면 매도). 지연 중 새 신호가 나오면 마지막 신호만 따름")
+            val foot = StringBuilder("신호 종목 $sig · 기준일 ${dates[last]} 종가 · 체결은 위 표기한 거래일 뒤 가격(종가 또는 시가), 총자산 대비 주식 비중을 목표 %로 맞춤(적으면 매수·많으면 매도). 지연 중 새 신호가 나오면 마지막 신호만 따름")
             if (act && alt.isNotEmpty()) foot.append("\n줄어든 주식 비중은 $alt 로 보유")
             if (test) foot.append("\n(테스트 알림 — 장중이면 현재가 기준)")
             postNote(ctx, title, lines.joinToString("\n") + "\n" + foot)
