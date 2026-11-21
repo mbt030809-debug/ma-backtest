@@ -64,6 +64,15 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   const top=await p.evaluate(()=>{const r=window._swrows.slice().sort((a,b)=>a.comp-b.comp)[0];return{n1:r.n1,n2:r.n2,n3:r.n3,cagr:r.cagr,mdd:r.mdd,so:r.so,b1:r.b1,s1:r.s1,b2:r.b2}});
   await p.evaluate(r=>applyRow(r),top);await p.waitForTimeout(2000);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd,o.st.so]});
   ok(Math.abs(run[0]-top.cagr)<1e-12&&Math.abs(run[1]-top.mdd)<1e-12&&Math.abs(run[2]-top.so)<1e-12,'1위 행 적용 → 일반 실행과 같은 값',{run,top});ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('I) 이평1·이평2·바닥 신호를 각각 사용/끄기 — 끈 규칙은 체결·차트선에서 빠지고, 일반 실행 = 스윕');
+ {const p=await mkPage();await base(p);await single(p);
+  const info=()=>p.evaluate(()=>{const rows=[...document.querySelectorAll('#trd2 tr')].slice(1).map(r=>r.cells[4].textContent);return{r1:rows.filter(x=>/^(매수|매도)1/.test(x)).length,r2:rows.filter(x=>/^(매수|매도)2/.test(x)).length,lines:window._last[2].lines.map(o=>o.name.slice(0,3))}});
+  await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1>0&&x.r2>0&&x.lines.join()==='이평1,이평2','둘 다 켜면 이평1·이평2 체결과 두 이평선이 있음',x)}
+  await p.evaluate(()=>{document.getElementById('en1').checked=false;save()});await cmpSweep(p,'이평1 끔');{const x=await info();ok(x.r1===0&&x.lines.join()==='이평2','이평1 끔: 이평1 체결 없음·이평선은 이평2만(이평2는 매도가 없어 매수할 일이 없을 수 있음)',x)}
+  await p.evaluate(()=>{document.getElementById('en1').checked=true;document.getElementById('en2').checked=false;save()});await cmpSweep(p,'이평2 끔');{const x=await info();ok(x.r2===0&&x.r1>0&&x.lines.join()==='이평1','이평2 끔: 이평2 체결 없음·이평선은 이평1만',x)}
+  await p.evaluate(()=>{document.getElementById('en1').checked=false;save()});await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1===0&&x.r2===0&&x.lines.length===0,'둘 다 끔: 이평 체결·이평선 없음(보유만)',x)}
+  await p.reload();await p.waitForTimeout(800);{const v=await p.evaluate(()=>[document.getElementById('en1').checked,document.getElementById('en2').checked]);ok(v[0]===false&&v[1]===false,'새로고침 후에도 사용/끄기 상태가 유지됨',v)}
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('H) 탭 화면: 요약 타일 · 설정 요약 · 설정 변경 경고 · 결과 적용 시 백테스트 탭으로');
  {const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));await p.goto(BASE);
   const vis=()=>p.evaluate(()=>[...document.querySelectorAll('.tab')].filter(x=>getComputedStyle(x).display!='none').map(x=>x.id).join(','));

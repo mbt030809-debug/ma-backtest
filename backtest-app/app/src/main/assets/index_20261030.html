@@ -47,8 +47,8 @@ details>summary{cursor:pointer;padding:4px 0}details.sub{border-top:1px solid va
 <div class="mut" id="symavail" style="margin-top:8px"></div><div class="mut" id="altbadge"></div></div>
 
 <div class="card"><h2>② 이평선 규칙</h2>
-<div class="rule"><b>이평 1</b><span class="nw"><input id="mn1" type="number" min="2" value="137">일선</span><span class="nw">돌파 매수 <input id="br1" class="pc" type="number" min="0" max="100" value="100">%</span><span class="nw">이탈 매도 <input id="sr1" class="pc" type="number" min="0" max="100" value="100">%</span></div>
-<div class="rule"><b>이평 2</b><span class="nw"><input id="mn2" type="number" min="2" value="512">일선</span><span class="nw"><select id="tr2"><option value="up">상향 돌파</option><option value="dn">하향 돌파</option></select> 매수 <input id="br2" class="pc" type="number" min="0" max="100" value="100">%</span><input id="sr2" type="hidden" value="0"></div>
+<div class="rule"><b>이평 1</b><label class="nw"><input type="checkbox" id="en1" checked> 사용</label><span class="nw"><input id="mn1" type="number" min="2" value="137">일선</span><span class="nw">돌파 매수 <input id="br1" class="pc" type="number" min="0" max="100" value="100">%</span><span class="nw">이탈 매도 <input id="sr1" class="pc" type="number" min="0" max="100" value="100">%</span></div>
+<div class="rule"><b>이평 2</b><label class="nw"><input type="checkbox" id="en2" checked> 사용</label><span class="nw"><input id="mn2" type="number" min="2" value="512">일선</span><span class="nw"><select id="tr2"><option value="up">상향 돌파</option><option value="dn">하향 돌파</option></select> 매수 <input id="br2" class="pc" type="number" min="0" max="100" value="100">%</span><input id="sr2" type="hidden" value="0"></div>
 <div class="rule"><b>바닥 신호</b><span class="nw" title="신호 종목의 MACD(12·26)를 가격으로 나눈 값">MACD/가격 &lt;<input id="bm3" type="number" step="0.1" value="-2.7" style="width:64px">%</span><span class="nw" title="VIX/100 에서 신호 종목의 최근 21일 실현변동성(연환산)을 뺀 값">VIX−실현변동성 &gt;<input id="bv3" type="number" step="0.1" value="4.3" style="width:64px">%p</span><span class="nw">둘 다 맞는 날 전액 매수(매도 없음 · 이평 신호와 따로 동작 · 같은 날 이평 매도와 겹치면 그날은 매도 먼저)</span><label class="nw"><input type="checkbox" id="en3"> 사용</label></div>
 <div class="mut">매수는 현금의 %, 매도는 보유의 %. 이평 2·3은 매수 전용.</div></div>
 
@@ -160,8 +160,8 @@ const rdl=id=>{const el=$(id);if(!el)return null;const x=(el.value||'').trim();r
 const dlSell=()=>{const x=($('delaySell').value||'').trim();return x===''?null:Math.max(1,Math.floor(+x||1))};
 const KEY='mabt_settings_v1',IDS=['sig','trd','cmp','s','mode','init','cash','tr2','delay','delaySell','db1','ds1','db2','ds2','db3','bm3','bv3','tax','fee','mn1','br1','mn2','br2','sr1','sr2','a1','b1','c1','a2','b2','c2','sk','rb1','rs1','rb2','rs2','mddlim','alt','altsort','altref','altpin','altk2'];
 function altBadge(){const v=($('alt').value||'').trim().toUpperCase(),el=$('altbadge');if(!el)return;if(!v){el.innerHTML='';return}el.innerHTML=`🛡 방어자산 <b>${v.replace(/[^A-Z0-9.^=,\-+]/g,'')}</b> 적용 중 (매도 대금을 현금 대신 보유) <button id="altclr" type="button">해제(현금)</button> <button id="altcmp" type="button">현금과 비교</button>`;$('altclr').onclick=()=>{$('alt').value='';altBadge();save();run()};$('altcmp').onclick=()=>{$('altlist').value=v.replace(/[^A-Z0-9.^=,\-+]/g,'').replace(/\+/g,',');save();showTab('def');recommend()}}
-function save(){altBadge();try{alPush()}catch(x){}try{syncCtx()}catch(x){}try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.en3=$('en3').checked;o.b3v=1;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
-function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;if(o.en3!=null&&o.b3v)$('en3').checked=o.en3;
+function save(){altBadge();try{alPush()}catch(x){}try{syncCtx()}catch(x){}try{const o={};IDS.forEach(i=>o[i]=$(i).value);o.nohold=$('nohold').checked;o.en1=$('en1').checked;o.en2=$('en2').checked;o.en3=$('en3').checked;o.b3v=1;o.buy=readConds('buy');o.sell=readConds('sell');localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+function restore(){try{const o=JSON.parse(localStorage.getItem(KEY)||'null');if(!o||!o.buy)return false;if(o.mn1==null&&o.bn1!=null){o.mn1=o.bn1;o.mn2=o.bn2}IDS.forEach(i=>{if(o[i]!=null)$(i).value=o[i]});if(o.nohold!=null)$('nohold').checked=o.nohold;if(o.en3!=null&&o.b3v)$('en3').checked=o.en3;if(o.en1!=null)$('en1').checked=o.en1;if(o.en2!=null)$('en2').checked=o.en2;
 for(const t of['buy','sell'])(o[t]||[]).forEach(c=>{addCond(t,c.lk,c.ln,c.rk,c.rn);const d=$(t).lastElementChild;d.querySelector('.op').value=c.op;const cn=d.querySelector('.cn');if(cn&&c.conn)cn.value=c.conn});
 showMode();return true}catch(e){return false}}
 restore();$('mode').value='cross';
@@ -197,7 +197,7 @@ if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');if(
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,delay=Math.max($('mode').value=='cross'?1:0,Math.floor(+$('delay').value||0));
 const cross=$('mode').value=='cross',cashRate=(+$('cash').value||0)/100,taxRate=(+$('tax').value||0)/100;
 let bc=[],sc=[],rules={b:[],s:[]},maxN=0;
-if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];if($('en3').checked){btm();maxN=Math.max(maxN,150)}
+if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];if(!$('en1').checked){rules.b[0].r=0;rules.s[0].r=0}if(!$('en2').checked){rules.b[1].r=0;rules.s[1].r=0}if($('en3').checked){btm();maxN=Math.max(maxN,150)}
 for(const x of[...rules.b,...rules.s]){if(!(x.n>=2&&Number.isInteger(x.n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');maxN=Math.max(maxN,x.n)}}
 else{bc=readConds('buy');sc=readConds('sell');if(!bc.length)throw Error('매수 조건을 1개 이상 추가하세요');
 for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price'){if(!(n>=2&&Number.isInteger(n)))throw Error('이동평균 기간은 2 이상의 정수여야 합니다');maxN=Math.max(maxN,n)}}
@@ -224,7 +224,7 @@ const buy=pick(evalConds(fpx,bc)),sell=pick(evalConds(fpx,sc));w=applied(targets
 sim=alt?simulateAlt(dates,P(trd),altP,w,{cashRate,taxRate,delay}):simulate(dates,P(trd),w,{cashRate,taxRate});if(alt&&!silent)cashSim=simulate(dates,P(trd),w,{cashRate,taxRate})}
 if(silent){const st=stats(sim.eqP,dates),ath0=e=>e.map((v,i)=>i==e.length-1?v-Math.max(0,v-100)*taxRate:v),bhA=altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(PB(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():(altSyms.length?buyHold(PB(altSyms[0])):null);
 return{st,pnl:sim.pnl,paid:sim.paid,trades:sim.trades,from:dates[0],to:dates.at(-1),n:dates.length,dates,e:sim.eqP,bhTrd:ath0(buyHold(P(trd))),bhSig:sig!=trd?ath0(buyHold(P(sig))):null,bhAlt:bhA?ath0(bhA):null,sigN:sig,trdN:trd}}
-const ctx={trades:sim.list,w,lines:cross?[[1,'#9c36b5'],[2,'#1098ad']].map(([k,c])=>{const nn=rules.b[k-1].n,mv=ma(fpx,nn);return{name:`이평${k} ${nn}일선(${sig})`,c,e:pos.map(i=>mv[i]/fpx[pos[0]]*100)}}):[]};
+const ctx={trades:sim.list,w,lines:cross?[[1,'#9c36b5'],[2,'#1098ad']].filter(([k])=>$('en'+k).checked).map(([k,c])=>{const nn=rules.b[k-1].n,mv=ma(fpx,nn);return{name:`이평${k} ${nn}일선(${sig})`,c,e:pos.map(i=>mv[i]/fpx[pos[0]]*100)}}):[]};
 // 보유 비교는 그 시점에 팔았다고 가정한 세후 가치(수익의 세율만큼 차감, 손실은 그대로)
 const ath=e=>e.map((v,i)=>i==e.length-1?v-Math.max(0,v-100)*taxRate:v),sfx=taxRate>0?' (세후)':'';
 const out=[{name:`전략(${sig} 신호→${trd}${alt?' · 방어 '+alt:''})${sfx}`,e:sim.eqP},...(cashSim?[{name:`전략(${sig} 신호→${trd} · 현금)${sfx}`,e:cashSim.eqP}]:[]),{name:`${trd} 보유${sfx}`,e:ath(buyHold(P(trd)))},...(alt?[{name:`${altSyms.length>1?'방어 바구니('+alt+')':alt} 보유${sfx}`,e:ath(altSyms.length>1?(()=>{const bs=altSyms.map(a=>buyHold(PB(a)));return bs[0].map((_,i)=>bs.reduce((q,b)=>q+b[i],0)/bs.length)})():buyHold(PB(altSyms[0])))}]:[]),...[...new Set([sig,...cmp])].filter(x=>x!=trd&&!altSyms.includes(x)).map(x=>({name:`${x} 보유${sfx}`,e:ath(buyHold(P(x)))}))];
@@ -432,7 +432,8 @@ const MAXC=1000000;
 // 매수 비율이 둘 다 0%인 조합(재진입 없음)은 제외하고 센다
 const rg3=()=>$('en3').checked?[1]:[0];
 const tot=(L1,L2,L3,B1,S1,B2,S2)=>L1.length*L2.length*L3.length*(B1.length*B2.length-(B1.includes(0)&&B2.includes(0)?1:0))*S1.length*S2.length;
-function estSweep(){try{const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2'),n=tot(L1,L2,rg3(),pr('rb1',cr('br1')/100),pr('rs1',cr('sr1')/100),pr('rb2',cr('br2')/100),[0]);
+const on1=()=>$('en1').checked,on2=()=>$('en2').checked,rgK=k=>(k==1?on1():on2())?rg('a'+k,'b'+k,'c'+k):[+$('mn'+k).value],prK=(id,cur,k)=>(k==1?on1():on2())?pr(id,cur):[0];
+function estSweep(){try{const L1=rgK(1),L2=rgK(2),n=tot(L1,L2,rg3(),prK('rb1',cr('br1')/100,1),prK('rs1',cr('sr1')/100,1),prK('rb2',cr('br2')/100,2),[0]);
 let ms=1.6;try{ms=+localStorage.getItem('mabt_ms')||1.6}catch(e){}
 $('swest').textContent=`예상 조합 ${n.toLocaleString()}개 (최대 ${MAXC.toLocaleString()}) · 예상 시간 약 ${fmtT(n*ms/1000)}${n>MAXC?' — 한도 초과':''}`;$('swest').style.color=n>MAXC?'#e03131':''}catch(e){$('swest').textContent=e.message;$('swest').style.color='#e03131'}}
 let swFirst=false;
@@ -450,8 +451,8 @@ $('swwarn').textContent='';const f=readFilter();if(!f)return;swMeta.prev={lim:sw
 async function sweep(){const el=$('swerr');el.textContent='';if(swWorkers.length)return;$('sw').disabled=true;try{
 const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
 if(!sig||!trd)throw Error('기준 지표·매매 종목을 입력하세요');const altS=[...new Set($('alt').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean))].filter(x=>x!=trd);if(altS.includes('AUTO'))throw Error('스윕에서는 방어 ETF에 AUTO를 쓸 수 없습니다 (티커를 직접 입력하세요)');checkSyms([sig,trd,...altS]);if(s>=e)throw Error('시작일이 종료일보다 빨라야 합니다');{const tp=+$('tax').value||0,fp=+$('fee').value||0;if(!(tp>=0&&tp<=100))throw Error('세율은 0~100% 사이여야 합니다');if(!(fp>=0&&fp<=20))throw Error('수수료는 0~20% 사이여야 합니다')}
-const L1=rg('a1','b1','c1'),L2=rg('a2','b2','c2');
-const B1=pr('rb1',cr('br1')/100),S1=pr('rs1',cr('sr1')/100),B2=pr('rb2',cr('br2')/100),S2=[0],L3=rg3(),total=tot(L1,L2,L3,B1,S1,B2,S2);if(L3[0])btm();
+const L1=rgK(1),L2=rgK(2);
+const B1=prK('rb1',cr('br1')/100,1),S1=prK('rs1',cr('sr1')/100,1),B2=prK('rb2',cr('br2')/100,2),S2=[0],L3=rg3(),total=tot(L1,L2,L3,B1,S1,B2,S2);if(L3[0])btm();
 if(!total)throw Error('매수 비율이 모두 0%인 조합만 있어 계산할 조합이 없습니다');
 if(total>MAXC)throw Error(`조합이 너무 많습니다 (${total.toLocaleString()}개, 최대 ${MAXC.toLocaleString()})`);
 const maxN=Math.max(...L1,...L2,L3[0]?150:0),ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
@@ -552,7 +553,7 @@ async function getUniverse(){if(UNI)return UNI;try{const r=await fetch('/etf_uni
 async function prepScan(){const sig=$('sig').value.trim().toUpperCase(),trd=$('trd').value.trim().toUpperCase(),s=$('s').value,e=$('e').value;
 const init=Math.min(100,Math.max(0,+$('init').value||0))/100,cross=$('mode').value=='cross',delay=Math.max(cross?1:0,Math.floor(+$('delay').value||0)),cashRate=(+$('cash').value||0)/100,taxRate=(+$('tax').value||0)/100,fee=(+$('fee').value||0)/100;
 let bc=[],sc=[],rules={b:[],s:[]},maxN=0;
-if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];if($('en3').checked){btm();maxN=Math.max(maxN,150)}for(const x of[...rules.b,...rules.s])maxN=Math.max(maxN,x.n)}
+if(cross){const g=(a,b)=>({n:+$(a).value,r:Math.min(100,Math.max(0,+$(b).value||0))/100});rules.b=[g('mn1','br1'),g('mn2','br2')];rules.s=[g('mn1','sr1'),g('mn2','sr2')];if(!$('en1').checked){rules.b[0].r=0;rules.s[0].r=0}if(!$('en2').checked){rules.b[1].r=0;rules.s[1].r=0}if($('en3').checked){btm();maxN=Math.max(maxN,150)}for(const x of[...rules.b,...rules.s])maxN=Math.max(maxN,x.n)}
 else{bc=readConds('buy');sc=readConds('sell');for(const c of[...bc,...sc])for(const[k,n]of[[c.lk,c.ln],[c.rk,c.rn]])if(k!='price')maxN=Math.max(maxN,n)}
 const ext=new Date(s);ext.setDate(ext.getDate()-Math.ceil(maxN*1.5)-14);const xs=ext.toISOString().slice(0,10);
 const sigM=new Map(await load(sig,xs,e)),trdM=new Map(await load(trd,s,e)),full=[...sigM.keys()].sort(),s2=readyStart(full,maxN,s),dates0=full.filter(d=>d>=(s2||s)&&trdM.has(d)),fidx=new Map(full.map((d,i)=>[d,i])),fpx=full.map(d=>sigM.get(d)),pos=dates0.map(d=>fidx.get(d)),px0=dates0.map(d=>trdM.get(d)),d0i=Uint32Array.from(dates0,s2i);
@@ -650,12 +651,12 @@ $('sw').onclick=sweep;
 ['sig','trd','cmp','alt','s','e'].forEach(i=>$(i).addEventListener('change',()=>{clearTimeout(availTimer);availTimer=setTimeout(updAvail,300)}));updAvail();$('mddgo').onclick=refilter;$('mddlim').addEventListener('keydown',e=>{if(e.key=='Enter')refilter()});$('sk').addEventListener('change',()=>{if(swAW)refilter()});
 // 이평2는 매수 전용: 예전에 저장된 매도2 값이 남아 있어도 0으로 고정
 function syncTr2(){$('sr2').value='0';$('rs2').value='';$('ds2').value=''}
-$('tr2').addEventListener('change',()=>{syncTr2();estSweep();save()});$('en3').addEventListener('change',()=>{estSweep();save()});syncTr2();
+$('tr2').addEventListener('change',()=>{syncTr2();estSweep();save()});$('en3').addEventListener('change',()=>{estSweep();save()});['en1','en2'].forEach(i=>$(i).addEventListener('change',()=>{estSweep();save()}));syncTr2();
 $('r10').onclick=()=>{['rb1','rs1','rb2'].forEach(i=>$(i).value='0-100/10');estSweep();save()};$('r0').onclick=()=>{['rb1','rs1','rb2','rs2'].forEach(i=>$(i).value='');estSweep();save()};
 ['a1','b1','c1','a2','b2','c2','bm3','bv3','rb1','rs1','rb2','rs2','br1','sr1','br2','sr2'].forEach(i=>$(i).addEventListener('input',estSweep));estSweep();
 try{const r=JSON.parse(localStorage.getItem('mabt_sweep_v1')||'null');if(r&&r.rows&&r.rows.length&&r.rows[0].so!==undefined&&r.meta&&r.meta.agg){swMeta=null;showSweep(r.rows,r.meta);$('swfilt').style.display='';$('swinfo').textContent='이전 스윕 결과 (저장됨) · MDD 제한을 바꾸려면 스윕을 다시 실행하세요'}}catch(x){}
 // 마지막 방어 ETF 찾기 결과 저장/복원 (화면 크기 변경·앱 재시작 후에도 유지, 설정이 같을 때만 복원, 30일)
-const altFp=()=>{const o={};IDS.forEach(i=>{if(!['alt','altsort','altk2'].includes(i))o[i]=$(i).value});o.nohold=$('nohold').checked;o.en3=$('en3').checked;o.buy=readConds('buy');o.sell=readConds('sell');return JSON.stringify(o)};
+const altFp=()=>{const o={};IDS.forEach(i=>{if(!['alt','altsort','altk2'].includes(i))o[i]=$(i).value});o.nohold=$('nohold').checked;o.en1=$('en1').checked;o.en2=$('en2').checked;o.en3=$('en3').checked;o.buy=readConds('buy');o.sell=readConds('sell');return JSON.stringify(o)};
 function saveAlt(){try{const d=window._altData;if(!d)return;const rows=d.rows.map(r=>{if(r.base)return{base:true,sym:r.sym,name:r.name};const o={...r};delete o.e;delete o.dates;delete o.bhAlt;return o});idbPut('__altlast',{t:Date.now()+30*864e5,fp:altFp(),sort:$('altsort').value,data:{...d,rows}})}catch(x){}}
 async function restoreAlt(){try{const s=await idbGet('__altlast');if(!s||s.fp!==altFp())return;await run();if(!window._last)return;const base=await run({silent:true,alt:''});if(base.error)return;const d=s.data;d.rows=d.rows.map(r=>r.base?{sym:r.sym,name:r.name,base:true,...base}:r);window._altData=d;window._altRows=d.rows.filter(r=>!r.base).map(r=>({sym:r.sym,corr:r.corr,from:r.from,cagr:r.st.cagr,mdd:r.st.mdd,so:r.st.so,ca:r.st.ca}));if(s.sort)$('altsort').value=s.sort;renderAlt();$('recmsg').textContent='이전 방어 ETF 찾기 결과를 복원했습니다'}catch(x){}}
 setTimeout(restoreAlt,0);
@@ -667,8 +668,8 @@ function showTab(t){if(!TABS.includes(t))t='bt';TABS.forEach(x=>$('tab-'+x).clas
  if(t=='bt'&&window._last)draw(...window._last);if(t=='sw'&&window._swrows)drawHeat(window._swrows,window._swmeta);if(t=='def'){const c=window._altChart;if(c&&$('altcv').style.display!='none')lineChart('altcv',c.out,c.dates)}}
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.t));
 // 백테스트 탭의 설정 중 스윕·방어 ETF 결과에 영향을 주는 값(이평 일수·비율은 스윕이 따로 정하므로 제외)
-const baseFp=()=>JSON.stringify(['sig','trd','alt','s','e','init','cash','tax','fee','delay','delaySell','db1','ds1','db2','db3','bm3','bv3','tr2'].map(i=>$(i).value).concat([$('en3').checked]));
-function ctxText(){const v=i=>$(i).value.trim(),alt=v('alt').toUpperCase(),d=v('delaySell');return `<b>${v('sig').toUpperCase()}</b> 신호 → <b>${v('trd').toUpperCase()}</b> 매매 · ${v('s')}~ · 이평 ${v('mn1')} / ${v('mn2')}${v('tr2')=='dn'?'↓':'↑'}${$('en3').checked?' / 바닥신호':''} · ${alt?'방어 '+alt:'현금'} · 지연 ${v('delay')}${d&&d!=v('delay')?'/'+d:''}일 · 세율 ${v('tax')}% · 수수료 ${v('fee')}%`}
+const baseFp=()=>JSON.stringify(['sig','trd','alt','s','e','init','cash','tax','fee','delay','delaySell','db1','ds1','db2','db3','bm3','bv3','tr2'].map(i=>$(i).value).concat([$('en1').checked,$('en2').checked,$('en3').checked]));
+function ctxText(){const v=i=>$(i).value.trim(),alt=v('alt').toUpperCase(),d=v('delaySell');return `<b>${v('sig').toUpperCase()}</b> 신호 → <b>${v('trd').toUpperCase()}</b> 매매 · ${v('s')}~ · 이평 ${$('en1').checked?v('mn1'):'꺼짐'} / ${$('en2').checked?v('mn2')+(v('tr2')=='dn'?'↓':'↑'):'꺼짐'}${$('en3').checked?' / 바닥신호':''} · ${alt?'방어 '+alt:'현금'} · 지연 ${v('delay')}${d&&d!=v('delay')?'/'+d:''}일 · 세율 ${v('tax')}% · 수수료 ${v('fee')}%`}
 function syncCtx(){$('ctx').innerHTML=ctxText();
  const st=(el,fp,msg)=>{const stale=fp&&fp!==baseFp();el.style.display=stale?'':'none';if(stale)el.textContent=msg};
  st($('swstale'),window._swFp,'⚠ 종목·기간·비용 설정이 이 결과를 만들 때와 달라졌습니다. 다시 찾아 주세요.');{const el=$('defstale'),stale=window._defFp&&window._defFp!==altFp();el.style.display=stale?'':'none';if(stale)el.textContent='⚠ 이평·비용 등 설정이 이 결과를 만들 때와 달라졌습니다. 다시 찾아 주세요.'}
@@ -677,7 +678,7 @@ $('goSw').onclick=()=>{showTab('sw');$('tabs').scrollIntoView()};$('goDef').oncl
 try{if(localStorage.getItem('mabt_cfg')==='0')$('cfgBox').open=false}catch(x){}$('cfgBox').addEventListener('toggle',()=>{try{localStorage.setItem('mabt_cfg',$('cfgBox').open?'1':'0')}catch(x){}});
 setTimeout(()=>{try{syncCtx()}catch(x){}},0);
 // ---- 매일 종가 신호 알림 (안드로이드 앱의 AndroidApp 브리지 사용) ----
-function alCfg(){const g=(a,b,c)=>({n:Math.floor(+$(a).value||0),b:Math.round(Math.min(100,Math.max(0,+$(b).value||0))),s:Math.round(Math.min(100,Math.max(0,+$(c).value||0)))});return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell()||0,rules:[{...g('mn1','br1','sr1'),db:rdl('db1')||0,ds:rdl('ds1')||0},{...g('mn2','br2','sr2'),db:rdl('db2')||0,ds:rdl('ds2')||0,buyDn:$('tr2').value=='dn'},...($('en3').checked?[{n:150,b:100,s:0,db:rdl('db3')||0,ds:0,bottom:true,bm:(+$('bm3').value||0)/100,bg:(+$('bv3').value||0)/100}]:[])]}}
+function alCfg(){const g=(a,b,c)=>({n:Math.floor(+$(a).value||0),b:Math.round(Math.min(100,Math.max(0,+$(b).value||0))),s:Math.round(Math.min(100,Math.max(0,+$(c).value||0)))});return{on:$('alOn').checked,always:$('alAll').checked,sig:$('sig').value.trim().toUpperCase(),trd:$('trd').value.trim().toUpperCase(),alt:($('alt').value||'').split(',')[0].trim().toUpperCase().replace(/[^A-Z0-9.^=\-]/g,''),delay:Math.max(1,Math.floor(+$('delay').value||1)),delaySell:dlSell()||0,rules:[...($('en1').checked?[{...g('mn1','br1','sr1'),db:rdl('db1')||0,ds:rdl('ds1')||0}]:[]),...($('en2').checked?[{...g('mn2','br2','sr2'),db:rdl('db2')||0,ds:rdl('ds2')||0,buyDn:$('tr2').value=='dn'}]:[]),...($('en3').checked?[{n:150,b:100,s:0,db:rdl('db3')||0,ds:0,bottom:true,bm:(+$('bm3').value||0)/100,bg:(+$('bv3').value||0)/100}]:[])]}}
 function alPush(){const st=$('alSt');if(!st)return;if(typeof AndroidApp==='undefined'||!AndroidApp.setAlert){st.textContent='· 앱(APK)에서만 동작';return}
 try{localStorage.setItem('mabt_alert',JSON.stringify({on:$('alOn').checked,all:$('alAll').checked}))}catch(x){}
 if($('mode').value!='cross'){st.textContent=$('alOn').checked?'· 돌파/이탈 방식에서만 동작':'';return}
