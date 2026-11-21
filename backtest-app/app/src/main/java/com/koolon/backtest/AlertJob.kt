@@ -118,7 +118,7 @@ object AlertJob {
         val b = Notification_Builder(ctx)
         val n = b.setContentTitle(title).setContentText(text.lines().firstOrNull() ?: "")
             .setStyle(android.app.Notification.BigTextStyle().bigText(text))
-            .setSmallIcon(android.R.drawable.ic_dialog_info).setContentIntent(pi).setAutoCancel(true).build()
+            .setSmallIcon(R.drawable.ic_stat_signal).setContentIntent(pi).setAutoCancel(true).build()
         nm.notify((System.currentTimeMillis() / 1000).toInt(), n)
     }
 

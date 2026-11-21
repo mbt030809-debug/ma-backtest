@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘 전경: 주황 이동평균선을 흰 가격선이 위로 돌파하는 순간(초록 점) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M29,64C41,64 50,58 62,52C70,48 76,46 80,44"
+        android:strokeColor="#FFF5A524" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M29,73L37,68L42,72L52,50L58,41L64,46L70,35L79,32"
+        android:strokeColor="#FFEEF3FF" android:strokeWidth="4.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:pathData="M43.4,59.2a4.8,4.8 0,1 0,9.6 0a4.8,4.8 0,1 0,-9.6 0z" android:fillColor="#FF35C98A" />
+</vector>

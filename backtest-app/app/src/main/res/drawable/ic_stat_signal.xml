@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 알림 작은 아이콘(흰색 단색): 이동평균선과 가격선 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M3,15C6,15 7,13.5 10,12.5C13,11.5 15,10 19,9.5"
+        android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M3,18L6,14.5L8.5,16.5L11,10.5L13.5,13L16.5,6.5L19,8.5L21,4"
+        android:strokeColor="#FFFFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+</vector>

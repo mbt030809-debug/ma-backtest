@@ -18,7 +18,7 @@ class KeepAliveService : Service() {
             .createNotificationChannel(NotificationChannel("sweep", "백테스트 스윕", NotificationManager.IMPORTANCE_LOW))
         val n = Notification.Builder(this, "sweep")
             .setContentTitle("이평 스윕 계산 중")
-            .setSmallIcon(android.R.drawable.ic_popup_sync)
+            .setSmallIcon(R.drawable.ic_stat_signal)
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
