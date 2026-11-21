@@ -80,7 +80,7 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   await tog(0);await tog(1);await cmpSweep(p,'이평2 끔');{const x=await info();ok(x.r2===0&&x.r1>0&&x.lines.join()==='이평1','이평2 끔: 이평2 체결 없음·이평선은 이평1만',x)}
   await tog(0);await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1===0&&x.r2===0&&x.lines.length===0,'둘 다 끔: 이평 체결·이평선 없음(보유만)',x)}
   await p.reload();await p.waitForTimeout(800);{const v=await p.evaluate(()=>RULES.map(r=>r.on));ok(v[0]===false&&v[1]===false,'새로고침 후에도 사용/끄기 상태가 유지됨',v)}
-  await p.evaluate(()=>{RULES.forEach(r=>r.on=true);renderRules()});await p.click('#ruleAdd');ok(await p.evaluate(()=>document.querySelectorAll('#rulesBox .rule').length)===3&&await p.evaluate(()=>RULES.length)===3,'+ 이평선 추가 → 규칙 3개');
+  await p.evaluate(()=>{RULES.forEach(r=>r.on=true);renderRules()});await p.click('#ruleAdd');ok(await p.evaluate(()=>document.querySelectorAll('#rulesBox .rc').length)===3&&await p.evaluate(()=>RULES.length)===3,'+ 이평선 추가 → 규칙 3개');
   await p.click('#run');await wf(p,()=>window._last&&window._last[2].lines.length===3,30000);ok(await p.evaluate(()=>window._last[2].lines.length)===3,'이평 3개가 차트 선·체결에 반영됨');
   await p.click('#rulesBox [data-del="2"]');ok(await p.evaluate(()=>RULES.length)===2,'삭제 → 규칙 2개');
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
@@ -119,6 +119,19 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   ok(allSame,'모든 체결 가격 조합: 스윕 결과 = 그 설정으로 일반 실행');
   await p.evaluate(()=>applyRow(window._swrows.find(r=>r.rules[0].fu==='o'&&r.rules[0].fd==='c')));await p.waitForTimeout(1500);
   const f=await p.evaluate(()=>[RULES[0].fu,RULES[0].fd]);ok(f[0]==='o'&&f[1]==='c','결과 행을 누르면 체결 가격이 규칙 칸에 적용됨',f);
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('N) 입력 검증 · 화면 구성: 잘못된 값은 조용히 보정하지 않고 안내, 실행 버튼은 스크롤해도 화면에 고정');
+ {const p=await mkPage();await base(p);
+  const tryRun=async(rules,init)=>{await SR(p,rules);await p.fill('#init',init||'100');await p.evaluate(()=>{document.getElementById('err').textContent='';window._last=null});await p.click('#run');await p.waitForTimeout(1500);return p.evaluate(()=>({err:document.getElementById('err').textContent,ran:!!window._last}))};
+  let r=await tryRun([{n:60,up:'150',dn:'0'}]);ok(!r.ran&&/0~100/.test(r.err),'목표 비율 150% → 안내(0~100)',r);
+  r=await tryRun([{n:60,up:'100',dn:'-5'}]);ok(!r.ran&&/0~100/.test(r.err),'목표 비율 -5% → 안내',r);
+  r=await tryRun([{n:60,up:'abc',dn:'0'}]);ok(!r.ran&&/0~100/.test(r.err),'목표 비율에 문자 → 안내',r);
+  r=await tryRun([{n:60,up:'100',dn:'0'}],'150');ok(!r.ran&&/초기 주식 비율/.test(r.err),'초기 주식 비율 150% → 안내',r);
+  r=await tryRun([{n:60,up:'',dn:''}]);ok(r.ran&&r.err==='','목표 비율을 모두 비우면(신호 무시) 보유만 하고 정상 실행',r);
+  await p.evaluate(()=>window.scrollTo(0,400));const top=await p.evaluate(()=>{const b=document.getElementById('run').getBoundingClientRect();return{top:b.top,bottom:b.bottom,vh:innerHeight}});
+  ok(top.bottom<=top.vh+1&&top.top>0,'스크롤해도 실행 버튼이 화면 안(아래쪽)에 고정됨',top);
+  await SR(p,DEF);
+  ok(await p.evaluate(()=>document.querySelectorAll('#rulesBox .rc').length)===2&&await p.evaluate(()=>document.querySelectorAll('#rulesBox details.rcd').length)===2,'이평 규칙은 카드(상향·하향 칸 + 접힌 체결 옵션)로 표시됨');
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('K) 옛 설정(매수·매도 비율 방식) 자동 이전 + 목표 % 체결 표시');
  {const p=await mkPage(()=>{if(!localStorage.getItem('__seeded')){localStorage.setItem('__seeded','1');localStorage.setItem('mabt_settings_v1',JSON.stringify({buy:[],sell:[],sig:'QQQ',trd:'TECL',mn1:'100',br1:'100',sr1:'100',mn2:'300',x2:'0',y2:'100',s:'2014-01-01',mode:'cross'}))}});
