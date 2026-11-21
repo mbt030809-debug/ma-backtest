@@ -48,7 +48,7 @@ function ref(px,buys,sells,o){const n=px.length,dB=o.delayBuy,dS=o.delaySell;let
   const sig=(isSell,r,k)=>{const hit=r.f[i];if(!hit)return;let sup=false;
    if(o.sf&&!r.free)for(const od of pend){if(od.dead||od.free||od.s===isSell||od.day<i||od.day>i+maxD)continue;if(od.k===k)od.dead=true;else if(r.r>0&&od.n<r.n)od.dead=true;else if(r.r>0&&od.n>r.n)sup=true}
    const d=r.d!=null?r.d:(isSell?dS:dB);if(r.r>0&&!sup&&i+d<n)pend.push({s:isSell,r:r.r,k,n:r.n,free:!!r.free,day:i+d,dead:false})};
-  const sigs=()=>{sells.forEach((r,k)=>sig(true,r,k));buys.forEach((r,k)=>sig(false,r,k))};
+  const sigs=()=>{sells.forEach((r,k)=>sig(true,r,k));buys.forEach((r,k)=>{sig(false,r,k);if(r.f2)sig(false,{...r,r:r.r2||0,f:r.f2,f2:null},k)})};
   if(o.sf)sigs();
   const today=pend.filter(od=>od.day===i&&!od.dead).sort((a,b)=>(a.s?0:1)-(b.s?0:1)||a.k-b.k);let soldToday=false;
   for(const od of today){if(!od.s&&od.free&&soldToday)continue;if(od.s&&!od.free)soldToday=true;if(od.s){if(!(sh>0))continue;const q=sh*od.r;sh-=q;cash+=q*px[i]}else{if(!(cash>0))continue;const amt=cash*od.r;cash-=amt;sh+=amt/px[i]}}
@@ -58,7 +58,7 @@ function ref(px,buys,sells,o){const n=px.length,dB=o.delayBuy,dS=o.delaySell;let
 {let tot=0;for(let t=0;t<3000;t++){const N=[40,150,500][t%3];let a=100;const px=[],sig=[];for(let i=0;i<N;i++){a*=1+(rnd()-.5)*.05;px.push(a);sig.push(a*(1+(rnd()-.5)*.02))}
  const n1=[3,8,20][t%3],n2=n1*[2,4][t%2],f1=E.crossFlags(sig,Math.min(n1,N-2)),f2=E.crossFlags(sig,Math.min(n2,N-2)),dn2=t%3!==0,use3=t%2===0,f3=px.map((_,i)=>(i*7+t)%(9+t%11)===0);
  const D=()=>rnd()<.5?undefined:1+Math.floor(rnd()*4);
- const B=[{r:[1,.5][t%2],n:n1,d:D(),f:f1.up},{r:[1,.4][(t>>1)%2],n:n2,d:D(),f:dn2?f2.dn:f2.up}],S=[{r:1,n:n1,d:D(),f:f1.dn},{r:dn2?0:[0,1][(t>>2)%2],n:n2,d:D(),f:dn2?px.map(()=>false):f2.dn}];
+ const x2=[0,1,.3,.6][t%4],B=[{r:[1,.5][t%2],n:n1,d:D(),f:f1.up},{r:1-x2,n:n2,d:D(),f:f2.up,r2:x2,f2:f2.dn}],S=[{r:1,n:n1,d:D(),f:f1.dn},{r:0,n:n2,d:D(),f:px.map(()=>false)}];
  if(use3){B.push({r:1,n:1,free:true,d:D(),lbl:'바닥 신호',f:f3});S.push({r:0,n:1,f:px.map(()=>false)})}
  const dates=px.map((_,i)=>{const d=new Date('2015-01-02');d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10)});
  const o={init:[0,1,.5][t%3],delay:1,delayBuy:1+Math.floor(rnd()*4),delaySell:1+Math.floor(rnd()*4),stateFirst:t%5!==0,cashRate:0,tax:0,fee:0};

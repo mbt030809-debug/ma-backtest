@@ -88,8 +88,11 @@ object AlertJob {
                 val up = !buyDn && px[last - 1] <= pm && px[last] > m
                 val dn = !buyDn && px[last - 1] >= pm && px[last] < m
                 val dip = buyDn && px[last - 1] >= pm && px[last] < m
+                val bd = r.optInt("bd", 0) // 이평2: 하향 돌파 때 매수 비율(%), 상향 돌파 때는 b(%)
+                val dip2 = bd > 0 && px[last - 1] >= pm && px[last] < m
                 val st = "종가 ${f2(px[last])} · ${k}일선 ${f2(m)} (${if (px[last] > m) "위 +" else "아래 -"}${f1(abs(px[last] / m - 1) * 100)}%)"
                 when {
+                    dip2 -> { buy = true; lines.add("📈 ${k}일선 하향 돌파 → 매수 ${bd}% (현금의 ${bd}%) · ${rdB}거래일 뒤 체결\n   $st") }
                     dip && b > 0 -> { buy = true; lines.add("📈 ${k}일선 하향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }
                     dip -> lines.add("${k}일선 하향 돌파 (매수 0%라 무시)\n   $st")
                     up && b > 0 -> { buy = true; lines.add("📈 ${k}일선 상향 돌파 → 매수 ${b}% (현금의 ${b}%) · ${rdB}거래일 뒤 체결\n   $st") }

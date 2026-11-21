@@ -103,6 +103,8 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
   const avail = i => { const r = []; for (let k = 0; k < K; k++) if (av[k][i]) r.push(k); return r; };
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; const maxD = Math.max(dB, dS, ...buys.map(x => x.d | 0), ...sells.map(x => x.d | 0)); // 이평선(규칙)마다 d(지연)를 따로 줄 수 있음 // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
+  // 규칙에 f2/r2 가 있으면 같은 이평선의 두 번째 매수 신호(예: 이평2 하향 돌파 x% · 상향 돌파 100−x%): f 는 첫 번째 신호·r, f2 는 두 번째 신호·r2
+  const bs2 = buys.map(r => r.f2 ? { ...r, r: r.r2 || 0, a: '↓', f: r.f2, f2: null } : null);
   let cash = 0, sh = 0, basis = 0, paid = 0, trades = 0, bX = 0, sX = 0, intr = 0, fees = 0;
   const shy = Array(K).fill(0), basy = Array(K).fill(0), bY = Array(K).fill(0), sY = Array(K).fill(0), orders = {}, eq = [], eqL = [], pd = [], w = [], list = [];
   const a0 = 100 * o.init, y0 = 100 - a0;
@@ -140,7 +142,7 @@ function simulateEventsAlt(dates, px, py, buys, sells, o) {
       if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, free: !!r.free, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
-      buys.forEach((r, k) => add(false, r, k, r.f[i]));
+      buys.forEach((r, k) => { add(false, r, k, r.f[i]); if (bs2[k]) add(false, bs2[k], k, bs2[k].f[i]); });
     };
     if (sf) signals(); // 상태 우선: 오늘 신호로 대기 주문을 먼저 정리한 뒤 체결
     let soldToday = false; // 같은 날 이평 매도가 체결되면 같은 날 바닥 신호 매수는 건너뜀(그날은 매도 우선, 바닥 신호가 이어지면 다음 날 매수)
@@ -299,6 +301,8 @@ function statsLite(e, yrs) {
 function simulateEvents(dates, px, buys, sells, o) {
   const n = px.length, ig = o.ig || interestFactors(dates, o.cashRate), fee = o.fee || 0, tax = o.tax || 0, delay = Math.max(1, o.delay | 0), dB = Math.max(1, (o.delayBuy != null ? o.delayBuy : o.delay) | 0), dS = Math.max(1, (o.delaySell != null ? o.delaySell : o.delay) | 0); const sf = o.stateFirst !== false; const maxD = Math.max(dB, dS, ...buys.map(x => x.d | 0), ...sells.map(x => x.d | 0)); // 이평선(규칙)마다 d(지연)를 따로 줄 수 있음 // 매수·매도 지연을 따로 줄 수 있음(없으면 delay)
   const tx = makeTaxer(dates, tax);
+  // 규칙에 f2/r2 가 있으면 같은 이평선의 두 번째 매수 신호(예: 이평2 하향 돌파 x% · 상향 돌파 100−x%): f 는 첫 번째 신호·r, f2 는 두 번째 신호·r2
+  const bs2 = buys.map(r => r.f2 ? { ...r, r: r.r2 || 0, a: '↓', f: r.f2, f2: null } : null);
   let cash = 100, sh = 0, basis = 0, paid = 0, trades = 0, bsum = 0, ssum = 0, intr = 0, fees = 0; const orders = {}, eq = [], eqL = [], pd = [], w = [];
   const list = [], amt0 = cash * o.init;
   if (amt0 > 0) { cash -= amt0; sh = amt0 * (1 - fee) / px[0]; basis = amt0; bsum += amt0; fees += amt0 * fee; trades++; list.push({ i: 0, si: 0, side: 'B', rule: '시작', price: px[0], qty: sh, amt: amt0, tax: 0, cash, sh }); }
@@ -320,7 +324,7 @@ function simulateEvents(dates, px, buys, sells, o) {
       if (r.r > 0 && hit && i + d < n && !sup) (orders[i + d] = orders[i + d] || []).push({ s, r: r.r, k, n: r.n, free: !!r.free, si: i, label: (s ? '매도' : '매수') + (k + 1) + ' ' + (r.lbl || ((r.n || '') + '일' + (r.a || (s ? '↓' : '↑')))) }); };
     const signals = () => {
       sells.forEach((r, k) => add(true, r, k, r.f[i]));
-      buys.forEach((r, k) => add(false, r, k, r.f[i]));
+      buys.forEach((r, k) => { add(false, r, k, r.f[i]); if (bs2[k]) add(false, bs2[k], k, bs2[k].f[i]); });
     };
     if (sf) signals(); // 상태 우선: 오늘 신호로 대기 주문을 먼저 정리한 뒤 체결
     let soldToday = false; // 같은 날 이평 매도가 체결되면 같은 날 바닥 신호 매수는 건너뜀(그날은 매도 우선, 바닥 신호가 이어지면 다음 날 매수)

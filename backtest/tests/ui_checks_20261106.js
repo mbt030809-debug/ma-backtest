@@ -13,7 +13,7 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
  {const p=await mkPage();await base(p);await single(p);await p.fill('#delay','1');
   await cmpSweep(p,'기본');
   await p.fill('#db1','2');await p.fill('#ds1','1');await p.fill('#db2','4');await cmpSweep(p,'이평별 지연');
-  await p.selectOption('#tr2','dn');await cmpSweep(p,'이평2 하향 돌파 매수');await p.selectOption('#tr2','up');
+  await p.fill('#x2','100');await cmpSweep(p,'이평2 하향 돌파 100%');await p.fill('#x2','30');await cmpSweep(p,'이평2 하향 30%·상향 70%');await p.fill('#x2','0');
     await p.fill('#alt','XLV');await cmpSweep(p,'방어 ETF XLV');ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('B) 방어 ETF 상장 전 = 현금, 스캔 = 일반 실행, 스윕 = 일반 실행');
  {const p=await mkPage(()=>{const of=window.fetch,L={LATE:'2014-03-03',MID:'2016-06-01',EARLY:'2009-01-02'};window.fetch=async(u,...a)=>{const m=/symbol=([^&]+)&start=([^&]+)&end=([^&]+)/.exec(String(u));if(!m||!(m[1] in L))return of(u,...a);const[,sym,s,e]=m,rows=[];let d=new Date(Math.max(+new Date(s),+new Date(L[sym]))),x=100,i=0;const end=new Date(e);for(;d<=end;d.setUTCDate(d.getUTCDate()+1))if(d.getUTCDay()%6){i++;x*=1+Math.sin(i/11)*.006+.0003;rows.push([d.toISOString().slice(0,10),x])}return{json:async()=>rows,headers:{get:()=>'adj'}}}});
@@ -26,9 +26,9 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   const sc=await p.evaluate(async()=>{const d=window._altData,res=[];for(const r of d.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});res.push([r.sym,['cagr','mdd','so','tot'].map(k=>Math.abs(r.st[k]-x.st[k])).reduce((a,b)=>Math.max(a,b),0)])}return res});
   ok(sc.length===3&&sc.every(([,d])=>d<1e-12),'스캔 결과 = 일반 실행 (상장 늦은 ETF 포함 3개)',sc);ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('C) 스캔 속도 경로 = 일반 실행 (후보 10개)');
- for(const [name,c] of [['돌파/이탈',{mode:'cross',init:100,delay:1}],['이평별 지연+하향매수',{mode:'cross',init:100,delay:1,db1:2,ds1:1,db2:3,tr2:'dn'}]]){
+ for(const [name,c] of [['돌파/이탈',{mode:'cross',init:100,delay:1}],['이평별 지연+하향매수',{mode:'cross',init:100,delay:1,db1:2,ds1:1,db2:3,x2:60}]]){
   const p=await mkPage();await base(p);await p.fill('#s','2013-01-01');await p.fill('#init',''+c.init);await p.fill('#delay',''+c.delay);
-  if(c.mode==='cross'){await p.fill('#mn1','120');await p.fill('#mn2','250');for(const k of ['db1','ds1','db2'])await p.fill('#'+k,c[k]?''+c[k]:'');await p.selectOption('#tr2',c.tr2||'up')}
+  if(c.mode==='cross'){await p.fill('#mn1','120');await p.fill('#mn2','250');for(const k of ['db1','ds1','db2'])await p.fill('#'+k,c[k]?''+c[k]:'');await p.fill('#x2',''+(c.x2||0))}
   await p.click('#run');await p.waitForTimeout(1500);await p.evaluate(()=>{document.querySelector('#defSec details').open=true});await p.fill('#altlist','TLT,GLD,SPY,XLV,SHY,IEF,BIL,AGG,VNQ,XLU');await p.click('#recbtn');await wf(p,()=>/비교 완료/.test(document.getElementById('recmsg').textContent),90000);await p.waitForTimeout(500);
   const w=await p.evaluate(async()=>{let m=0,cnt=0;for(const r of window._altData.rows.filter(x=>!x.base)){const x=await run({silent:true,alt:r.sym});cnt++;m=Math.max(m,...['tot','cagr','mdd','sh','so','ca'].map(k=>Math.abs(r.st[k]-x.st[k])/Math.max(1,Math.abs(x.st[k]))))}return{cnt,m}});
   ok(w.cnt===10&&w.m<1e-12,name+': 스캔 = 일반 실행',w);ok(p.errs.length===0,name+': JS 오류 없음',p.errs);await p.close()}
@@ -72,6 +72,16 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   await p.evaluate(()=>{document.getElementById('en1').checked=true;document.getElementById('en2').checked=false;save()});await cmpSweep(p,'이평2 끔');{const x=await info();ok(x.r2===0&&x.r1>0&&x.lines.join()==='이평1','이평2 끔: 이평2 체결 없음·이평선은 이평1만',x)}
   await p.evaluate(()=>{document.getElementById('en1').checked=false;save()});await p.click('#run');await wf(p,()=>window._last,30000);await p.waitForTimeout(800);{const x=await info();ok(x.r1===0&&x.r2===0&&x.lines.length===0,'둘 다 끔: 이평 체결·이평선 없음(보유만)',x)}
   await p.reload();await p.waitForTimeout(800);{const v=await p.evaluate(()=>[document.getElementById('en1').checked,document.getElementById('en2').checked]);ok(v[0]===false&&v[1]===false,'새로고침 후에도 사용/끄기 상태가 유지됨',v)}
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('J) 이평2 하향 돌파 x% · 상향 돌파 100−x% — 최적값 찾기에서 x 스윕, 각 x 결과 = 일반 실행');
+ {const p=await mkPage();await base(p);await single(p);await p.fill('#rb2','0,30,100');
+  ok(/3개/.test(await p.evaluate(()=>document.getElementById('swest').textContent)),'예상 조합 3개(x = 0, 30, 100)');
+  await p.click('#sw');await wf(p,()=>/완료/.test(document.getElementById('swinfo').textContent),60000);await p.waitForTimeout(500);
+  const rows=await p.evaluate(()=>window._swrows.map(r=>({x:Math.round(r.b2*100),cagr:r.cagr,mdd:r.mdd})));
+  ok(rows.length===3&&[0,30,100].every(x=>rows.some(r=>r.x===x)),'x=0,30,100 세 결과가 나옴',rows);
+  let allSame=true;for(const x of [0,30,100]){await p.fill('#x2',''+x);await p.click('#run');await p.waitForTimeout(1500);const run=await p.evaluate(()=>{const o=window._last[0][0];return[o.st.cagr,o.st.mdd]});const r=rows.find(q=>q.x===x);if(Math.abs(run[0]-r.cagr)>1e-12||Math.abs(run[1]-r.mdd)>1e-12){allSame=false;console.log('   x',x,run,r)}}
+  ok(allSame,'x별 스윕 결과 = 그 x로 일반 실행');
+  const lab=await p.evaluate(()=>{document.getElementById('x2').value='35';document.getElementById('x2').dispatchEvent(new Event('input'));return document.getElementById('x2u').textContent});ok(lab==='65','x=35이면 상향 돌파 매수는 65%로 표시',lab);
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
  console.log('H) 탭 화면: 요약 타일 · 설정 요약 · 설정 변경 경고 · 결과 적용 시 백테스트 탭으로');
  {const p=await br.newPage({viewport:{width:430,height:900}});p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));await p.goto(BASE);
