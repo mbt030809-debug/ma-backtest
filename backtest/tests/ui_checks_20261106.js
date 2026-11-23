@@ -170,6 +170,8 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   const bx=await p.evaluate(()=>document.getElementById('sigBox').innerText);
   ok(/최근 신호/.test(bx)&&(/→/.test(bx)||/신호 없음/.test(bx)),'차트 위에 최근 신호 박스(신호일 → 체결일)',bx);
   ok(/지연 \d+일|취소/.test(bx)||/신호 없음/.test(bx),'지연일수 표시',bx);
+  ok(/오[전후] \d+:\d\d/.test(bx)||/신호 없음/.test(bx),'한국시간(오전/오후) 표기',bx);
+  ok(await p.evaluate(()=>kst('2026-11-20','o').endsWith('오후 11:30')&&kst('2026-11-20','c').endsWith('오전 6:00')&&kst('2026-11-20','c').startsWith('11/21')&&kst('2026-07-20','o').endsWith('오후 10:30')&&kst('2026-07-20','c').endsWith('오전 5:00')),'미국 시가/종가 → 한국시간(겨울 23:30/06:00, 서머타임 22:30/05:00)');
   await p.reload();await p.waitForTimeout(2500);ok(await p.evaluate(()=>!window._last),'같은 날 다시 열면 자동 실행하지 않음');
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await cx.close()}
  console.log(bad?`\n실패 ${bad} / ${n}`:`\n모든 화면 검사 통과 (${n}개)`);await br.close();process.exit(bad?1:0)})().catch(e=>{console.error('테스트 오류',e.stack.split('\n').slice(0,4).join(' / '));process.exit(2)});
