@@ -400,7 +400,7 @@ th{color:var(--mute);font-weight:500}
         if(cn.J===2) path=[[0,lastP,''],[dur(cn.pts[0],cn.pts[1]),pp,'③?']];
         if(cn.J===4) path=[[0,lastP,''],[dur(cn.pts[2],cn.pts[3]),pp,'⑤?']];
         if(cn.J===5) path=[[0,lastP,''],[126,pp,'C?']];
-        if(PR.abc){ var Q=PR.abc, tA=Math.max(21,Q.dA), tB=tA+Math.max(42,Q.dB), tC=tB+Math.max(42,Q.dC);   // 표시용 최소 간격(라벨 겹침 방지) path=[[0,lastP,''],[tA,Q.A,'A? '+fmt(Q.A)],[tB,Q.B,'B? '+fmt(Q.B)],[tC,Q.C,'C? '+fmt(Q.C)]]; if(Q.next) path.push([tC+Math.min(504,Math.max(63,Math.abs(cn.pts[0]-cn.pts[1]))),Q.next,Q.nextL+' '+fmt(Q.next)]); }
+        if(PR.abc){ var Q=PR.abc, tA=Math.max(21,Q.dA), tB=tA+Math.max(42,Q.dB), tC=tB+Math.max(42,Q.dC); path=[[0,lastP,''],[tA,Q.A,'A? '+fmt(Q.A)],[tB,Q.B,'B? '+fmt(Q.B)],[tC,Q.C,'C? '+fmt(Q.C)]]; if(Q.next) path.push([tC+Math.min(504,Math.max(63,Math.abs(cn.pts[0]-cn.pts[1]))),Q.next,Q.nextL+' '+fmt(Q.next)]); }
         if(path){ g.save(); g.setLineDash([6,4]); g.strokeStyle=up; g.lineWidth=2; g.beginPath(); g.moveTo(X(lastT),Y(lastP));
           path.forEach(function(q,ix){ if(ix===0) return; g.lineTo(X(fx(q[0])),Y(q[1])); }); g.stroke(); g.setLineDash([]); g.fillStyle=up; g.font='bold 13px system-ui'; g.textAlign='center';
           path.forEach(function(q){ if(q[2]) g.fillText(q[2],X(fx(q[0])),Y(q[1])-6); }); g.restore(); }
