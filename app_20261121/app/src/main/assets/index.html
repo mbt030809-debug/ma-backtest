@@ -46,7 +46,10 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card">
-  <div class="row" style="justify-content:flex-end">
+  <div class="row" style="justify-content:space-between">
+    <div class="seg" id="caseSeg">
+      <button data-c="incl" class="on">2000·2008 포함</button><button data-c="excl">제외</button>
+    </div>
     <div class="seg" id="spanSeg">
       <button data-y="3" class="on">3년</button><button data-y="10">10년</button><button data-y="99">전체</button>
     </div>
@@ -91,6 +94,7 @@ th{color:var(--mute);font-weight:500}
   · <b>바닥(최저점)</b>: 유사 낙폭 사건 방식이 시뮬레이션(변동성 부트스트랩·로그정규)과 같거나 약간 더 정확 (pinball 0.026 대 0.029~0.030, 75% 수준 적중 0.76~0.86)<br>
   · <b>고점 탈환 기간</b>: 유사 사건 방식이 시뮬레이션보다 정확 — 6개월 내 탈환 확률 Brier 0.18 대 0.24~0.26, 1년 0.09 대 0.13<br>
   · 2000·2008처럼 연속 폭락한 사건은 바닥을 크게 과소평가했음 (예: 2000년 4월 예측 90% 수준 -12%, 실제 -80%)<br>
+  · <b>제외 케이스</b>는 위기 구간이 빠진 쉬운 표본으로 평가돼 점수는 좋지만(최저점 pinball 0.010~0.013) 폭락이 오면 틀림 → 위험을 <b>낮게</b> 보여주므로 참고용으로만 사용<br>
   · 투자 조언 아님
 </div>
 
@@ -103,14 +107,20 @@ th{color:var(--mute);font-weight:500}
   var data={d:window.NDX_BUNDLE.d.slice(),c:window.NDX_BUNDLE.c.slice()};
   var cache=null; try{cache=JSON.parse(localStorage.getItem('ndx_cache_v1')||'null')}catch(e){}
   if(cache&&cache.d&&cache.d.length&&cache.d[cache.d.length-1]>data.d[data.d.length-1]) data=cache;
-  var mode='vol', spanY=3, R=null, geo=null, AN=null, geoMode=null;
+  var mode='vol', spanY=3, R=null, geo=null, AN=null, geoMode=null, excl=false, caseCache={};
 
   function pct(x,dg){return (x*100).toFixed(dg==null?1:dg)+'%'}
   function sg(x){return (x>=0?'+':'')+(x*100).toFixed(1)+'%'}
   function fmt(x){return Math.round(x).toLocaleString('en-US')}
   function tms(s){return Date.parse(s+'T00:00:00Z')}
 
-  function compute(){ R=window.NDXModel.forecast(data.c); AN=window.NDXModel.analogs(data.c); renderAll(); }
+  function compute(){ caseCache={}; applyCase(); }
+
+  function applyCase(){
+    var k=excl?'excl':'incl';
+    if(!caseCache[k]){ var o={excl:excl,dates:data.d}; caseCache[k]={R:window.NDXModel.forecast(data.c,o),AN:window.NDXModel.analogs(data.c,o)}; }
+    R=caseCache[k].R; AN=caseCache[k].AN; renderAll();
+  }
 
   function renderAll(){
     var n=data.c.length, last=data.c[n-1];
@@ -130,12 +140,12 @@ th{color:var(--mute);font-weight:500}
       html+='<tr><td>'+names[h]+'</td><td class="dn">'+sg(m.q[0])+'</td><td>'+pct(m.pLoss,0)+'</td><td>'+pct(m.pLtM10,0)+'</td><td>'+sg(m.q[2])+'</td><td>'+sg(m.q[4])+'</td></tr>';
     });
     $('tbl').innerHTML=html;
-    $('note').innerHTML='<b>변동성 보정</b>: 과거 전체 기록의 수익률 분포를 쓰되, 지금 시장의 출렁임('+pct(R.state.vol63,0)+')에 맞춰 위아래 폭을 조정(기대수익은 고정). 검증에서 기준선보다 구간 정확도가 높았음.';
+    $('note').innerHTML=(excl?'<b>[2000·2008 제외]</b> 닷컴(2000-03~2002-12)·금융위기(2007-10~2009-06)와 겹치는 표본을 뺀 케이스 — 폭락 위험이 <b>낮게</b> 나옴. ':'<b>[2000·2008 포함]</b> 예외 없이 전체 데이터. ')+'<b>변동성 보정</b>: 과거 전체 기록의 수익률 분포를 쓰되, 지금 시장의 출렁임('+pct(R.state.vol63,0)+')에 맞춰 위아래 폭을 조정(기대수익은 고정). 검증에서 기준선보다 구간 정확도가 높았음.';
   }
 
   function renderBottom(){
     var U=AN.until, HZ=AN.hz, nm='';
-    $('btTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건';
+    $('btTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건 · '+(excl?'2000·2008 제외':'2000·2008 포함');
     var h='<tr><th>확률(최저점이 위)</th><th>1개월</th><th>3개월</th><th>6개월</th><th>회복전</th></tr>', cell=function(l,pr){return '<td><span class="dn">'+sg(l)+'</span><br><span class="sub">'+fmt(pr)+'</span></td>'};
     [0.5,0.75,0.9].forEach(function(p){
       h+='<tr><td>'+pct(p,0)+'</td>'+[21,63,126].map(function(k){return cell(HZ[k].levels[p],HZ[k].prices[p])}).join('')+cell(U.levels[p],U.prices[p])+'</tr>';
@@ -145,12 +155,12 @@ th{color:var(--mute);font-weight:500}
       h+='<tr><td>'+(x*100)+'% 이하</td>'+[21,63,126].map(function(k){return '<td class="dn">'+pct(HZ[k].exceed[x],0)+'</td>'}).join('')+'<td class="dn">'+pct(U.exceed[x],0)+'</td></tr>';
     });
     $('bt').innerHTML=h;
-    $('btNote').innerHTML='초록 점선(그래프)은 회복 전까지의 바닥 가격대. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요. 2000·2008 폭락 사건도 예외 없이 모두 포함해 계산함 (90% 수준이 깊은 이유).';
+    $('btNote').innerHTML='초록 점선(그래프)은 회복 전까지의 바닥 가격대. 바닥은 지나고 나서야 확정되므로 <b>시점이 아니라 확률 범위</b>로만 보세요. '+(excl?'제외 케이스는 2000·2008 기간과 겹치는 사건을 뺐음.':'포함 케이스는 2000·2008 폭락 사건도 예외 없이 모두 반영함 (90% 수준이 깊은 이유).')+'';
   }
 
   function renderRecovery(){
     var U=AN.until, HS=[21,63,126,252], nm={21:'1개월',63:'3개월',126:'6개월',252:'1년'};
-    $('recTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건';
+    $('recTitle').textContent='현재 '+pct(AN.now)+' · 비슷한 낙폭이었던 '+AN.episodes+'개 사건 · '+(excl?'2000·2008 제외':'2000·2008 포함');
     var h='<tr><th>기간 내 탈환 확률</th>'+HS.map(function(k){return '<th>'+nm[k]+'</th>'}).join('')+'</tr>';
     h+='<tr><td>전고점 탈환</td>'+HS.map(function(k){return '<td>'+pct(U.rec[k],0)+'</td>'}).join('')+'</tr>';
     var mo=function(d){return d<504?(d/21).toFixed(1)+'개월':(d/252).toFixed(1)+'년'};
@@ -261,6 +271,7 @@ th{color:var(--mute);font-weight:500}
   function seg(id,key,fn){ $(id).addEventListener('click',function(e){var b=e.target.closest('button'); if(!b)return;
     Array.prototype.forEach.call($(id).children,function(x){x.classList.remove('on')}); b.classList.add('on'); fn(b.dataset[key]); }); }
   seg('spanSeg','y',function(v){spanY=+v;draw();});
+  seg('caseSeg','c',function(v){excl=(v==='excl');applyCase();});
   window.addEventListener('resize',function(){if(R)draw()});
 
   // ---------- 일일 데이터 갱신 ----------

@@ -13,6 +13,18 @@
   }
   function sortNum(a) { return Float64Array.from(a).sort(); }
 
+  // 케이스: opt.excl 이면 닷컴(2000-03~2002-12)·금융위기(2007-10~2009-06) 기간과 경로가 겹치는 표본은 사용하지 않음 (포함 케이스는 예외 없음)
+  var CRISES = [['2000-03-01', '2002-12-31'], ['2007-10-01', '2009-06-30']];
+  function mkOv(opt, n) {
+    if (!opt || !opt.excl || !opt.dates) return function () { return false; };
+    var cs = new Int32Array(n + 1), i, k, inx;
+    for (i = 0; i < n; i++) {
+      inx = 0; for (k = 0; k < CRISES.length; k++) if (opt.dates[i] >= CRISES[k][0] && opt.dates[i] <= CRISES[k][1]) inx = 1;
+      cs[i + 1] = cs[i] + inx;
+    }
+    return function (a, b) { return cs[Math.min(b, n - 1) + 1] - cs[a] > 0; };
+  }
+
   function features(c) {
     var n = c.length, lp = new Float64Array(n), i;
     for (i = 0; i < n; i++) lp[i] = Math.log(c[i]);
@@ -47,16 +59,16 @@
   }
 
   // 변동성 보정(드리프트 고정): y = 중앙값 + z * σ_now * sqrt(h/252), z = (y-중앙값)/(σ_t*sqrt(h/252))
-  function forecast(c) {
-    var n = c.length, F = features(c), lp = F.lp, last = n - 1;
+  function forecast(c, opt) {
+    var n = c.length, F = features(c), lp = F.lp, last = n - 1, ov = mkOv(opt, n);
     var state = [F.dd[last], F.z[last], F.r[last], F.v[last]];
     var out = { n: n, last: last, state: { dd: state[0], z200: state[1], r252: state[2], vol63: state[3] },
                 grid: GRID, vol: {}, keyStats: {}, samp: { vol: {} } };
     GRID.forEach(function (h) {
-      var yv = [], zs = [], sc = Math.sqrt(h / 252), t2;
-      for (t2 = START_V; t2 + h <= last; t2++) yv.push(lp[t2 + h] - lp[t2]);
+      var yv = [], zs = [], tv = [], sc = Math.sqrt(h / 252), t2;
+      for (t2 = START_V; t2 + h <= last; t2++) { if (ov(t2, t2 + h)) continue; yv.push(lp[t2 + h] - lp[t2]); tv.push(t2); }
       var med = quantile(sortNum(yv), 0.5);
-      for (var a = 0, t3 = START_V; a < yv.length; a++, t3++) zs.push((yv[a] - med) / (F.v[t3] * sc));
+      for (var a = 0; a < yv.length; a++) zs.push((yv[a] - med) / (F.v[tv[a]] * sc));
       var szs = sortNum(zs), yvs = zs.map(function (z) { return med + z * state[3] * sc; });
       out.vol[h] = QS.map(function (q) { return med + quantile(szs, q) * state[3] * sc; });
       out.samp.vol[h] = sortNum(yvs);   // 히트맵(확률 밀도)용 표본
@@ -68,7 +80,8 @@
   // 유사 낙폭 사건 방식 (검증 채택, 2000·2008 포함·예외/상한 없음):
   // 낙폭 = 최근 1년(252거래일) 고점 대비. 현재와 비슷한 낙폭(±5%p)이면서 하락 중(최근 20일 최저 낙폭 +3%p 이내)이었던 과거 시점을
   // 사건(연속 구간) 단위 동일 가중으로 모음 -> 고점 회복 전 최저점, 1/3/6개월 내 최저점, 고점 탈환 확률·기간
-  function analogs(c) {
+  function analogs(c, opt) {
+    var ov = mkOv(opt, c.length);
     var n = c.length, H = new Float64Array(n).fill(NaN), dd = new Float64Array(n).fill(NaN), i, s, u;
     for (i = 251; i < n; i++) { var m = -Infinity; for (u = i - 251; u <= i; u++) if (c[u] > m) m = c[u]; H[i] = m; dd[i] = c[i] / m - 1; }
     var now = dd[n - 1], lastP = c[n - 1], cache = {};
@@ -98,7 +111,7 @@
       var mn = Infinity; for (u = Math.max(252, s - 20); u <= s; u++) if (dd[u] < mn) mn = dd[u];
       if (dd[s] <= mn + 0.03) base.push(s);
     }
-    var known = base.filter(function (s) { return rec(s) >= 0; }), K = clusters(known, 63);
+    var known = base.filter(function (s) { return rec(s) >= 0 && !ov(s, rec(s)); }), K = clusters(known, 63);
     var Fv = K.idx.map(function (s) { return minOver(s, rec(s)); }), Dv = K.idx.map(function (s) { return rec(s) - s; });
     var until = { levels: {}, prices: {}, exceed: {}, rec: {}, dq: {} };
     [0.5, 0.75, 0.9].forEach(function (p) { var l = wq(Fv, K.w, 1 - p); until.levels[p] = l; until.prices[p] = lastP * (1 + l); });
@@ -107,7 +120,7 @@
     [0.25, 0.5, 0.75, 0.9].forEach(function (q) { until.dq[q] = wq(Dv, K.w, q); });
     var hz = {};
     [21, 63, 126].forEach(function (h) {
-      var C = clusters(base.filter(function (s) { return s + h <= n - 1; }), 63), v = C.idx.map(function (s) { return minOver(s, s + h); });
+      var C = clusters(base.filter(function (s) { return s + h <= n - 1 && !ov(s, s + h); }), 63), v = C.idx.map(function (s) { return minOver(s, s + h); });
       var o = { levels: {}, prices: {}, exceed: {}, events: C.ne };
       [0.5, 0.75, 0.9].forEach(function (p) { var l = wq(v, C.w, 1 - p); o.levels[p] = l; o.prices[p] = lastP * (1 + l); });
       [-0.05, -0.10, -0.20].forEach(function (x) { o.exceed[x] = shareLE(v, C.w, x); });
