@@ -84,6 +84,24 @@ th{color:var(--mute);font-weight:500}
 </div>
 
 <div class="card">
+  <div class="k" style="margin-bottom:6px">엘리어트 파동 (자동 카운트·예측)</div>
+  <div class="row" style="justify-content:space-between">
+    <div class="seg" id="eTheta"><button data-t="auto" class="on">자동</button><button data-t="0.18">큰</button><button data-t="0.12">중간</button><button data-t="0.08">작은</button></div>
+    <div class="seg" id="eSpan"><button data-y="5" class="on">5년</button><button data-y="10">10년</button><button data-y="99">전체</button></div>
+  </div>
+  <div id="eTip" class="sub" style="margin-top:6px"></div>
+  <canvas id="cvE"></canvas>
+  <div class="legend">
+    <span><span class="sw" style="background:#f5a623"></span>확정 꼭짓점 연결선</span>
+    <span>주황 점선: 현재 진행 구간</span>
+    <span><span class="sw" style="background:var(--dn)"></span>무효 가격</span>
+    <span><span class="sw" style="background:var(--up)"></span>목표·되돌림 구간</span>
+  </div>
+  <div id="eText" class="warn" style="margin-top:8px"></div>
+  <div id="eVal" class="warn" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
   <div class="k" style="margin-bottom:6px">현재 상태</div>
   <div class="cards" id="state"></div>
 </div>
@@ -100,6 +118,8 @@ th{color:var(--mute);font-weight:500}
 
 <script src="data.js"></script>
 <script src="model.js"></script>
+<script src="elliott_stats.js"></script>
+<script src="elliott_adapt.js"></script>
 <script>
 (function(){
   var $=function(id){return document.getElementById(id)};
@@ -107,14 +127,14 @@ th{color:var(--mute);font-weight:500}
   var data={d:window.NDX_BUNDLE.d.slice(),c:window.NDX_BUNDLE.c.slice()};
   var cache=null; try{cache=JSON.parse(localStorage.getItem('ndx_cache_v1')||'null')}catch(e){}
   if(cache&&cache.d&&cache.d.length&&cache.d[cache.d.length-1]>data.d[data.d.length-1]) data=cache;
-  var mode='vol', spanY=3, R=null, geo=null, AN=null, geoMode=null, excl=false, caseCache={};
+  var mode='vol', spanY=3, R=null, geo=null, AN=null, geoMode=null, excl=false, caseCache={}, eTheta='auto', eSpan=5, ECACHE={}, AD=null, adTok=0;
 
   function pct(x,dg){return (x*100).toFixed(dg==null?1:dg)+'%'}
   function sg(x){return (x>=0?'+':'')+(x*100).toFixed(1)+'%'}
   function fmt(x){return Math.round(x).toLocaleString('en-US')}
   function tms(s){return Date.parse(s+'T00:00:00Z')}
 
-  function compute(){ caseCache={}; applyCase(); }
+  function compute(){ caseCache={}; ECACHE={}; applyCase(); startAdaptive(); }
 
   function applyCase(){
     var k=excl?'excl':'incl';
@@ -130,7 +150,7 @@ th{color:var(--mute);font-weight:500}
     $('state').innerHTML=[['전고점 대비 낙폭',pct(s.dd),s.dd<-0.1?'dn':''],['200일선 이격',sg(s.z200),s.z200<0?'dn':'up'],
       ['최근 1년 수익률',sg(s.r252),s.r252<0?'dn':'up'],['변동성(63일, 연율)',pct(s.vol63)]]
       .map(function(a){return '<div><div class="k">'+a[0]+'</div><div class="v '+(a[2]||'')+'">'+a[1]+'</div></div>'}).join('');
-    renderTable(); renderBottom(); renderRecovery(); draw();
+    renderTable(); renderBottom(); renderRecovery(); draw(); renderElliott();
   }
 
   function renderTable(){
@@ -267,12 +287,120 @@ th{color:var(--mute);font-weight:500}
   }
   ['pointerdown','pointermove'].forEach(function(e){$('cv').addEventListener(e,tip)});
 
+  // ---------- 엘리어트 파동 ----------
+  // 적응형 '주관': 설정 36가지의 과거 신호 성적을 계산해 가장 좋았던 설정을 고름 (데이터가 갱신될 때마다 다시 실행, 기준선 계산은 캐시)
+  function startAdaptive(){
+    var cache={}; try{cache=JSON.parse(localStorage.getItem('ell_base_v1')||'{}')}catch(e){}
+    var st=window.NDXModel.adaptiveStart(data.c,cache), tok=++adTok; AD=null;
+    (function step(){
+      if(tok!==adTok) return;
+      var done=window.NDXModel.adaptiveRun(st,30);
+      if(!done){ if(eTheta==='auto') $('eText').textContent='과거 신호 성적을 계산하는 중… '+st.done+'/'+st.tasks.length; setTimeout(step,0); return; }
+      AD=window.NDXModel.adaptiveResult(st); try{localStorage.setItem('ell_base_v1',JSON.stringify(st.cache))}catch(e){}
+      renderElliott();
+    })();
+  }
+  function curCfg(){ if(eTheta==='auto') return (AD&&AD.best)?{th:AD.best.th,r3:AD.best.r3,r5:AD.best.r5}:null; return {th:+eTheta,r3:1.618,r5:0.618}; }
+  function getE(){ var cfg=curCfg(); if(!cfg) return null; var k=cfg.th+'|'+cfg.r3+'|'+cfg.r5; if(!ECACHE[k]) ECACHE[k]=window.NDXModel.elliott(data.c,cfg.th,{r3:cfg.r3,r5:cfg.r5}); return ECACHE[k]; }
+  function renderElliott(){
+    var E=getE(); if(!E){ if(eTheta!=='auto') $('eText').textContent=''; $('eVal').innerHTML=''; return; }
+    var cn=E.count, cfg=curCfg(), nm=(eTheta==='auto'?'자동 · ':'')+(cfg.th===0.18?'큰 파동':cfg.th===0.12?'중간 파동':cfg.th===0.08?'작은 파동':'파동')+'('+pct(cfg.th,0)+')', n=data.c.length, h='';
+    if(!cn){ h='<b>['+nm+'] 규칙에 맞는 파동 카운트가 없음</b><br>충격파 규칙(2파는 0을 넘지 않음, 4파는 1파와 겹치지 않음, 3파가 가장 짧지 않음)에 맞는 구조가 현재 시점에 없습니다. 다른 스케일을 눌러 보세요.'; }
+    else {
+      var J=cn.J, bull=cn.sgn===1, corr=bull?'조정':'반등', ty=bull?'상승':'하락', T=['0','①','②','③','④','⑤'];
+      var st={1:'1파 완료 → 2파('+corr+') 진행 중',2:'2파 완료 → 3파 진행 중',3:'3파 완료 → 4파('+corr+') 진행 중',4:'4파 완료 → 5파 진행 중',5:'5파 완료 → A-B-C '+corr+' 가능'}[J];
+      var pts=cn.pts.map(function(i,k){return T[k]+' '+data.d[i]+' '+fmt(data.c[i])}).join(' · ');
+      h='<b>['+nm+'] '+ty+' 충격파: '+st+'</b><br>'+pts+'<br>현재가 '+fmt(data.c[n-1]);
+      if(J===3) h+=' (3파의 <b>'+pct(cn.retr,0)+'</b> 되돌림) · 4파 되돌림 구간: '+cn.levels.map(function(l){return l[0]+' → <b>'+fmt(l[1])+'</b>'}).join(', ')+'<br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈 시 1파와 겹쳐 이 카운트 파기</span><br>가정: 4파가 0.382 지점('+fmt(cn.p4)+')에서 끝나면 5파 목표(0~3파의 0.618배) <b>'+fmt(cn.w5)+'</b>';
+      if(J===2) h+='<br>3파 목표(1파의 1.618배): <b>'+fmt(cn.target)+'</b><br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈</span>';
+      if(J===4) h+='<br>5파 목표(0~3파의 0.618배): <b>'+fmt(cn.target)+'</b><br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈</span>';
+      if(J===1) h+='<br>2파 되돌림 구간: '+cn.levels.map(function(l){return l[0]+' → <b>'+fmt(l[1])+'</b>'}).join(', ')+'<br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈</span>';
+      if(J===5) h+='<br>조정 되돌림 구간: '+cn.levels.map(function(l){return l[0]+' → <b>'+fmt(l[1])+'</b>'}).join(', ');
+      var validated=(J===2||J===4);
+      h+='<br><span class="sub">'+(validated?'3파·5파 시작 신호는 아래 검증 대상입니다.':'이 구간(1·3·5파 진행 중이 아닌 조정 구간)은 검증 대상이 아닌 피보나치 참고 구간입니다.')+'</span>';
+    }
+    if(eTheta==='auto'&&AD&&AD.best){ var b=AD.best; h='<span class="sub">자동 선택(과거 성적 기준·데이터가 갱신될 때마다 다시 선택): θ '+pct(b.th,0)+' · 3파 목표 '+b.r3+'배 · 5파 목표 '+b.r5+'배 — 결과가 확정된 과거 신호 '+b.n+'건, 기준선 대비 '+sg(b.lift)+'p<br>차순위: '+AD.top.slice(1,3).map(function(x){return 'θ '+pct(x.th,0)+'/'+x.r3+'/'+x.r5+' ('+sg(x.lift)+'p)'}).join(', ')+'</span><br>'+h; }
+    $('eText').innerHTML=h;
+    var S=(eTheta==='auto')?null:(window.ELLIOTT_STATS||{})[String(eTheta)], v='';
+    if(S){
+      v='<b>자동 신호 검증</b> (3파·5파 시작 확정 시점마다 예측, 이후 252거래일 방향·504거래일 목표 도달)<br>'
+       +'· 전체 '+S.n+'건: 방향 적중 <b>'+pct(S.dir,0)+'</b> (같은 방향 기준선 '+pct(S.bdir,0)+'), 목표 먼저 도달 <b>'+pct(S.hit,0)+'</b> (기준선 '+pct(S.bhit,0)+')<br>'
+       +(S.hn?'· 2011년 이후 '+S.hn+'건: 방향 <b>'+pct(S.hdir,0)+'</b> (기준선 '+pct(S.hbdir,0)+'), 목표 도달 <b>'+pct(S.hhit,0)+'</b> (기준선 '+pct(S.hbhit,0)+')<br>':'')
+       +'· 조정(A-B-C) 예측 '+S.an+'건: 적중 '+pct(S.adir,0)+' 대 기준선 '+pct(S.abdir,0)+' → <b>기준선보다 나빠 예측에서 제외</b><br>'
+       +'<span class="sub">방향 적중이 기준선보다 약간 높지만 표본이 적고 상승 추세(상승 드리프트)의 영향이 섞여 있어 확정 근거는 아님. 목표가 도달은 기준선과 큰 차이 없음. 파동 카운트는 자동 규칙의 한 가지 해석일 뿐입니다.</span>';
+    }
+    if(eTheta==='auto'&&window.ELLIOTT_ADAPT){ var A=window.ELLIOTT_ADAPT;
+      v='<b>자동 선택 절차 검증</b> (매 시점 그때까지 확정된 신호 성적으로 설정을 골라 1995년부터 과거에 적용, 미래 정보 없음)<br>'
+       +'· 모든 설정 평균 lift: 1995~2010 <b>'+sg(A.all.l1)+'p</b> → 2011~ <b>'+sg(A.all.l2)+'p</b> (n='+A.all.n2+')<br>'
+       +'· 과거 성적 상위 3 설정: 1995~2010 <b>'+sg(A.top3.l1)+'p</b> → 2011~ <b>'+sg(A.top3.l2)+'p</b> (n='+A.top3.n2+') / 1위 설정: <b>'+sg(A.top1.l1)+'p</b> → <b>'+sg(A.top1.l2)+'p</b> (n='+A.top1.n2+')<br>'
+       +'· 설정의 과거 lift와 다음 신호 lift의 상관: <b>'+A.corr.toFixed(2)+'</b> (0 근처 = 과거에 잘 맞은 설정이 미래에도 맞는다는 증거 없음)<br>'
+       +'<span class="sub">lift = 목표 먼저 도달률 − 같은 거리 무작위 기준선. 과거에 선택된 설정의 우위는 2011년 이후 사라졌으므로, 자동 선택도 확정 근거가 아닌 참고용입니다.</span>'; }
+    $('eVal').innerHTML=v; drawElliott();
+  }
+
+  function drawElliott(){
+    var cv=$('cvE'); if(!cv||!R) return; var E=getE(); if(!E) return; var cn=E.count, dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+    cv.width=W*dpr; cv.height=H*dpr; var g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+    var css=getComputedStyle(document.documentElement), ink=css.getPropertyValue('--mute').trim(), line=css.getPropertyValue('--line').trim(),
+        up=css.getPropertyValue('--up').trim(), dn=css.getPropertyValue('--dn').trim(), body=getComputedStyle(document.body).color, OR='#f5a623';
+    var n=data.c.length, lastT=tms(data.d[n-1]), lastP=data.c[n-1];
+    var t0=eSpan>=99?tms(data.d[0]):lastT-eSpan*365*DAY, t1=lastT+2.6*365*DAY, i0=0, i;
+    while(i0<n-1&&tms(data.d[i0])<t0) i0++;
+    var fx=function(days){return lastT+days*HDAYS*DAY};
+    var lo=Infinity, hi=-Infinity; for(i=i0;i<n;i++){lo=Math.min(lo,data.c[i]);hi=Math.max(hi,data.c[i]);}
+    var ex=[]; if(cn){ if(cn.invalid) ex.push(cn.invalid); if(cn.target) ex.push(cn.target); if(cn.w5) ex.push(cn.w5); if(cn.levels) cn.levels.forEach(function(l){ex.push(l[1])}); }
+    ex.forEach(function(p){lo=Math.min(lo,p);hi=Math.max(hi,p)});
+    lo=Math.log(lo*0.95); hi=Math.log(hi*1.05);
+    var L=44,Rr=8,T=10,B=22, pw=W-L-Rr, ph=H-T-B;
+    var X=function(t){return L+(t-t0)/(t1-t0)*pw}, Y=function(p){return T+(hi-Math.log(p))/(hi-lo)*ph};
+    g.font='11px system-ui'; g.fillStyle=ink; g.strokeStyle=line; g.lineWidth=1;
+    var steps=[500,1000,2000,3000,5000,10000,20000,40000,80000,160000], st=steps[0];
+    for(i=0;i<steps.length;i++){ st=steps[i]; if((Math.exp(hi)-Math.exp(lo))/st<=7) break; }
+    for(var p=Math.ceil(Math.exp(lo)/st)*st;p<Math.exp(hi);p+=st){var y=Y(p);g.beginPath();g.moveTo(L,y);g.lineTo(W-Rr,y);g.stroke();g.fillText(p>=1000?(p/1000)+'k':p,4,y+4);}
+    var y0=new Date(t0).getUTCFullYear()+1, ys=Math.max(1,Math.round((new Date(t1).getUTCFullYear()-y0)/6));
+    for(var yr=y0;yr<=new Date(t1).getUTCFullYear();yr+=ys){var x=X(Date.UTC(yr,0,1));g.beginPath();g.moveTo(x,T);g.lineTo(x,T+ph);g.stroke();g.fillText(yr,x-12,H-6);}
+    // 가격선
+    g.strokeStyle=ink; g.lineWidth=1.2; g.beginPath(); var step=Math.max(1,Math.floor((n-i0)/(pw*1.5)));
+    for(i=i0;i<n;i+=step){var xx=X(tms(data.d[i]));i===i0?g.moveTo(xx,Y(data.c[i])):g.lineTo(xx,Y(data.c[i]));} g.lineTo(X(lastT),Y(lastP)); g.stroke();
+    // 확정 꼭짓점 연결선 + 진행 구간(점선)
+    var piv=E.piv, k0=0; while(k0<piv.length&&piv[k0].i<i0) k0++; k0=Math.max(0,k0-1);
+    g.strokeStyle=OR; g.lineWidth=1.8; g.beginPath();
+    for(var k=k0;k<piv.length;k++){ var px_=X(tms(data.d[piv[k].i])), py_=Y(data.c[piv[k].i]); k===k0?g.moveTo(px_,py_):g.lineTo(px_,py_); } g.stroke();
+    if(piv.length){ var lp_=piv[piv.length-1]; g.setLineDash([4,3]); g.beginPath(); g.moveTo(X(tms(data.d[lp_.i])),Y(data.c[lp_.i])); g.lineTo(X(lastT),Y(lastP)); g.stroke(); g.setLineDash([]); }
+    for(k=k0;k<piv.length;k++){ g.fillStyle=OR; g.beginPath(); g.arc(X(tms(data.d[piv[k].i])),Y(data.c[piv[k].i]),2.5,0,6.283); g.fill(); }
+    // 카운트 라벨
+    var LB=['0','①','②','③','④','⑤'];
+    if(cn){
+      g.font='bold 14px system-ui'; g.textAlign='center';
+      cn.pts.forEach(function(ix,j){ var pv=piv[cn.i0+j], x=X(tms(data.d[ix])), y=Y(data.c[ix]); if(x<L) return;
+        g.fillStyle=body; g.fillText(LB[j], x, pv.type==='H'?y-8:y+17); });
+      g.textAlign='left'; g.font='11px system-ui';
+      var xr=W-Rr, lab=function(txt,price,col,dash){ var y=Y(price); if(y<T||y>T+ph) return; g.save(); g.setLineDash(dash||[5,4]); g.strokeStyle=col; g.fillStyle=col; g.lineWidth=1.2;
+        g.beginPath(); g.moveTo(X(lastT),y); g.lineTo(xr,y); g.stroke(); g.setLineDash([]); g.textAlign='right'; g.fillText(txt+' '+fmt(price),xr-2,y-3); g.restore(); };
+      if(cn.invalid) lab('무효',cn.invalid,dn);
+      if(cn.levels) cn.levels.forEach(function(l){lab(String(l[0]),l[1],up,[2,3])});
+      if(cn.target) lab('목표',cn.target,up);
+      // 예상 경로(가정)
+      var path=null, dur=function(a,b){return Math.min(504,Math.max(63,Math.abs(a-b)))};
+      if(cn.J===3) path=[[0,lastP,'④?'],[63,cn.p4,''],[63+dur(cn.pts[0],cn.pts[1]),cn.w5,'⑤?']];
+      if(cn.J===2) path=[[0,lastP,''],[dur(cn.pts[0],cn.pts[1]),cn.target,'③?']];
+      if(cn.J===4) path=[[0,lastP,''],[dur(cn.pts[2],cn.pts[3]),cn.target,'⑤?']];
+      if(path){ g.save(); g.setLineDash([6,4]); g.strokeStyle=up; g.lineWidth=2; g.beginPath(); g.moveTo(X(lastT),Y(lastP));
+        path.forEach(function(q,ix){ if(ix===0) return; g.lineTo(X(fx(q[0])),Y(q[1])); }); g.stroke(); g.setLineDash([]); g.fillStyle=up; g.font='bold 13px system-ui'; g.textAlign='center';
+        path.forEach(function(q,ix){ if(q[2]) g.fillText(q[2],X(fx(q[0])),Y(q[1])-6); }); g.restore(); }
+    }
+    g.textAlign='left';
+    $('eTip').textContent=(cn?'숫자: 자동 카운트 파동 번호 · 녹색 점선: 가정 경로(참고)':'규칙에 맞는 카운트 없음 · 주황선은 확정된 꼭짓점 연결선');
+  }
+
   // ---------- UI ----------
   function seg(id,key,fn){ $(id).addEventListener('click',function(e){var b=e.target.closest('button'); if(!b)return;
     Array.prototype.forEach.call($(id).children,function(x){x.classList.remove('on')}); b.classList.add('on'); fn(b.dataset[key]); }); }
   seg('spanSeg','y',function(v){spanY=+v;draw();});
   seg('caseSeg','c',function(v){excl=(v==='excl');applyCase();});
-  window.addEventListener('resize',function(){if(R)draw()});
+  seg('eTheta','t',function(v){eTheta=(v==='auto')?'auto':+v;renderElliott();});
+  seg('eSpan','y',function(v){eSpan=+v;drawElliott();});
+  window.addEventListener('resize',function(){if(R){draw();drawElliott();}});
 
   // ---------- 일일 데이터 갱신 ----------
   var cbs={}, cid=0;
