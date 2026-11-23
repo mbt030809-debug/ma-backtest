@@ -6,8 +6,8 @@ android {
         applicationId 'com.ndx.forecast'
         minSdk 24
         targetSdk 34
-        versionCode 12
-        versionName '2.1-20261123'
+        versionCode 13
+        versionName '2.2-20261123'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }

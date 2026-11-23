@@ -216,46 +216,93 @@
     }
     var sg0 = cn.sgn, v0 = []; for (var q2 = cn.i0; q2 <= cn.i0 + J; q2++) v0.push(sg0 * piv[q2].v);
     var g0 = geom(v0), fcur = d * sg0 * lp[n - 1], pNow = (fcur - g0.fJ) / g0.rng;
-    var acc = LV.map(function () { return [0, 0]; }), accC = [0, 0], accE = [0, 0], N = 0;
-    [1, -1].forEach(function (sg) {
-      var want0 = sg === 1 ? 'L' : 'H';
-      for (var k = J; k < m; k++) {
-        var i0 = k - J; if (piv[i0].type !== want0) continue;
-        var v = [], q; for (q = i0; q <= k; q++) v.push(sg * piv[q].v);
-        var ok = true; for (var j = 1; j <= J; j++) if (!rulesOk(j, v)) { ok = false; break; }
-        if (!ok) continue;
-        var t0 = piv[k].conf, g = geom(v), us = -1, u;
-        if (t0 + H5 > n - 1) continue;
-        // 시작 시점 u*: 이 사례의 진행도가 현재 진행도에 처음 도달한 때 (그 전에 실패 경계를 이탈한 사례는 현재 상황과 다르므로 제외)
+    function patterns(signs, need) {   // 해당 단계(J)의 과거 패턴들: [{sg, k, v}] (need: 뒤에 필요한 꼭짓점 수)
+      var out = [];
+      signs.forEach(function (sg) {
+        var want0 = sg === 1 ? 'L' : 'H';
+        for (var k = J; k + need < m; k++) {
+          var i0 = k - J; if (piv[i0].type !== want0) continue;
+          var v = [], q; for (q = i0; q <= k; q++) v.push(sg * piv[q].v);
+          var ok = true; for (var j = 1; j <= J; j++) if (!rulesOk(j, v)) { ok = false; break; }
+          if (ok) out.push({ sg: sg, k: k, v: v });
+        }
+      });
+      return out;
+    }
+    function collect(signs) {
+      var acc = LV.map(function () { return [0, 0]; }), accC = [0, 0], accE = [0, 0], N = 0;
+      patterns(signs, 0).forEach(function (pt) {
+        var sg = pt.sg, k = pt.k, v = pt.v, t0 = piv[k].conf, g = geom(v), us = -1, u;
+        if (t0 + H5 > n - 1) return;
         var dead = false;
-        for (u = 0; t0 + u + H5 <= n - 1 && u <= H5; u++) {
+        for (u = 0; t0 + u + H5 <= n - 1 && u <= H5; u++) {   // 이 사례의 진행도가 현재 진행도에 처음 도달한 시점 (그 전에 실패 경계를 이탈한 사례는 제외)
           var f = d * sg * lp[t0 + u];
           if (f <= g.fail) { dead = true; break; }
           if ((f - g.fJ) / g.rng >= pNow) { us = u; break; }
         }
-        if (dead || us < 0 || t0 + us + H5 > n - 1) continue;
+        if (dead || us < 0 || t0 + us + H5 > n - 1) return;
         var fp = []; for (u = 0; u <= H5; u++) fp.push(d * sg * lp[t0 + us + u]);
         var fails = 1e9; for (u = 0; u <= H5; u++) if (fp[u] <= g.fail) { fails = u; break; }
         var firstHit = function (tgt) { for (var u2 = 0; u2 <= H5; u2++) if (fp[u2] >= tgt) return u2; return 1e9; };
         var firstLE = function (tgt) { for (var u3 = 0; u3 <= H5; u3++) if (fp[u3] <= tgt) return u3; return 1e9; };
         N++;
         LV.forEach(function (r, ix) { if (r > pNow) { acc[ix][1]++; if (firstHit(g.tf[ix]) < fails) acc[ix][0]++; } });
-        if (g.cnt !== null && g.cnt - 0 > fcur - 0) { accC[1]++; if (firstHit(g.cnt) < fails) accC[0]++; }
-        accE[1]++; if (firstLE(g.ext) < 1e9) accE[0]++;   // 현재 진행 구간의 시작 꼭짓점(P_J)을 되돌려 이탈(꼭지/바닥이 아니었음)
-      }
-    });
+        if (g.cnt !== null && g.cnt > fcur) { accC[1]++; if (firstHit(g.cnt) < fails) accC[0]++; }
+        accE[1]++; if (firstLE(g.ext) < 1e9) accE[0]++;
+      });
+      return { acc: acc, accC: accC, accE: accE, N: N };
+    }
+    var R1 = collect([sg0]), mixed = false;
+    if (R1.N < 8) { R1 = collect([1, -1]); mixed = true; }   // 같은 방향 사례가 너무 적으면 상승·하락 사례를 함께 사용 (화면에 표시)
+    var acc = R1.acc, accC = R1.accC, accE = R1.accE, N = R1.N;
     var toP = function (f) { return Math.exp(sg0 * d * f); };
     var pri = 1;
     if (J === 2 && cfg && cfg.r3) { var a2 = LV.indexOf(cfg.r3); if (a2 >= 0) pri = a2; }
     if (J === 4 && cfg && cfg.r5) { var a4 = LV.indexOf(cfg.r5); if (a4 >= 0) pri = a4; }
     if (LV[pri] <= pNow) { var nx = LV.findIndex(function (r) { return r > pNow; }); pri = nx >= 0 ? nx : pri; }   // 이미 지난 목표는 예측선 대상에서 제외
     var levels = g0.tf.map(function (tf, ix) { return { r: LV[ix], price: toP(tf), passed: LV[ix] <= pNow, hit: LV[ix] <= pNow ? 1 : (acc[ix][1] ? acc[ix][0] / acc[ix][1] : null), nn: acc[ix][1] }; });
-    var out = { J: J, d: d, n: N, pNow: pNow, levels: levels, primary: pri, cnt: null, ext: { price: toP(g0.ext), hit: accE[1] ? accE[0] / accE[1] : null, nn: accE[1] }, base: null };
+    var out = { J: J, d: d, n: N, mixed: mixed, pNow: pNow, levels: levels, primary: pri, cnt: null, ext: { price: toP(g0.ext), hit: accE[1] ? accE[0] / accE[1] : null, nn: accE[1] }, base: null };
     if (g0.cnt !== null) out.cnt = { price: toP(g0.cnt), hit: g0.cnt <= fcur ? 1 : (accC[1] ? accC[0] / accC[1] : null), passed: fcur >= g0.cnt, nn: accC[1] };
+    // ---- A-B-C 시나리오(조정 단계 1·3·5): 과거 같은 스케일의 조정이 A-B-C(다음 세 꼭짓점)로 끝난 사례의 '비율'을 현재 구간에 적용 ----
+    if (J === 1 || J === 3 || J === 5) {
+      var getEvs = function (signs) {
+        var evs = [];
+        patterns(signs, 3).forEach(function (pt) {
+          var sg = pt.sg, k = pt.k, v = pt.v, av = sg * piv[k + 1].v, bv = sg * piv[k + 2].v, cv = sg * piv[k + 3].v, alen = v[J] - av;
+          if (!(alen > 0 && bv > av && cv < bv)) return;
+          var rA = alen / rangeOf(v);
+          if (rA < pNow) return;   // 현재 진행도보다 얕게 끝난 사례는 '지금 진행 중' 상황과 맞지 않아 제외 (지금이 바닥이라고 가정하지 않음)
+          evs.push({ rA: rA, rB: (bv - av) / alen, rC: (bv - cv) / alen, dA: piv[k + 1].i - piv[k].i, dB: piv[k + 2].i - piv[k + 1].i, dC: piv[k + 3].i - piv[k + 2].i });
+        });
+        return evs;
+      };
+      var evs = getEvs([sg0]), mixedA = false;
+      if (evs.length < 5) { var e2 = getEvs([1, -1]); if (e2.length > evs.length) { evs = e2; mixedA = true; } }
+      if (evs.length >= 3) {
+        var qv = function (arr, q) { var a = arr.slice().sort(function (x, y) { return x - y; }); return a[Math.min(a.length - 1, Math.floor(q * (a.length - 1) + 0.5))]; };
+        var col = function (k) { return evs.map(function (e) { return e[k]; }); };
+        var pr = function (x) { return Math.exp(sg0 * x); }, vJ = v0[J], rng0 = g0.rng, lastPr = c[n - 1];
+        var rA = [qv(col('rA'), 0.25), qv(col('rA'), 0.5), qv(col('rA'), 0.75)], rB = [qv(col('rB'), 0.25), qv(col('rB'), 0.5), qv(col('rB'), 0.75)], rC = [qv(col('rC'), 0.25), qv(col('rC'), 0.5), qv(col('rC'), 0.75)];
+        var Av = vJ - rA[1] * rng0, alen0 = rA[1] * rng0, Bv = Av + rB[1] * alen0, Cv = Bv - rC[1] * alen0;   // 비율 중앙값으로 만든 일관된 경로
+        var pA3 = 0, pB50 = 0, pCbA = 0, pCgA = 0, down = sg0 === 1;
+        evs.forEach(function (e) {
+          var ap = pr(vJ - e.rA * rng0);
+          if (down ? ap <= lastPr * 0.97 : ap >= lastPr * 1.03) pA3++;
+          if (e.rB >= 0.5) pB50++; if (e.rC > e.rB) pCbA++; if (e.rC >= 1) pCgA++;
+        });
+        var elapsed = n - 1 - piv[cn.i0 + J].i, nxtV = null;
+        if (J === 3) nxtV = Cv + ((cfg && cfg.r5) || 0.618) * (v0[3] - v0[0]);
+        if (J === 1) nxtV = Cv + ((cfg && cfg.r3) || 1.618) * (v0[1] - v0[0]);
+        out.abc = { n: evs.length, mixed: mixedA, A: pr(Av), B: pr(Bv), C: pr(Cv), Arng: [pr(vJ - rA[2] * rng0), pr(vJ - rA[0] * rng0)], rB: rB, rC: rC,
+                    pA3: pA3 / evs.length, pB50: pB50 / evs.length, pCbA: pCbA / evs.length, pCgA: pCgA / evs.length,
+                    dA: Math.max(10, qv(col('dA'), 0.5) - elapsed), dB: qv(col('dB'), 0.5), dC: qv(col('dC'), 0.5),
+                    next: nxtV === null ? null : pr(nxtV), nextL: J === 3 ? '⑤?' : (J === 1 ? '③?' : null) };
+      }
+    }
     var R3x = (cfg && cfg.r3) || 1.618, R5x = (cfg && cfg.r5) || 0.618;
     if (J === 1) { out.nextT = Math.exp(sg0 * (levelV(v0, LV[pri]) + R3x * (v0[1] - v0[0]))); out.nextL = '③?'; }
     if (J === 3) { out.nextT = Math.exp(sg0 * (levelV(v0, LV[pri]) + R5x * (v0[3] - v0[0]))); out.nextL = '⑤?'; }
-        var dT = g0.tf[pri] - fcur, dI = fcur - g0.fail;
+    var dT = g0.tf[pri] - fcur, dI = fcur - g0.fail;
     if (dT > 0 && dI > 0) out.base = baseHit(lp, n - 1, dT, dI, d * sg0);
     return out;
   }
