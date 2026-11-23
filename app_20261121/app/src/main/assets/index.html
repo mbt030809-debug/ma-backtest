@@ -302,22 +302,26 @@ th{color:var(--mute);font-weight:500}
   }
   function curCfg(){ if(eTheta==='auto') return (AD&&AD.best)?{th:AD.best.th,r3:AD.best.r3,r5:AD.best.r5}:null; return {th:+eTheta,r3:1.618,r5:0.618}; }
   function getE(){ var cfg=curCfg(); if(!cfg) return null; var k=cfg.th+'|'+cfg.r3+'|'+cfg.r5; if(!ECACHE[k]) ECACHE[k]=window.NDXModel.elliott(data.c,cfg.th,{r3:cfg.r3,r5:cfg.r5}); return ECACHE[k]; }
+  function getPR(){ var cfg=curCfg(), E=getE(); if(!cfg||!E||!E.count) return null; var k='pr|'+cfg.th+'|'+cfg.r3+'|'+cfg.r5; if(!ECACHE[k]) ECACHE[k]=window.NDXModel.elliottProb(data.c,E,cfg); return ECACHE[k]; }
   function renderElliott(){
     var E=getE(); if(!E){ if(eTheta!=='auto') $('eText').textContent=''; $('eVal').innerHTML=''; return; }
     var cn=E.count, cfg=curCfg(), nm=(eTheta==='auto'?'자동 · ':'')+(cfg.th===0.18?'큰 파동':cfg.th===0.12?'중간 파동':cfg.th===0.08?'작은 파동':'파동')+'('+pct(cfg.th,0)+')', n=data.c.length, h='';
-    if(!cn){ h='<b>['+nm+'] 규칙에 맞는 파동 카운트가 없음</b><br>충격파 규칙(2파는 0을 넘지 않음, 4파는 1파와 겹치지 않음, 3파가 가장 짧지 않음)에 맞는 구조가 현재 시점에 없습니다. 다른 스케일을 눌러 보세요.'; }
+    if(!cn){ h='<b>['+nm+'] 규칙에 맞는 파동 카운트가 없음</b><br>충격파 규칙(2파는 0을 넘지 않음, 4파는 1파와 겹치지 않음, 3파가 가장 짧지 않음)에 맞는 구조가 최근 꼭짓점에 없습니다. 다른 스케일을 눌러 보세요.'; }
     else {
-      var J=cn.J, bull=cn.sgn===1, corr=bull?'조정':'반등', ty=bull?'상승':'하락', T=['0','①','②','③','④','⑤'];
-      var st={1:'1파 완료 → 2파('+corr+') 진행 중',2:'2파 완료 → 3파 진행 중',3:'3파 완료 → 4파('+corr+') 진행 중',4:'4파 완료 → 5파 진행 중',5:'5파 완료 → A-B-C '+corr+' 가능'}[J];
+      var PR=getPR(), J=cn.J, bull=cn.sgn===1, corr=bull?'조정':'반등', ty=bull?'상승':'하락', T=['0','①','②','③','④','⑤'];
+      var st={1:'① 꼭짓점 확정 → ②('+corr+') 진행 중',2:'② 꼭짓점 확정 → ③ 진행 중',3:'③ 꼭짓점 확정 → ④('+corr+') 진행 중',4:'④ 꼭짓점 확정 → ⑤ 진행 중',5:'⑤ 꼭짓점 확정 → A-B-C('+corr+') 진행 중'}[J];
       var pts=cn.pts.map(function(i,k){return T[k]+' '+data.d[i]+' '+fmt(data.c[i])}).join(' · ');
       h='<b>['+nm+'] '+ty+' 충격파: '+st+'</b><br>'+pts+'<br>현재가 '+fmt(data.c[n-1]);
-      if(J===3) h+=' (3파의 <b>'+pct(cn.retr,0)+'</b> 되돌림) · 4파 되돌림 구간: '+cn.levels.map(function(l){return l[0]+' → <b>'+fmt(l[1])+'</b>'}).join(', ')+'<br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈 시 1파와 겹쳐 이 카운트 파기</span><br>가정: 4파가 0.382 지점('+fmt(cn.p4)+')에서 끝나면 5파 목표(0~3파의 0.618배) <b>'+fmt(cn.w5)+'</b>';
-      if(J===2) h+='<br>3파 목표(1파의 1.618배): <b>'+fmt(cn.target)+'</b><br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈</span>';
-      if(J===4) h+='<br>5파 목표(0~3파의 0.618배): <b>'+fmt(cn.target)+'</b><br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈</span>';
-      if(J===1) h+='<br>2파 되돌림 구간: '+cn.levels.map(function(l){return l[0]+' → <b>'+fmt(l[1])+'</b>'}).join(', ')+'<br><span class="dn">무효: '+fmt(cn.invalid)+' 이탈</span>';
-      if(J===5) h+='<br>조정 되돌림 구간: '+cn.levels.map(function(l){return l[0]+' → <b>'+fmt(l[1])+'</b>'}).join(', ');
-      var validated=(J===2||J===4);
-      h+='<br><span class="sub">'+(validated?'3파·5파 시작 신호는 아래 검증 대상입니다.':'이 구간(1·3·5파 진행 중이 아닌 조정 구간)은 검증 대상이 아닌 피보나치 참고 구간입니다.')+'</span>';
+      if(PR){
+        var up=(J===2||J===4), lbl={1:'②',2:'③',3:'④',4:'⑤',5:'조정'}[J];
+        h+=' · 현재 진행도 <b>'+pct(PR.pNow,0)+'</b> <span class="sub">('+(up?'이전 파동 대비 상승폭':'이전 파동 대비 되돌림')+')</span>';
+        h+='<table style="margin-top:6px"><tr><th>목표('+(up?'배수':'되돌림')+')</th><th>가격</th><th>도달 확률</th></tr>';
+        PR.levels.forEach(function(l,ix){ h+='<tr'+(ix===PR.primary?' style="font-weight:700"':'')+'><td>'+l.r+(ix===PR.primary?' ◀예측선':'')+'</td><td>'+fmt(l.price)+'</td><td>'+(l.passed?'이미 도달':(l.hit==null?'표본 없음':pct(l.hit,0)+' <span class="sub">('+l.nn+'건)</span>'))+'</td></tr>'; });
+        if(PR.cnt) h+='<tr><td class="dn">카운트 무효</td><td>'+fmt(PR.cnt.price)+'</td><td>'+(PR.cnt.passed?'이미 이탈':(PR.cnt.hit==null?'표본 없음':pct(PR.cnt.hit,0)+' <span class="sub">('+PR.cnt.nn+'건)</span>'))+'</td></tr>';
+        h+='<tr><td>'+(up?'시작 저점 재이탈(바닥 아님)':(bull?'꼭짓점 상향 돌파(상승 연장)':'저점 하향 이탈(하락 연장)'))+'</td><td>'+fmt(PR.ext.price)+'</td><td>'+(PR.ext.hit==null?'표본 없음':pct(PR.ext.hit,0)+' <span class="sub">('+PR.ext.nn+'건)</span>')+'</td></tr></table>';
+        h+='<span class="sub">확률 = 같은 스케일·같은 파동 단계에서, 과거에 진행도가 지금과 같아진 뒤 504거래일 안에 해당 가격에 도달한 비율(그 전에 반대 경계를 먼저 이탈하면 실패). 표본 '+PR.n+'건'+(PR.base!=null?' · 같은 거리 무작위 기준선(예측선 목표) '+pct(PR.base,0):'')+'.</span>';
+      }
+      h+='<br><span class="sub">현재 가격이 꼭지나 바닥이라고 <b>가정하지 않음</b>: 주황 점선(현재 진행 구간)의 극점은 아직 확정이 아니며, 위 표는 이미 진행된 상태에서 더 가거나 되돌릴 확률을 과거 사례로 센 것입니다. 녹색 점선은 예측선 목표를 지나는 시나리오입니다.</span>';
     }
     if(eTheta==='auto'&&AD&&AD.best){ var b=AD.best; h='<span class="sub">자동 선택(과거 성적 기준·데이터가 갱신될 때마다 다시 선택): θ '+pct(b.th,0)+' · 3파 목표 '+b.r3+'배 · 5파 목표 '+b.r5+'배 — 결과가 확정된 과거 신호 '+b.n+'건, 기준선 대비 '+sg(b.lift)+'p<br>차순위: '+AD.top.slice(1,3).map(function(x){return 'θ '+pct(x.th,0)+'/'+x.r3+'/'+x.r5+' ('+sg(x.lift)+'p)'}).join(', ')+'</span><br>'+h; }
     $('eText').innerHTML=h;
@@ -326,7 +330,7 @@ th{color:var(--mute);font-weight:500}
       v='<b>자동 신호 검증</b> (3파·5파 시작 확정 시점마다 예측, 이후 252거래일 방향·504거래일 목표 도달)<br>'
        +'· 전체 '+S.n+'건: 방향 적중 <b>'+pct(S.dir,0)+'</b> (같은 방향 기준선 '+pct(S.bdir,0)+'), 목표 먼저 도달 <b>'+pct(S.hit,0)+'</b> (기준선 '+pct(S.bhit,0)+')<br>'
        +(S.hn?'· 2011년 이후 '+S.hn+'건: 방향 <b>'+pct(S.hdir,0)+'</b> (기준선 '+pct(S.hbdir,0)+'), 목표 도달 <b>'+pct(S.hhit,0)+'</b> (기준선 '+pct(S.hbhit,0)+')<br>':'')
-       +'· 조정(A-B-C) 예측 '+S.an+'건: 적중 '+pct(S.adir,0)+' 대 기준선 '+pct(S.abdir,0)+' → <b>기준선보다 나빠 예측에서 제외</b><br>'
+       +'· 조정(A-B-C) 예측 '+S.an+'건: 적중 '+pct(S.adir,0)+' 대 기준선 '+pct(S.abdir,0)+' → 조정 방향 예측은 신뢰 낮음<br>'
        +'<span class="sub">방향 적중이 기준선보다 약간 높지만 표본이 적고 상승 추세(상승 드리프트)의 영향이 섞여 있어 확정 근거는 아님. 목표가 도달은 기준선과 큰 차이 없음. 파동 카운트는 자동 규칙의 한 가지 해석일 뿐입니다.</span>';
     }
     if(eTheta==='auto'&&window.ELLIOTT_ADAPT){ var A=window.ELLIOTT_ADAPT;
@@ -348,7 +352,7 @@ th{color:var(--mute);font-weight:500}
     while(i0<n-1&&tms(data.d[i0])<t0) i0++;
     var fx=function(days){return lastT+days*HDAYS*DAY};
     var lo=Infinity, hi=-Infinity; for(i=i0;i<n;i++){lo=Math.min(lo,data.c[i]);hi=Math.max(hi,data.c[i]);}
-    var ex=[]; if(cn){ if(cn.invalid) ex.push(cn.invalid); if(cn.target) ex.push(cn.target); if(cn.w5) ex.push(cn.w5); if(cn.levels) cn.levels.forEach(function(l){ex.push(l[1])}); }
+    var PR=cn?getPR():null, ex=[]; if(PR){ PR.levels.forEach(function(l){ex.push(l.price)}); if(PR.cnt) ex.push(PR.cnt.price); ex.push(PR.ext.price); if(PR.nextT) ex.push(PR.nextT); }
     ex.forEach(function(p){lo=Math.min(lo,p);hi=Math.max(hi,p)});
     lo=Math.log(lo*0.95); hi=Math.log(hi*1.05);
     var L=44,Rr=8,T=10,B=22, pw=W-L-Rr, ph=H-T-B;
@@ -377,20 +381,24 @@ th{color:var(--mute);font-weight:500}
       g.textAlign='left'; g.font='11px system-ui';
       var xr=W-Rr, lab=function(txt,price,col,dash){ var y=Y(price); if(y<T||y>T+ph) return; g.save(); g.setLineDash(dash||[5,4]); g.strokeStyle=col; g.fillStyle=col; g.lineWidth=1.2;
         g.beginPath(); g.moveTo(X(lastT),y); g.lineTo(xr,y); g.stroke(); g.setLineDash([]); g.textAlign='right'; g.fillText(txt+' '+fmt(price),xr-2,y-3); g.restore(); };
-      if(cn.invalid) lab('무효',cn.invalid,dn);
-      if(cn.levels) cn.levels.forEach(function(l){lab(String(l[0]),l[1],up,[2,3])});
-      if(cn.target) lab('목표',cn.target,up);
-      // 예상 경로(가정)
-      var path=null, dur=function(a,b){return Math.min(504,Math.max(63,Math.abs(a-b)))};
-      if(cn.J===3) path=[[0,lastP,'④?'],[63,cn.p4,''],[63+dur(cn.pts[0],cn.pts[1]),cn.w5,'⑤?']];
-      if(cn.J===2) path=[[0,lastP,''],[dur(cn.pts[0],cn.pts[1]),cn.target,'③?']];
-      if(cn.J===4) path=[[0,lastP,''],[dur(cn.pts[2],cn.pts[3]),cn.target,'⑤?']];
-      if(path){ g.save(); g.setLineDash([6,4]); g.strokeStyle=up; g.lineWidth=2; g.beginPath(); g.moveTo(X(lastT),Y(lastP));
-        path.forEach(function(q,ix){ if(ix===0) return; g.lineTo(X(fx(q[0])),Y(q[1])); }); g.stroke(); g.setLineDash([]); g.fillStyle=up; g.font='bold 13px system-ui'; g.textAlign='center';
-        path.forEach(function(q,ix){ if(q[2]) g.fillText(q[2],X(fx(q[0])),Y(q[1])-6); }); g.restore(); }
+      var pc=function(h){return h==null?'':' '+Math.round(h*100)+'%'};
+      if(PR){
+        PR.levels.forEach(function(l,ix){ if(l.passed) return; lab(String(l.r)+pc(l.hit),l.price,up,ix===PR.primary?[6,3]:[2,3]); });
+        if(PR.cnt&&!PR.cnt.passed) lab('무효'+pc(PR.cnt.hit),PR.cnt.price,dn);
+        lab((cn.J===2||cn.J===4?'재이탈':'꼭짓점 돌파')+pc(PR.ext.hit),PR.ext.price,ink,[1,4]);
+        var dur=function(a,b){return Math.min(504,Math.max(63,Math.abs(a-b)))}, pp=PR.levels[PR.primary].price, path=null;
+        if(cn.J===1) path=[[0,lastP,''],[Math.round(dur(cn.pts[0],cn.pts[1])/2),pp,'②?'],[Math.round(dur(cn.pts[0],cn.pts[1])/2)+dur(cn.pts[0],cn.pts[1]),PR.nextT,'③?']];
+        if(cn.J===3) path=[[0,lastP,''],[63,pp,'④?'],[63+dur(cn.pts[0],cn.pts[1]),PR.nextT,'⑤?']];
+        if(cn.J===2) path=[[0,lastP,''],[dur(cn.pts[0],cn.pts[1]),pp,'③?']];
+        if(cn.J===4) path=[[0,lastP,''],[dur(cn.pts[2],cn.pts[3]),pp,'⑤?']];
+        if(cn.J===5) path=[[0,lastP,''],[126,pp,'C?']];
+        if(path){ g.save(); g.setLineDash([6,4]); g.strokeStyle=up; g.lineWidth=2; g.beginPath(); g.moveTo(X(lastT),Y(lastP));
+          path.forEach(function(q,ix){ if(ix===0) return; g.lineTo(X(fx(q[0])),Y(q[1])); }); g.stroke(); g.setLineDash([]); g.fillStyle=up; g.font='bold 13px system-ui'; g.textAlign='center';
+          path.forEach(function(q){ if(q[2]) g.fillText(q[2],X(fx(q[0])),Y(q[1])-6); }); g.restore(); }
+      }
     }
     g.textAlign='left';
-    $('eTip').textContent=(cn?'숫자: 자동 카운트 파동 번호 · 녹색 점선: 가정 경로(참고)':'규칙에 맞는 카운트 없음 · 주황선은 확정된 꼭짓점 연결선');
+    $('eTip').textContent=(cn?'숫자: 자동 카운트 파동 번호 · 굵은 녹색 점선: 예측선 시나리오(현재가를 꼭지·바닥으로 가정하지 않음) · 선 옆 %는 도달 확률':'규칙에 맞는 카운트 없음 · 주황선은 확정된 꼭짓점 연결선');
   }
 
   // ---------- UI ----------

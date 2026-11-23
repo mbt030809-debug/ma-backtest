@@ -152,9 +152,9 @@
     if (j === 1) return v[1] > v[0];
     if (j === 2) return v[2] > v[0];
     if (j === 3) return v[3] > v[1];
-    if (j === 4) return v[4] > v[1] && (v[3] - v[2]) >= (v[1] - v[0]);
+    if (j === 4) return v[4] > v[1];
     var w1 = v[1] - v[0], w3 = v[3] - v[2], w5 = v[5] - v[4];
-    return v[5] > v[3] && w3 >= Math.min(w1, w5) && (w3 >= w1 || w3 >= w5);
+    return v[5] > v[3] && (w3 >= w1 || w3 >= w5);
   }
   function elliott(c, theta, ratios) {
     var R3_ = (ratios && ratios.r3) || 1.618, R5_ = (ratios && ratios.r5) || 0.618;
@@ -179,7 +179,7 @@
       var sg = best.sgn, vv = [], pts = [];
       for (k = best.i0; k <= best.i0 + best.J; k++) { vv.push(sg * piv[k].v); pts.push(piv[k].i); }
       var ex = function (x) { return Math.exp(sg * x); }, J2 = best.J, cn = { sgn: sg, J: J2, i0: best.i0, pts: pts };
-      if (J2 === 1) { cn.levels = [[0.5, ex(vv[1] - 0.5 * (vv[1] - vv[0]))], [0.618, ex(vv[1] - 0.618 * (vv[1] - vv[0]))], [0.786, ex(vv[1] - 0.786 * (vv[1] - vv[0]))]]; cn.invalid = ex(vv[0]); }
+      if (J2 === 1) { cn.w3 = ex(vv[1] - 0.618 * (vv[1] - vv[0]) + R3_ * (vv[1] - vv[0])); cn.levels = [[0.5, ex(vv[1] - 0.5 * (vv[1] - vv[0]))], [0.618, ex(vv[1] - 0.618 * (vv[1] - vv[0]))], [0.786, ex(vv[1] - 0.786 * (vv[1] - vv[0]))]]; cn.invalid = ex(vv[0]); }
       if (J2 === 2) { cn.target = ex(vv[2] + R3_ * (vv[1] - vv[0])); cn.invalid = ex(vv[0]); }
       if (J2 === 3) {
         cn.levels = [0.236, 0.382, 0.5].map(function (r) { return [r, ex(vv[3] - r * (vv[3] - vv[2]))]; }); cn.invalid = ex(vv[1]);
@@ -190,6 +190,73 @@
       if (J2 === 5) cn.levels = [0.382, 0.5, 0.618].map(function (r) { return [r, ex(vv[5] - r * (vv[5] - vv[0]))]; });
       out.count = cn;
     }
+    return out;
+  }
+
+  // ---------- 엘리어트 예측 확률: 같은 스케일·같은 파동 단계(예: 3파 완료)에서 과거에 각 목표 가격에 504거래일 내 도달한 비율 ----------
+  // 실패 = 목표 전에 반대쪽(무효/되돌림 실패 가격)을 먼저 이탈. 목표가 이미 지나간 상태에서 시작한 사례는 도달로 계산.
+  var PR_LV = { 1: [0.5, 0.618, 0.786], 2: [1.0, 1.618, 2.618], 3: [0.236, 0.382, 0.5], 4: [0.382, 0.618, 1.0], 5: [0.382, 0.5, 0.618] };
+  function elliottProb(c, E, cfg) {
+    // 현재 가격이 꼭지/바닥이라고 가정하지 않음: '현재 진행 구간이 이미 이만큼 진행된 상태'(진행도)를 조건으로,
+    // 과거 같은 스케일·같은 파동 단계에서 그 진행도에 도달한 뒤 각 목표에 도달했는지(실패=반대 경계 먼저 이탈)를 계산
+    var cn = E && E.count; if (!cn) return null;
+    var n = c.length, lp = new Float64Array(n), piv = E.piv, m = piv.length, J = cn.J, d = (J === 2 || J === 4) ? 1 : -1, LV = PR_LV[J], i, H5 = 504;
+    for (i = 0; i < n; i++) lp[i] = Math.log(c[i]);
+    function rangeOf(v) { return J === 1 || J === 2 ? v[1] - v[0] : (J === 3 ? v[3] - v[2] : (J === 4 ? v[3] - v[0] : v[5] - v[0])); }
+    function levelV(v, r) {
+      if (J === 1) return v[1] - r * (v[1] - v[0]);
+      if (J === 2) return v[2] + r * (v[1] - v[0]);
+      if (J === 3) return v[3] - r * (v[3] - v[2]);
+      if (J === 4) return v[4] + r * (v[3] - v[0]);
+      return v[5] - r * (v[5] - v[0]);
+    }
+    function geom(v) {   // f = d*v (예측 방향 공간)
+      return { tf: LV.map(function (r) { return d * levelV(v, r); }), fail: J === 2 ? v[0] : (J === 4 ? v[1] : -v[J]),
+               cnt: J === 1 ? -v[0] : (J === 3 ? -v[1] : null), ext: d * v[J], rng: rangeOf(v), fJ: d * v[J] };
+    }
+    var sg0 = cn.sgn, v0 = []; for (var q2 = cn.i0; q2 <= cn.i0 + J; q2++) v0.push(sg0 * piv[q2].v);
+    var g0 = geom(v0), fcur = d * sg0 * lp[n - 1], pNow = (fcur - g0.fJ) / g0.rng;
+    var acc = LV.map(function () { return [0, 0]; }), accC = [0, 0], accE = [0, 0], N = 0;
+    [1, -1].forEach(function (sg) {
+      var want0 = sg === 1 ? 'L' : 'H';
+      for (var k = J; k < m; k++) {
+        var i0 = k - J; if (piv[i0].type !== want0) continue;
+        var v = [], q; for (q = i0; q <= k; q++) v.push(sg * piv[q].v);
+        var ok = true; for (var j = 1; j <= J; j++) if (!rulesOk(j, v)) { ok = false; break; }
+        if (!ok) continue;
+        var t0 = piv[k].conf, g = geom(v), us = -1, u;
+        if (t0 + H5 > n - 1) continue;
+        // 시작 시점 u*: 이 사례의 진행도가 현재 진행도에 처음 도달한 때 (그 전에 실패 경계를 이탈한 사례는 현재 상황과 다르므로 제외)
+        var dead = false;
+        for (u = 0; t0 + u + H5 <= n - 1 && u <= H5; u++) {
+          var f = d * sg * lp[t0 + u];
+          if (f <= g.fail) { dead = true; break; }
+          if ((f - g.fJ) / g.rng >= pNow) { us = u; break; }
+        }
+        if (dead || us < 0 || t0 + us + H5 > n - 1) continue;
+        var fp = []; for (u = 0; u <= H5; u++) fp.push(d * sg * lp[t0 + us + u]);
+        var fails = 1e9; for (u = 0; u <= H5; u++) if (fp[u] <= g.fail) { fails = u; break; }
+        var firstHit = function (tgt) { for (var u2 = 0; u2 <= H5; u2++) if (fp[u2] >= tgt) return u2; return 1e9; };
+        var firstLE = function (tgt) { for (var u3 = 0; u3 <= H5; u3++) if (fp[u3] <= tgt) return u3; return 1e9; };
+        N++;
+        LV.forEach(function (r, ix) { if (r > pNow) { acc[ix][1]++; if (firstHit(g.tf[ix]) < fails) acc[ix][0]++; } });
+        if (g.cnt !== null && g.cnt - 0 > fcur - 0) { accC[1]++; if (firstHit(g.cnt) < fails) accC[0]++; }
+        accE[1]++; if (firstLE(g.ext) < 1e9) accE[0]++;   // 현재 진행 구간의 시작 꼭짓점(P_J)을 되돌려 이탈(꼭지/바닥이 아니었음)
+      }
+    });
+    var toP = function (f) { return Math.exp(sg0 * d * f); };
+    var pri = 1;
+    if (J === 2 && cfg && cfg.r3) { var a2 = LV.indexOf(cfg.r3); if (a2 >= 0) pri = a2; }
+    if (J === 4 && cfg && cfg.r5) { var a4 = LV.indexOf(cfg.r5); if (a4 >= 0) pri = a4; }
+    if (LV[pri] <= pNow) { var nx = LV.findIndex(function (r) { return r > pNow; }); pri = nx >= 0 ? nx : pri; }   // 이미 지난 목표는 예측선 대상에서 제외
+    var levels = g0.tf.map(function (tf, ix) { return { r: LV[ix], price: toP(tf), passed: LV[ix] <= pNow, hit: LV[ix] <= pNow ? 1 : (acc[ix][1] ? acc[ix][0] / acc[ix][1] : null), nn: acc[ix][1] }; });
+    var out = { J: J, d: d, n: N, pNow: pNow, levels: levels, primary: pri, cnt: null, ext: { price: toP(g0.ext), hit: accE[1] ? accE[0] / accE[1] : null, nn: accE[1] }, base: null };
+    if (g0.cnt !== null) out.cnt = { price: toP(g0.cnt), hit: g0.cnt <= fcur ? 1 : (accC[1] ? accC[0] / accC[1] : null), passed: fcur >= g0.cnt, nn: accC[1] };
+    var R3x = (cfg && cfg.r3) || 1.618, R5x = (cfg && cfg.r5) || 0.618;
+    if (J === 1) { out.nextT = Math.exp(sg0 * (levelV(v0, LV[pri]) + R3x * (v0[1] - v0[0]))); out.nextL = '③?'; }
+    if (J === 3) { out.nextT = Math.exp(sg0 * (levelV(v0, LV[pri]) + R5x * (v0[3] - v0[0]))); out.nextL = '⑤?'; }
+        var dT = g0.tf[pri] - fcur, dI = fcur - g0.fail;
+    if (dT > 0 && dI > 0) out.base = baseHit(lp, n - 1, dT, dI, d * sg0);
     return out;
   }
 
@@ -262,6 +329,6 @@
     cfgs.sort(function (a, b) { return b.shrunk - a.shrunk; });   // 안정 정렬(동점은 설정 순서 유지)
     return { best: cfgs[0] || null, top: cfgs.slice(0, 5), count: cfgs.length };
   }
-  root.NDXModel = { forecast: forecast, features: features, analogs: analogs, elliott: elliott, adaptiveStart: adaptiveStart, adaptiveRun: adaptiveRun, adaptiveResult: adaptiveResult, QS: QS, KEY: KEY, GRID: GRID };
+  root.NDXModel = { forecast: forecast, features: features, analogs: analogs, elliott: elliott, elliottProb: elliottProb, adaptiveStart: adaptiveStart, adaptiveRun: adaptiveRun, adaptiveResult: adaptiveResult, QS: QS, KEY: KEY, GRID: GRID };
   if (typeof module !== 'undefined') module.exports = root.NDXModel;
 })(typeof window !== 'undefined' ? window : globalThis);
