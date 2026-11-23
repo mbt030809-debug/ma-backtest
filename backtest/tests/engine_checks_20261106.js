@@ -106,4 +106,17 @@ console.log('9) 목표 주식비율(simulateTargets): 0%→50% 는 50% 매수, 1
   const o={init,delay:dflt,cashRate:cr,tax:0,fee:0,ox},sim=E.simulateTargets(ds,px,useY?py:null,evs,o),R=ref(px,useY?py:null,evs,init,dflt,E.interestFactors(ds,cr),ox);tot++;
   let md=0;for(let i=0;i<N;i++)md=Math.max(md,Math.abs(sim.eq[i]-R.eq[i])/Math.max(1,R.eq[i]),Math.abs(sim.w[i]-R.w[i]));worst=Math.max(worst,md);ok(md<1e-9,'simulateTargets 가 독립 구현과 다름',{tt,useY,md})}
  console.log('   검사',tot,'건, 최대 오차',worst.toExponential(2))}
+console.log('10) 신호 기록(sigs): 체결/대기/취소 상태, 결과는 기록 여부와 무관');
+{const ds=mkDates(20),px=ds.map(()=>100),fl=a=>ds.map((_,i)=>a.includes(i)),ox=px.map(()=>95);
+ const ev=(f,t,d,fill)=>({f:fl(f),t,d,label:'이평1 5일↑ → '+t*100+'%',rk:1,dir:'up',fill});
+ const oo={delay:1,init:0,cashRate:0,tax:0,fee:0,ox};
+ let r=E.simulateTargets(ds,px,null,[ev([5],1,1,'o')],{...oo,sigs:true});
+ ok(r.sigs.length===1&&r.sigs[0].st==='x'&&r.sigs[0].si===5&&r.sigs[0].day===6&&r.sigs[0].px===95&&r.sigs[0].did==='B'&&r.sigs[0].w0===0,'체결된 신호: 신호일·체결일·시가·매수',r.sigs);
+ r=E.simulateTargets(ds,px,null,[ev([19],1,2,'c')],{...oo,sigs:true});
+ ok(r.sigs.length===1&&r.sigs[0].st==='p'&&r.sigs[0].day===21&&r.trades===0,'마지막 날 신호는 대기(체결일이 데이터 밖)',r.sigs);
+ r=E.simulateTargets(ds,px,null,[ev([5],1,3,'c'),{...ev([6],0,1,'c'),dir:'dn'}],{...oo,sigs:true,init:1});
+ ok(r.sigs[0].st==='c'&&r.sigs[1].st==='x'&&r.sigs[1].did==='S','새 신호가 나오면 이전 대기 주문은 취소',r.sigs);
+ r=E.simulateTargets(ds,px,null,[ev([5],1,1,'c')],{...oo,sigs:true,init:1});ok(r.sigs[0].st==='x'&&r.sigs[0].did==='','이미 같은 비중이면 체결돼도 매매 없음',r.sigs);
+ const a1=E.simulateTargets(ds,px.map((v,i)=>v+i),null,[ev([3,9],.5,2,'o')],{...oo,sigs:true}),a2=E.simulateTargets(ds,px.map((v,i)=>v+i),null,[ev([3,9],.5,2,'o')],oo);
+ ok(JSON.stringify(a1.eq)===JSON.stringify(a2.eq)&&a2.sigs===null,'신호 기록을 켜도 결과 동일',0)}
 console.log(bad?`\n실패 ${bad} / 검사 ${checks}`:`\n모든 엔진 검사 통과 (${checks}개 조건 + 퍼즈)`);process.exit(bad?1:0);

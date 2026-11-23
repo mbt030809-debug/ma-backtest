@@ -162,4 +162,14 @@ const wf=(p,fn,t=120000)=>p.waitForFunction(fn,null,{polling:500,timeout:t});
   ok(await vis()==='tab-bt'&&(await p.inputValue('#alt')).length>0,'ETF 행을 누르면 방어 ETF로 적용되고 백테스트 탭으로',[await vis(),await p.inputValue('#alt')]);
   await p.click('#tabs button[data-t="def"]');ok(await p.evaluate(()=>getComputedStyle(document.getElementById('defstale')).display)==='none','방어 ETF만 적용한 것은 "설정 변경" 경고 아님');
   ok(p.errs.length===0,'JS 오류 없음',p.errs);await p.close()}
+ console.log('O) 하루 한 번 자동 실행 + 최근 신호(±3영업일) 표시');
+ {const cx=await br.newContext({viewport:{width:430,height:900}}),p=await cx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));await p.goto(BASE);
+  await wf(p,()=>window._last,30000);await p.waitForTimeout(300);
+  const today=new Date().toISOString().slice(0,10);
+  ok(await p.evaluate(d=>localStorage.getItem('mabt_auto_day')===d,today),'앱을 열면 오늘 날짜로 자동 백테스트 실행(그날 한 번 표시)');
+  const bx=await p.evaluate(()=>document.getElementById('sigBox').innerText);
+  ok(/최근 신호/.test(bx)&&(/→/.test(bx)||/신호 없음/.test(bx)),'차트 위에 최근 신호 박스(신호일 → 체결일)',bx);
+  ok(/지연 \d+일|취소/.test(bx)||/신호 없음/.test(bx),'지연일수 표시',bx);
+  await p.reload();await p.waitForTimeout(2500);ok(await p.evaluate(()=>!window._last),'같은 날 다시 열면 자동 실행하지 않음');
+  ok(p.errs.length===0,'JS 오류 없음',p.errs);await cx.close()}
  console.log(bad?`\n실패 ${bad} / ${n}`:`\n모든 화면 검사 통과 (${n}개)`);await br.close();process.exit(bad?1:0)})().catch(e=>{console.error('테스트 오류',e.stack.split('\n').slice(0,4).join(' / '));process.exit(2)});
